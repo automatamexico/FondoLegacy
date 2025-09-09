@@ -1,17 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import { convertirFechaHoraLocal } from '../utils/dateFormatter';
+
+// Si ya tienes esta utilidad y te funciona para timestamps, puedes seguir usándola.
+// Aquí creamos formateadores específicos para fecha-only y timestamp.
+const MX_TZ = 'America/Mexico_City';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
-const HIST_PAGE_SIZE = 50;  // historial (principal)
-const MODAL_PAGE_SIZE = 10; // modal (pendientes / realizados)
+const HIST_PAGE_SIZE = 50;  // historial principal
+const MODAL_PAGE_SIZE = 10; // modal
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(
-    Number.isFinite(value) ? value : 0
+    Number.isFinite(+value) ? +value : 0
   );
+
+// Devuelve la FECHA local de México en YYYY-MM-DD (ideal para columnas DATE)
+const localMXDateISO = (d = new Date()) =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: MX_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d); // YYYY-MM-DD
+
+// Convierte "YYYY-MM-DD" a "DD/MM/YYYY" sin desfasar la zona
+const formatDateOnlyMX = (yyyy_mm_dd) => {
+  if (!yyyy_mm_dd || !/^\d{4}-\d{2}-\d{2}$/.test(yyyy_mm_dd)) return yyyy_mm_dd || '—';
+  const [y, m, d] = yyyy_mm_dd.split('-');
+  return `${d}/${m}/${y}`;
+};
+
+// Formatea un timestamptz a "DD/MM/YYYY, hh:mm:ss a.m./p.m." en zona MX
+const formatTs12MX = (ts) => {
+  if (!ts) return '—';
+  const dt = new Date(ts);
+  return dt.toLocaleString('es-MX', {
+    timeZone: MX_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+};
 
 const dateFilterQS = (column, start, end) => {
   if (start && end) return `&and=(${column}.gte.${start},${column}.lte.${end})`;
@@ -28,16 +63,16 @@ const PagosModule = ({ idSocio }) => {
   const [montoPagosRecibidosHoy, setMontoPagosRecibidosHoy] = useState(0);
   const [pagosVencidos, setPagosVencidos] = useState(0);
 
-  // Estado general / errores
+  // Estado general
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
 
-  // === LISTADO PRINCIPAL (del socio logueado) ===
+  // Listado principal (cuando hay idSocio)
   const [pagosList, setPagosList] = useState([]);
   const [loadingPagosList, setLoadingPagosList] = useState(false);
 
-  // === Búsqueda / historial por socio ===
+  // Búsqueda / historial por socio
   const [searchTerm, setSearchTerm] = useState('');
   const [searchSociosResults, setSearchSociosResults] = useState([]);
   const [selectedSocio, setSelectedSocio] = useState(null);
@@ -48,7 +83,7 @@ const PagosModule = ({ idSocio }) => {
   const [histStartDate, setHistStartDate] = useState('');
   const [histEndDate, setHistEndDate] = useState('');
 
-  // === Modal Realizar Pago ===
+  // Modal Realizar Pago + scroll
   const [showPayModal, setShowPayModal] = useState(false);
   const [paySearchTerm, setPaySearchTerm] = useState('');
   const [paySearchResults, setPaySearchResults] = useState([]);
@@ -68,142 +103,64 @@ const PagosModule = ({ idSocio }) => {
 
   const [payLoading, setPayLoading] = useState(false);
 
-  // Carga tarjetas al montar
   useEffect(() => {
     fetchDashboardStats();
   }, []);
 
-  // Carga listado principal si nos pasan idSocio
   useEffect(() => {
-    if (idSocio) {
-      fetchPagosList(idSocio);
-    } else {
-      setPagosList([]);
-    }
+    if (idSocio) fetchPagosList(idSocio);
+    else setPagosList([]);
   }, [idSocio]);
 
   const fetchDashboardStats = async () => {
-    const now = new Date();
-    const today =
-      now.getFullYear() +
-      '-' +
-      String(now.getMonth() + 1).padStart(2, '0') +
-      '-' +
-      String(now.getDate()).padStart(2, '0');
+    const today = localMXDateISO(new Date()); // fecha local MX
 
-    const tomorrow = new Date(now);
-    tomorrow.setDate(now.getDate() + 1);
-    const tomorrowStr =
-      tomorrow.getFullYear() +
-      '-' +
-      String(tomorrow.getMonth() + 1).padStart(2, '0') +
-      '-' +
-      String(tomorrow.getDate()).padStart(2, '0');
+    const tmr = new Date();
+    tmr.setDate(tmr.getDate() + 1);
+    const tomorrowStr = localMXDateISO(tmr);
 
-    const dayAfterTomorrow = new Date(now);
-    dayAfterTomorrow.setDate(now.getDate() + 2);
-    const dayAfterTomorrowStr =
-      dayAfterTomorrow.getFullYear() +
-      '-' +
-      String(dayAfterTomorrow.getMonth() + 1).padStart(2, '0') +
-      '-' +
-      String(dayAfterTomorrow.getDate()).padStart(2, '0');
+    const dat = new Date();
+    dat.setDate(dat.getDate() + 2);
+    const dayAfterTomorrowStr = localMXDateISO(dat);
 
     try {
       setLoading(true);
-
       // Pendientes hoy
-      const pendientesHoyResponse = await fetch(
+      const r1 = await fetch(
         `${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_programada=eq.${today}&estatus=eq.pendiente&select=*`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            Prefer: 'count=exact',
-            Range: '0-0',
-            'Range-Unit': 'items',
-          },
-        }
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', Range: '0-0', 'Range-Unit': 'items' } }
       );
-      if (!pendientesHoyResponse.ok)
-        throw new Error('Error al cargar pagos pendientes hoy');
-      const countPendientesHoy = parseInt(
-        pendientesHoyResponse.headers.get('content-range')?.split('/')[1] ?? '0',
-        10
-      );
-      setPagosPendientesHoy(countPendientesHoy);
+      if (!r1.ok) throw new Error('Error al cargar pagos pendientes hoy');
+      setPagosPendientesHoy(parseInt(r1.headers.get('content-range')?.split('/')[1] ?? '0', 10));
 
       // Próximos pagos
-      const proximosPagosResponse = await fetch(
+      const r2 = await fetch(
         `${SUPABASE_URL}/rest/v1/pagos_prestamos?or=(fecha_programada.eq.${tomorrowStr},fecha_programada.eq.${dayAfterTomorrowStr})&estatus=eq.pendiente&select=count`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            Prefer: 'count=exact',
-            Range: '0-0',
-            'Range-Unit': 'items',
-          },
-        }
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', Range: '0-0', 'Range-Unit': 'items' } }
       );
-      if (!proximosPagosResponse.ok)
-        throw new Error('Error al cargar próximos pagos');
-      const countProximosPagos = parseInt(
-        proximosPagosResponse.headers.get('content-range')?.split('/')[1] ?? '0',
-        10
-      );
-      setProximosPagos(countProximosPagos);
+      if (!r2.ok) throw new Error('Error al cargar próximos pagos');
+      setProximosPagos(parseInt(r2.headers.get('content-range')?.split('/')[1] ?? '0', 10));
 
-      // Recibidos hoy (monto/cantidad)
-      const pagosRecibidosHoyResponse = await fetch(
+      // Recibidos hoy (sumar monto_pagado, filtrar por fecha_pago == today)
+      const r3 = await fetch(
         `${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_pago=eq.${today}&select=monto_pagado`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-        }
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
-      if (!pagosRecibidosHoyResponse.ok)
-        throw new Error('Error al cargar pagos recibidos hoy');
-      const pagosRecibidosHoyData = await pagosRecibidosHoyResponse.json();
-      const totalMontoRecibido = pagosRecibidosHoyData.reduce(
-        (sum, p) => sum + (parseFloat(p.monto_pagado) || 0),
-        0
+      if (!r3.ok) throw new Error('Error al cargar pagos recibidos hoy');
+      const data3 = await r3.json();
+      setMontoPagosRecibidosHoy(
+        data3.reduce((sum, p) => sum + (parseFloat(p.monto_pagado) || 0), 0)
       );
-      setMontoPagosRecibidosHoy(totalMontoRecibido);
-      setTotalPagosRecibidosHoy(pagosRecibidosHoyData.length);
+      setTotalPagosRecibidosHoy(data3.length);
 
       // Vencidos
-      const pagosVencidosResponse = await fetch(
+      const r4 = await fetch(
         `${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_programada=lt.${today}&estatus=eq.pendiente&select=count`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            Prefer: 'count=exact',
-            Range: '0-0',
-            'Range-Unit': 'items',
-          },
-        }
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', Range: '0-0', 'Range-Unit': 'items' } }
       );
-      if (!pagosVencidosResponse.ok)
-        throw new Error('Error al cargar pagos vencidos');
-      const countPagosVencidos = parseInt(
-        pagosVencidosResponse.headers.get('content-range')?.split('/')[1] ?? '0',
-        10
-      );
-      setPagosVencidos(countPagosVencidos);
+      if (!r4.ok) throw new Error('Error al cargar pagos vencidos');
+      setPagosVencidos(parseInt(r4.headers.get('content-range')?.split('/')[1] ?? '0', 10));
     } catch (err) {
-      console.error('Error al cargar estadísticas del dashboard:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -214,25 +171,16 @@ const PagosModule = ({ idSocio }) => {
     setLoadingPagosList(true);
     setError(null);
     try {
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_socio=eq.${socioId}&select=id_pago,id_prestamo,numero_pago,monto_pago,fecha_programada,estatus,nota,monto_pagado`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-        }
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?` +
+          `id_socio=eq.${socioId}&select=id_pago,id_prestamo,numero_pago,monto_pago,fecha_programada,estatus,nota,monto_pagado,fecha_pago,fecha_pago_ts`,
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          `Error al cargar pagos: ${response.statusText} - ${errorData.message || 'Error desconocido'}`
-        );
+      if (!r.ok) {
+        const e = await r.json();
+        throw new Error(`Error al cargar pagos: ${r.statusText} - ${e.message || 'Error desconocido'}`);
       }
-      const data = await response.json();
-      setPagosList(data);
+      setPagosList(await r.json());
     } catch (err) {
       setError(err.message);
       setPagosList([]);
@@ -241,72 +189,40 @@ const PagosModule = ({ idSocio }) => {
     }
   };
 
-  // === Búsqueda / historial ===
+  // ==== Búsqueda / historial por socio ====
   const handleSearchSocio = async (e) => {
     const term = e.target.value.toLowerCase();
     setSearchTerm(term);
-
-    if (!term) {
-      setSearchSociosResults([]);
-      return;
-    }
+    if (!term) return setSearchSociosResults([]);
 
     try {
-      const response = await fetch(
+      const r = await fetch(
         `${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-        }
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          `Error al buscar socios: ${response.statusText} - ${errorData.message || 'Error desconocido'}`
-        );
-      }
-      const data = await response.json();
-      const filtered = data.filter(
-        (s) =>
+      if (!r.ok) throw new Error('Error al buscar socios');
+      const all = await r.json();
+      setSearchSociosResults(
+        all.filter((s) =>
           s.id_socio.toString().includes(term) ||
-          `${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`
-            .toLowerCase()
-            .includes(term)
+          `${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`.toLowerCase().includes(term)
+        )
       );
-      setSearchSociosResults(filtered);
     } catch (err) {
-      console.error('Error en la búsqueda de socios:', err);
       setSearchSociosResults([]);
+      setError(err.message);
     }
   };
 
   const loadHistorialSocio = async (socio, page = 1, start = '', end = '') => {
     try {
       // ¿Tiene préstamo activo?
-      const paResp = await fetch(
+      const r0 = await fetch(
         `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&estatus=eq.activo&select=id_prestamo`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-        }
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
-      if (!paResp.ok) {
-        const errorData = await paResp.json();
-        throw new Error(
-          `Error al verificar préstamos activos: ${paResp.statusText} - ${
-            errorData.message || 'Error desconocido'
-          }`
-        );
-      }
-      const activos = await paResp.json();
+      if (!r0.ok) throw new Error('Error al verificar préstamos activos');
+      const activos = await r0.json();
       if (activos.length === 0) {
         setSocioHasActiveLoan(false);
         setSocioHistorialPagos([]);
@@ -317,36 +233,18 @@ const PagosModule = ({ idSocio }) => {
 
       const offset = (page - 1) * HIST_PAGE_SIZE;
       const dateQS = dateFilterQS('fecha_pago', start, end);
-
-      const histResp = await fetch(
+      const r = await fetch(
         `${SUPABASE_URL}/rest/v1/pagos_prestamos?` +
           `id_socio=eq.${socio.id_socio}&estatus=eq.pagado` +
           `${dateQS}` +
-          `&order=fecha_pago.desc&limit=${HIST_PAGE_SIZE}&offset=${offset}` +
-          `&select=id_pago,id_prestamo,monto_pagado,fecha_pago,numero_pago,nota`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            Prefer: 'count=exact',
-          },
-        }
+          `&order=fecha_pago_ts.desc,nullslast&order=fecha_pago.desc&limit=${HIST_PAGE_SIZE}&offset=${offset}` +
+          `&select=id_pago,id_prestamo,monto_pagado,fecha_pago,fecha_pago_ts,numero_pago,nota`,
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact' } }
       );
-      if (!histResp.ok) {
-        const errorData = await histResp.json();
-        throw new Error(
-          `Error al cargar historial: ${histResp.statusText} - ${
-            errorData.message || 'Error desconocido'
-          }`
-        );
-      }
-      const contentRange = histResp.headers.get('content-range');
-      const total = parseInt(contentRange?.split('/')[1] ?? '0', 10);
-      const data = await histResp.json();
+      if (!r.ok) throw new Error('Error al cargar historial');
+      const total = parseInt(r.headers.get('content-range')?.split('/')[1] ?? '0', 10);
       setHistTotal(total);
-      setSocioHistorialPagos(data);
+      setSocioHistorialPagos(await r.json());
     } catch (err) {
       setError(err.message);
       setSocioHistorialPagos([]);
@@ -357,13 +255,10 @@ const PagosModule = ({ idSocio }) => {
 
   const handleSelectSocio = async (socio) => {
     setSelectedSocio(socio);
-    setSearchTerm(
-      `ID: ${socio.id_socio} - ${socio.nombre} ${socio.apellido_paterno} ${socio.apellido_materno}`
-    );
+    setSearchTerm(`ID: ${socio.id_socio} - ${socio.nombre} ${socio.apellido_paterno} ${socio.apellido_materno}`);
     setSearchSociosResults([]);
     setHistPage(1);
     setLoading(true);
-    setError(null);
     await loadHistorialSocio(socio, 1, histStartDate, histEndDate);
     setLoading(false);
   };
@@ -397,141 +292,81 @@ const PagosModule = ({ idSocio }) => {
     setError(null);
   };
 
-  // === Modal pagar ===
+  // ==== Modal (scroll + lógica) ====
   const openPayModal = () => {
     setShowPayModal(true);
     setPaySearchTerm('');
     setPaySearchResults([]);
     setPaySelectedSocio(null);
 
-    setPayPendPage(1);
-    setPayPendTotal(0);
-    setPayPendStart('');
-    setPayPendEnd('');
-    setPayPendientes([]);
-
-    setPayPaidPage(1);
-    setPayPaidTotal(0);
-    setPayPaidStart('');
-    setPayPaidEnd('');
-    setPayPagados([]);
+    setPayPendPage(1); setPayPendTotal(0); setPayPendStart(''); setPayPendEnd(''); setPayPendientes([]);
+    setPayPaidPage(1); setPayPaidTotal(0); setPayPaidStart(''); setPayPaidEnd(''); setPayPagados([]);
   };
   const closePayModal = () => setShowPayModal(false);
 
   const handlePaySearch = async (e) => {
     const term = e.target.value.toLowerCase();
     setPaySearchTerm(term);
-
-    if (!term) {
-      setPaySearchResults([]);
-      return;
-    }
+    if (!term) return setPaySearchResults([]);
 
     try {
-      const response = await fetch(
+      const r = await fetch(
         `${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-        }
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(
-          `Error al buscar socios: ${response.statusText} - ${err.message || 'Error'}`
-        );
-      }
-      const data = await response.json();
-      const filtered = data.filter(
-        (s) =>
+      if (!r.ok) throw new Error('Error al buscar socios');
+      const all = await r.json();
+      setPaySearchResults(
+        all.filter((s) =>
           s.id_socio.toString().includes(term) ||
-          `${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`
-            .toLowerCase()
-            .includes(term)
+          `${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`.toLowerCase().includes(term)
+        )
       );
-      setPaySearchResults(filtered);
     } catch (err) {
-      console.error('Error en la búsqueda (modal):', err);
       setPaySearchResults([]);
+      setError(err.message);
     }
   };
 
-  const refreshPayLists = async (
-    id_socio,
-    pendPage = 1,
-    paidPage = 1,
-    pendStart = '',
-    pendEnd = '',
-    paidStart = '',
-    paidEnd = ''
+  const refreshPayLists = async (id_socio,
+    pendPage = 1, paidPage = 1,
+    pendStart = '', pendEnd = '',
+    paidStart = '', paidEnd = ''
   ) => {
     setPayLoading(true);
     try {
       // Pendientes (incluye parciales)
       const pendOffset = (pendPage - 1) * MODAL_PAGE_SIZE;
       const pendDateQS = dateFilterQS('fecha_programada', pendStart, pendEnd);
-
-      const pResp = await fetch(
+      const rP = await fetch(
         `${SUPABASE_URL}/rest/v1/pagos_prestamos?` +
           `id_socio=eq.${id_socio}&estatus=in.(pendiente,parcial)` +
           `&order=fecha_programada.asc&limit=${MODAL_PAGE_SIZE}&offset=${pendOffset}` +
           `${pendDateQS}` +
           `&select=id_pago,id_prestamo,numero_pago,monto_pago,fecha_programada,monto_pagado,estatus,nota`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            Prefer: 'count=exact',
-          },
-        }
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact' } }
       );
-      if (!pResp.ok) throw new Error('Error al cargar pagos pendientes');
-      setPayPendientes(await pResp.json());
-      const pendTotal = parseInt(
-        pResp.headers.get('content-range')?.split('/')[1] ?? '0',
-        10
-      );
-      setPayPendTotal(pendTotal);
+      if (!rP.ok) throw new Error('Error al cargar pagos pendientes');
+      setPayPendientes(await rP.json());
+      setPayPendTotal(parseInt(rP.headers.get('content-range')?.split('/')[1] ?? '0', 10));
 
       // Realizados
       const paidOffset = (paidPage - 1) * MODAL_PAGE_SIZE;
       const paidDateQS = dateFilterQS('fecha_pago', paidStart, paidEnd);
-
-      const rResp = await fetch(
+      const rR = await fetch(
         `${SUPABASE_URL}/rest/v1/pagos_prestamos?` +
           `id_socio=eq.${id_socio}&estatus=eq.pagado` +
           `${paidDateQS}` +
-          `&order=fecha_pago.desc&limit=${MODAL_PAGE_SIZE}&offset=${paidOffset}` +
-          `&select=id_pago,id_prestamo,numero_pago,monto_pagado,fecha_pago,nota`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            Prefer: 'count=exact',
-          },
-        }
+          `&order=fecha_pago_ts.desc,nullslast&order=fecha_pago.desc&limit=${MODAL_PAGE_SIZE}&offset=${paidOffset}` +
+          `&select=id_pago,id_prestamo,numero_pago,monto_pagado,fecha_pago,fecha_pago_ts,nota`,
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact' } }
       );
-      if (!rResp.ok) throw new Error('Error al cargar pagos realizados');
-      setPayPagados(await rResp.json());
-      const paidTotal = parseInt(
-        rResp.headers.get('content-range')?.split('/')[1] ?? '0',
-        10
-      );
-      setPayPaidTotal(paidTotal);
+      if (!rR.ok) throw new Error('Error al cargar pagos realizados');
+      setPayPagados(await rR.json());
+      setPayPaidTotal(parseInt(rR.headers.get('content-range')?.split('/')[1] ?? '0', 10));
     } catch (err) {
       setError(err.message);
-      setPayPendientes([]);
-      setPayPagados([]);
-      setPayPendTotal(0);
-      setPayPaidTotal(0);
+      setPayPendientes([]); setPayPagados([]); setPayPendTotal(0); setPayPaidTotal(0);
     } finally {
       setPayLoading(false);
     }
@@ -539,24 +374,13 @@ const PagosModule = ({ idSocio }) => {
 
   const handlePaySelectSocio = async (socio) => {
     setPaySelectedSocio(socio);
-    setPaySearchTerm(
-      `ID: ${socio.id_socio} - ${socio.nombre} ${socio.apellido_paterno} ${socio.apellido_materno}`
-    );
+    setPaySearchTerm(`ID: ${socio.id_socio} - ${socio.nombre} ${socio.apellido_paterno} ${socio.apellido_materno}`);
     setPaySearchResults([]);
-    setPayPendPage(1);
-    setPayPaidPage(1);
-    await refreshPayLists(
-      socio.id_socio,
-      1,
-      1,
-      payPendStart,
-      payPendEnd,
-      payPaidStart,
-      payPaidEnd
-    );
+    setPayPendPage(1); setPayPaidPage(1);
+    await refreshPayLists(socio.id_socio, 1, 1, payPendStart, payPendEnd, payPaidStart, payPaidEnd);
   };
 
-  // >>>>>>>>>> Realizar pago (parcial / total) con NOTA en columna "nota"
+  // ====== Realizar pago (con hora correcta y formato 12h) ======
   const handleRealizarPago = async (pago) => {
     const yaPagado = parseFloat(pago.monto_pagado || 0);
     const programado = parseFloat(pago.monto_pago || 0);
@@ -564,53 +388,47 @@ const PagosModule = ({ idSocio }) => {
 
     const entrada = window.prompt(
       `Ingresa el monto a pagar (restante: ${formatCurrency(restante)}).\n` +
-        `Si cubres todo el restante, el pago quedará como PAGADO.`,
+        `Si cubres todo el restante, el pago queda como PAGADO.`,
       restante.toFixed(2)
     );
     if (entrada === null) return;
     const montoIngresado = parseFloat(entrada);
-
-    if (!Number.isFinite(montoIngresado) || montoIngresado <= 0) {
-      alert('Monto inválido.');
-      return;
-    }
-    if (montoIngresado > restante + 0.0001) {
-      alert('El monto excede el restante.');
-      return;
-    }
+    if (!Number.isFinite(montoIngresado) || montoIngresado <= 0) return alert('Monto inválido.');
+    if (montoIngresado > restante + 0.0001) return alert('El monto excede el restante.');
 
     const nuevoAcumulado = yaPagado + montoIngresado;
     const liquidado = nuevoAcumulado >= programado - 0.0001;
 
-    // Nota si es parcial (se anexa a lo que ya hubiera)
+    // Nota si es parcial
     let notaFinal = pago.nota || '';
     if (!liquidado) {
-      const notaParcial =
-        window.prompt('Agregar nota para este PAGO PARCIAL (opcional):', '') ||
-        '';
+      const notaParcial = window.prompt('Agregar nota para este PAGO PARCIAL (opcional):', '') || '';
       if (notaParcial.trim()) {
-        notaFinal =
-          (notaFinal ? `${notaFinal} | ` : '') + `Parcial: ${notaParcial.trim()}`;
+        notaFinal = (notaFinal ? `${notaFinal} | ` : '') + `Parcial: ${notaParcial.trim()}`;
       } else {
         notaFinal = (notaFinal ? `${notaFinal} | ` : '') + 'Parcial';
       }
     }
 
     const confirmar = window.confirm(
-      `¿Deseas registrar el pago por ${formatCurrency(montoIngresado)}${
-        !liquidado ? ' (PARCIAL)' : ''
-      }?`
+      `¿Deseas registrar el pago por ${formatCurrency(montoIngresado)}${!liquidado ? ' (PARCIAL)' : ''}?`
     );
     if (!confirmar) return;
 
     try {
       setPayLoading(true);
 
-      const hoy = new Date().toISOString().split('T')[0]; // DATE
+      // Guardamos:
+      // - fecha_pago (DATE) como fecha local MX
+      // - fecha_pago_ts (TIMESTAMPTZ) como timestamp exacto (UTC interno, se mostrará en MX)
+      const now = new Date();
+      const fechaPagoDate = localMXDateISO(now);     // YYYY-MM-DD local MX
+      const fechaPagoTs = now.toISOString();         // ISO UTC (timestamptz)
 
-      const body = {
+      const payload = {
         estatus: liquidado ? 'pagado' : 'parcial',
-        fecha_pago: hoy,
+        fecha_pago: fechaPagoDate,
+        fecha_pago_ts: fechaPagoTs,
         monto_pagado: nuevoAcumulado,
         ...( !liquidado ? { nota: notaFinal } : {} ),
       };
@@ -625,18 +443,15 @@ const PagosModule = ({ idSocio }) => {
             Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
             Prefer: 'return=representation',
           },
-          body: JSON.stringify(body),
+          body: JSON.stringify(payload),
         }
       );
-
       if (!resp.ok) {
-        const errData = await resp.json();
-        throw new Error(
-          `No se pudo registrar el pago: ${resp.statusText} - ${errData.message || 'Error desconocido'}`
-        );
+        const e = await resp.json();
+        throw new Error(`No se pudo registrar el pago: ${resp.statusText} - ${e.message || 'Error desconocido'}`);
       }
 
-      // Refrescar modal
+      // Refrescos
       if (paySelectedSocio) {
         await refreshPayLists(
           paySelectedSocio.id_socio,
@@ -648,35 +463,29 @@ const PagosModule = ({ idSocio }) => {
           payPaidEnd
         );
       }
-
-      // Actualizar tarjetas
       await fetchDashboardStats();
-
-      // Si la tabla principal es del mismo socio, refrescar
       if (idSocio && paySelectedSocio && idSocio === paySelectedSocio.id_socio) {
         await fetchPagosList(idSocio);
       }
-
-      // Si en historial está el mismo socio, refrescarlo
       if (selectedSocio && paySelectedSocio && selectedSocio.id_socio === paySelectedSocio.id_socio) {
         await loadHistorialSocio(selectedSocio, histPage, histStartDate, histEndDate);
       }
 
       setToastMessage('Pago registrado correctamente');
-      setTimeout(() => setToastMessage(''), 3000);
+      setTimeout(() => setToastMessage(''), 2500);
     } catch (err) {
       setError(err.message);
     } finally {
       setPayLoading(false);
     }
   };
-  // <<<<<<<<<< Realizar pago
+  // ========================================
 
-  // === EDITAR NOTA (tabla principal de pagosList) ===
+  // Editar nota en la tabla principal
   const handleEditarNota = async (pagoRow) => {
     const notaInicial = pagoRow.nota || '';
     const nuevaNota = window.prompt('Editar nota del pago:', notaInicial);
-    if (nuevaNota === null) return; // canceló
+    if (nuevaNota === null) return;
 
     try {
       const resp = await fetch(
@@ -692,42 +501,27 @@ const PagosModule = ({ idSocio }) => {
           body: JSON.stringify({ nota: nuevaNota }),
         }
       );
-
       if (!resp.ok) {
-        const errData = await resp.json();
-        throw new Error(
-          `No se pudo actualizar la nota: ${resp.statusText} - ${errData.message || 'Error desconocido'}`
-        );
+        const e = await resp.json();
+        throw new Error(`No se pudo actualizar la nota: ${resp.statusText} - ${e.message || 'Error desconocido'}`);
       }
 
-      // Actualiza en memoria sin volver a cargar todo
-      setPagosList((prev) =>
-        prev.map((p) =>
-          p.id_pago === pagoRow.id_pago ? { ...p, nota: nuevaNota } : p
-        )
-      );
-
-      // Si el historial muestra el mismo socio logueado, refrescarlo por si aplica
-      if (selectedSocio && idSocio && selectedSocio.id_socio === idSocio) {
-        await loadHistorialSocio(selectedSocio, histPage, histStartDate, histEndDate);
-      }
-
+      setPagosList((prev) => prev.map((p) => (p.id_pago === pagoRow.id_pago ? { ...p, nota: nuevaNota } : p)));
       setToastMessage('Nota actualizada');
-      setTimeout(() => setToastMessage(''), 2500);
+      setTimeout(() => setToastMessage(''), 2000);
     } catch (err) {
       setError(err.message);
     }
   };
 
-  // Render
   return (
     <div className="p-6 space-y-6">
+      {/* Header + botón */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Pagos</h2>
-          <p className="text-slate-600">Consulta indicadores y el historial de pagos por socio</p>
+          <p className="text-slate-600">Indicadores y gestión de pagos</p>
         </div>
-
         <button
           onClick={openPayModal}
           className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
@@ -800,7 +594,7 @@ const PagosModule = ({ idSocio }) => {
         </div>
       </div>
 
-      {/* ====== LISTADO PRINCIPAL (si hay idSocio) ====== */}
+      {/* ===== Listado principal (si hay idSocio) ===== */}
       {idSocio && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h3 className="text-xl font-bold text-slate-900 mb-4">Pagos programados del socio</h3>
@@ -828,63 +622,41 @@ const PagosModule = ({ idSocio }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {pagosList.map((pago) => {
-                    const { fecha, hora } = convertirFechaHoraLocal(pago.fecha_programada);
-                    return (
-                      <tr key={pago.id_pago} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="py-4 px-4 text-slate-700">{pago.id_pago}</td>
-                        <td className="py-4 px-4 text-slate-700">{pago.id_prestamo}</td>
-                        <td className="py-4 px-4 text-slate-700">{pago.numero_pago}</td>
-                        <td className="py-4 px-4 font-bold text-slate-900">
-                          {formatCurrency(pago.monto_pago)}
-                        </td>
-                        <td className="py-4 px-4 text-slate-700">{fecha} {hora}</td>
-                        <td className="py-4 px-4">
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              pago.estatus === 'pendiente'
-                                ? 'bg-yellow-100 text-yellow-700'
-                                : pago.estatus === 'pagado'
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-orange-100 text-orange-700'
-                            }`}
-                          >
-                            {pago.estatus}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4 text-slate-600 text-sm">
-                          {pago.nota || '—'}
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-2">
-                            {/* Editar nota (lápiz) */}
-                            <button
-                              onClick={() => handleEditarNota(pago)}
-                              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-                              title="Editar nota"
-                            >
-                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                                  d="M15.232 5.232l3.536 3.536M4 20h4.586a1 1 0 00.707-.293l9.9-9.9a2 2 0 000-2.828l-1.172-1.172a2 2 0 00-2.828 0l-9.9 9.9A1 1 0 004 15.414V20z" />
-                              </svg>
-                            </button>
-
-                            {/* (Opcional) Botón de pagar directo este registro:
-                            <button
-                              onClick={() => handleRealizarPago(pago)}
-                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                              title="Pagar"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                              </svg>
-                            </button> */}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {pagosList.map((pago) => (
+                    <tr key={pago.id_pago} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="py-4 px-4 text-slate-700">{pago.id_pago}</td>
+                      <td className="py-4 px-4 text-slate-700">{pago.id_prestamo}</td>
+                      <td className="py-4 px-4 text-slate-700">{pago.numero_pago}</td>
+                      <td className="py-4 px-4 font-bold text-slate-900">{formatCurrency(pago.monto_pago)}</td>
+                      <td className="py-4 px-4 text-slate-700">{formatDateOnlyMX(pago.fecha_programada)}</td>
+                      <td className="py-4 px-4">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            pago.estatus === 'pendiente'
+                              ? 'bg-yellow-100 text-yellow-700'
+                              : pago.estatus === 'pagado'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-orange-100 text-orange-700'
+                          }`}
+                        >
+                          {pago.estatus}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-slate-600 text-sm">{pago.nota || '—'}</td>
+                      <td className="py-4 px-4">
+                        <button
+                          onClick={() => handleEditarNota(pago)}
+                          className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                          title="Editar nota"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                              d="M15.232 5.232l3.536 3.536M4 20h4.586a1 1 0 00.707-.293l9.9-9.9a2 2 0 000-2.828l-1.172-1.172a2 2 0 00-2.828 0l-9.9 9.9A1 1 0 004 15.414V20z" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -892,7 +664,7 @@ const PagosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* ====== Buscador por socio + filtros de historial ====== */}
+      {/* ===== Buscador por socio + filtros de historial ===== */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <h3 className="text-xl font-bold text-slate-900 mb-4">Buscar historial de pagos por socio</h3>
 
@@ -941,13 +713,8 @@ const PagosModule = ({ idSocio }) => {
           <div className="mt-4 space-y-2">
             {searchSociosResults.map((socio) => (
               <div key={socio.id_socio} className="flex justify-between items-center p-3 bg-slate-100 rounded-lg">
-                <span className="text-slate-800">
-                  ID: {socio.id_socio} - {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}
-                </span>
-                <button
-                  onClick={() => handleSelectSocio(socio)}
-                  className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
-                >
+                <span className="text-slate-800">ID: {socio.id_socio} - {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}</span>
+                <button onClick={() => handleSelectSocio(socio)} className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
                   Ver historial
                 </button>
               </div>
@@ -971,9 +738,7 @@ const PagosModule = ({ idSocio }) => {
           {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
 
           {!loading && !error && !socioHasActiveLoan && (
-            <p className="text-center text-red-500 text-lg font-semibold mb-2">
-              Este socio no cuenta con ningún préstamo activo.
-            </p>
+            <p className="text-center text-red-500 text-lg font-semibold mb-2">Este socio no cuenta con ningún préstamo activo.</p>
           )}
 
           {!loading && !error && socioHasActiveLoan && (
@@ -991,29 +756,28 @@ const PagosModule = ({ idSocio }) => {
                         <tr className="border-b border-slate-200">
                           <th className="text-left py-3 px-4 font-semibold text-slate-700">ID Préstamo</th>
                           <th className="text-left py-3 px-4 font-semibold text-slate-700">Monto Pagado</th>
-                          <th className="text-left py-3 px-4 font-semibold text-slate-700">Fecha Pago</th>
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">Fecha y Hora (MX)</th>
                           <th className="text-left py-3 px-4 font-semibold text-slate-700">Nº Pago</th>
                           <th className="text-left py-3 px-4 font-semibold text-slate-700">Nota</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {socioHistorialPagos.map((pago) => {
-                          const { fecha, hora } = convertirFechaHoraLocal(pago.fecha_pago);
-                          return (
-                            <tr key={pago.id_pago} className="border-b border-slate-100 hover:bg-slate-50">
-                              <td className="py-4 px-4 text-slate-700">{pago.id_prestamo}</td>
-                              <td className="py-4 px-4 font-bold text-slate-900">{formatCurrency(pago.monto_pagado)}</td>
-                              <td className="py-4 px-4 text-slate-700">{fecha} {hora}</td>
-                              <td className="py-4 px-4 text-slate-700">{pago.numero_pago}</td>
-                              <td className="py-4 px-4 text-slate-600 text-sm">{pago.nota || '—'}</td>
-                            </tr>
-                          );
-                        })}
+                        {socioHistorialPagos.map((pago) => (
+                          <tr key={pago.id_pago} className="border-b border-slate-100 hover:bg-slate-50">
+                            <td className="py-4 px-4 text-slate-700">{pago.id_prestamo}</td>
+                            <td className="py-4 px-4 font-bold text-slate-900">{formatCurrency(pago.monto_pagado)}</td>
+                            <td className="py-4 px-4 text-slate-700">
+                              {/* Si hay timestamp, formateamos 12h; si no, mostramos la fecha-only */}
+                              {pago.fecha_pago_ts ? formatTs12MX(pago.fecha_pago_ts) : formatDateOnlyMX(pago.fecha_pago)}
+                            </td>
+                            <td className="py-4 px-4 text-slate-700">{pago.numero_pago}</td>
+                            <td className="py-4 px-4 text-slate-600 text-sm">{pago.nota || '—'}</td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
 
-                  {/* Paginación historial */}
                   <div className="flex items-center justify-center gap-3 mt-4">
                     <button
                       onClick={() => handleHistPageChange(Math.max(1, histPage - 1))}
@@ -1040,10 +804,10 @@ const PagosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* MODAL: Realizar Pago */}
+      {/* ===== MODAL Realizar Pago (con SCROLL real) ===== */}
       {showPayModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-4xl rounded-2xl shadow-xl">
+          <div className="bg-white w-full max-w-5xl rounded-2xl shadow-xl max-h-[90vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b">
               <h3 className="text-xl font-bold text-slate-900">Realizar pago</h3>
@@ -1052,8 +816,11 @@ const PagosModule = ({ idSocio }) => {
               </button>
             </div>
 
-            {/* Body con scroll */}
-            <div className="p-6 max-h-[80vh] overflow-y-auto">
+            {/* Body con altura fija + scroll */}
+            <div
+              className="p-6 h-[75vh] overflow-y-auto overscroll-contain"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
               <input
                 type="text"
                 placeholder="Buscar socio por ID o Nombre completo..."
@@ -1091,30 +858,12 @@ const PagosModule = ({ idSocio }) => {
                     <div className="border border-slate-200 rounded-xl p-4">
                       <div className="flex flex-wrap gap-2 items-center mb-3">
                         <h4 className="font-semibold text-slate-900 mr-auto">Pendientes</h4>
-                        <input
-                          type="date"
-                          value={payPendStart}
-                          onChange={(e) => setPayPendStart(e.target.value)}
-                          className="px-2 py-2 bg-slate-50 border border-slate-200 rounded-lg"
-                          title="Desde (fecha programada)"
-                        />
-                        <input
-                          type="date"
-                          value={payPendEnd}
-                          onChange={(e) => setPayPendEnd(e.target.value)}
-                          className="px-2 py-2 bg-slate-50 border border-slate-200 rounded-lg"
-                          title="Hasta (fecha programada)"
-                        />
+                        <input type="date" value={payPendStart} onChange={(e) => setPayPendStart(e.target.value)} className="px-2 py-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                        <input type="date" value={payPendEnd} onChange={(e) => setPayPendEnd(e.target.value)} className="px-2 py-2 bg-slate-50 border border-slate-200 rounded-lg" />
                         <button
                           onClick={() =>
                             refreshPayLists(
-                              paySelectedSocio.id_socio,
-                              1,
-                              payPaidPage,
-                              payPendStart,
-                              payPendEnd,
-                              payPaidStart,
-                              payPaidEnd
+                              paySelectedSocio.id_socio, 1, payPaidPage, payPendStart, payPendEnd, payPaidStart, payPaidEnd
                             ).then(() => setPayPendPage(1))
                           }
                           className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
@@ -1131,7 +880,6 @@ const PagosModule = ({ idSocio }) => {
                         <>
                           <ul className="space-y-2">
                             {payPendientes.map((p) => {
-                              const { fecha } = convertirFechaHoraLocal(p.fecha_programada);
                               const yaPagado = parseFloat(p.monto_pagado || 0);
                               const restante = Math.max((parseFloat(p.monto_pago) || 0) - yaPagado, 0);
                               return (
@@ -1144,12 +892,9 @@ const PagosModule = ({ idSocio }) => {
                                       )}
                                     </p>
                                     <p className="text-xs text-slate-500">
-                                      Programado: {fecha} — Préstamo {p.id_prestamo} — Restante:{' '}
-                                      <span className="font-semibold">{formatCurrency(restante)}</span>
+                                      Programado: {formatDateOnlyMX(p.fecha_programada)} — Préstamo {p.id_prestamo} — Restante: <span className="font-semibold">{formatCurrency(restante)}</span>
                                     </p>
-                                    {p.nota && (
-                                      <p className="text-xs text-slate-500 mt-0.5">Nota: {p.nota}</p>
-                                    )}
+                                    {p.nota && <p className="text-xs text-slate-500 mt-0.5">Nota: {p.nota}</p>}
                                   </div>
                                   <button
                                     onClick={() => handleRealizarPago(p)}
@@ -1162,20 +907,13 @@ const PagosModule = ({ idSocio }) => {
                             })}
                           </ul>
 
-                          {/* Paginación pendientes */}
                           <div className="flex items-center justify-center gap-2 mt-3">
                             <button
                               onClick={() => {
                                 const newPage = Math.max(1, payPendPage - 1);
                                 setPayPendPage(newPage);
                                 refreshPayLists(
-                                  paySelectedSocio.id_socio,
-                                  newPage,
-                                  payPaidPage,
-                                  payPendStart,
-                                  payPendEnd,
-                                  payPaidStart,
-                                  payPaidEnd
+                                  paySelectedSocio.id_socio, newPage, payPaidPage, payPendStart, payPendEnd, payPaidStart, payPaidEnd
                                 );
                               }}
                               disabled={payPendPage <= 1}
@@ -1191,13 +929,7 @@ const PagosModule = ({ idSocio }) => {
                                 const newPage = Math.min(Math.ceil(payPendTotal / MODAL_PAGE_SIZE), payPendPage + 1);
                                 setPayPendPage(newPage);
                                 refreshPayLists(
-                                  paySelectedSocio.id_socio,
-                                  newPage,
-                                  payPaidPage,
-                                  payPendStart,
-                                  payPendEnd,
-                                  payPaidStart,
-                                  payPaidEnd
+                                  paySelectedSocio.id_socio, newPage, payPaidPage, payPendStart, payPendEnd, payPaidStart, payPaidEnd
                                 );
                               }}
                               disabled={payPendPage >= Math.ceil(payPendTotal / MODAL_PAGE_SIZE)}
@@ -1214,30 +946,12 @@ const PagosModule = ({ idSocio }) => {
                     <div className="border border-slate-200 rounded-xl p-4">
                       <div className="flex flex-wrap gap-2 items-center mb-3">
                         <h4 className="font-semibold text-slate-900 mr-auto">Realizados</h4>
-                        <input
-                          type="date"
-                          value={payPaidStart}
-                          onChange={(e) => setPayPaidStart(e.target.value)}
-                          className="px-2 py-2 bg-slate-50 border border-slate-200 rounded-lg"
-                          title="Desde (fecha de pago)"
-                        />
-                        <input
-                          type="date"
-                          value={payPaidEnd}
-                          onChange={(e) => setPayPaidEnd(e.target.value)}
-                          className="px-2 py-2 bg-slate-50 border border-slate-200 rounded-lg"
-                          title="Hasta (fecha de pago)"
-                        />
+                        <input type="date" value={payPaidStart} onChange={(e) => setPayPaidStart(e.target.value)} className="px-2 py-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                        <input type="date" value={payPaidEnd} onChange={(e) => setPayPaidEnd(e.target.value)} className="px-2 py-2 bg-slate-50 border border-slate-200 rounded-lg" />
                         <button
                           onClick={() =>
                             refreshPayLists(
-                              paySelectedSocio.id_socio,
-                              payPendPage,
-                              1,
-                              payPendStart,
-                              payPendEnd,
-                              payPaidStart,
-                              payPaidEnd
+                              paySelectedSocio.id_socio, payPendPage, 1, payPendStart, payPendEnd, payPaidStart, payPaidEnd
                             ).then(() => setPayPaidPage(1))
                           }
                           className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
@@ -1253,38 +967,27 @@ const PagosModule = ({ idSocio }) => {
                       ) : (
                         <>
                           <ul className="space-y-2">
-                            {payPagados.map((p) => {
-                              const { fecha, hora } = convertirFechaHoraLocal(p.fecha_pago);
-                              return (
-                                <li key={p.id_pago} className="bg-white border border-slate-200 rounded-lg px-3 py-2">
-                                  <p className="font-medium text-slate-800">
-                                    Nº {p.numero_pago} — {formatCurrency(p.monto_pagado)}
-                                  </p>
-                                  <p className="text-xs text-slate-500">
-                                    Pago: {fecha} {hora} — Préstamo {p.id_prestamo}
-                                  </p>
-                                  {p.nota && (
-                                    <p className="text-xs text-slate-500 mt-0.5">Nota: {p.nota}</p>
-                                  )}
-                                </li>
-                              );
-                            })}
+                            {payPagados.map((p) => (
+                              <li key={p.id_pago} className="bg-white border border-slate-200 rounded-lg px-3 py-2">
+                                <p className="font-medium text-slate-800">
+                                  Nº {p.numero_pago} — {formatCurrency(p.monto_pagado)}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  {/* Mostrar FECHA+HORA local si hay timestamp */}
+                                  {p.fecha_pago_ts ? formatTs12MX(p.fecha_pago_ts) : formatDateOnlyMX(p.fecha_pago)} — Préstamo {p.id_prestamo}
+                                </p>
+                                {p.nota && <p className="text-xs text-slate-500 mt-0.5">Nota: {p.nota}</p>}
+                              </li>
+                            ))}
                           </ul>
 
-                          {/* Paginación realizados */}
                           <div className="flex items-center justify-center gap-2 mt-3">
                             <button
                               onClick={() => {
                                 const newPage = Math.max(1, payPaidPage - 1);
                                 setPayPaidPage(newPage);
                                 refreshPayLists(
-                                  paySelectedSocio.id_socio,
-                                  payPendPage,
-                                  newPage,
-                                  payPendStart,
-                                  payPendEnd,
-                                  payPaidStart,
-                                  payPaidEnd
+                                  paySelectedSocio.id_socio, payPendPage, newPage, payPendStart, payPendEnd, payPaidStart, payPaidEnd
                                 );
                               }}
                               disabled={payPaidPage <= 1}
@@ -1300,13 +1003,7 @@ const PagosModule = ({ idSocio }) => {
                                 const newPage = Math.min(Math.ceil(payPaidTotal / MODAL_PAGE_SIZE), payPaidPage + 1);
                                 setPayPaidPage(newPage);
                                 refreshPayLists(
-                                  paySelectedSocio.id_socio,
-                                  payPendPage,
-                                  newPage,
-                                  payPendStart,
-                                  payPendEnd,
-                                  payPaidStart,
-                                  payPaidEnd
+                                  paySelectedSocio.id_socio, payPendPage, newPage, payPendStart, payPendEnd, payPaidStart, payPaidEnd
                                 );
                               }}
                               disabled={payPaidPage >= Math.ceil(payPaidTotal / MODAL_PAGE_SIZE)}
