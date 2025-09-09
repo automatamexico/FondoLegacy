@@ -12,15 +12,34 @@ const PrestamosModule = ({ idSocio }) => {
   const [totalSociosConPrestamo, setTotalSociosConPrestamo] = useState(0);
   const [totalDineroPrestado, setTotalDineroPrestado] = useState(0);
   const [showAddPrestamoModal, setShowAddPrestamoModal] = useState(false);
+
+  // === NUEVO: soporte de 3 tipos de plazo ===
+  // mensual (como estaba), semanal (tasas 0.5..6 step 0.5), quincenal (2..8 step 0.5)
+  const weeklyRateOptions = Array.from({ length: 12 }, (_, i) => (0.5 * (i + 1)));     // 0.5..6.0
+  const biweeklyRateOptions = Array.from({ length: 13 }, (_, i) => 2 + 0.5 * i);       // 2.0..8.0
+
   const [newPrestamo, setNewPrestamo] = useState({
     id_socio: '',
-    monto_solicitado: '',
+    // mensual
     plazo_meses: '',
-    tasa_interes_mensual: ''
+    tasa_interes_mensual: '',
+    // NUEVO: tipo de plazo activo
+    tipo_plazo: 'mensual', // 'mensual' | 'semanal' | 'quincenal'
+    // semanal
+    plazo_semanas: '',
+    tasa_interes_semanal: '',
+    // quincenal
+    plazo_quincenas: '',
+    tasa_interes_quincenal: '',
+    // común
+    monto_solicitado: ''
   });
+
+  // Mantengo tus 3 estados (nombres “mensual”) pero ahora representan “por periodo” según el tipo elegido
   const [pagoMensual, setPagoMensual] = useState(0);
   const [abonoCapitalMensual, setAbonoCapitalMensual] = useState(0);
   const [interesMensualEstimado, setInteresMensualEstimado] = useState(0);
+
   const [showConfirmPrestamoModal, setShowConfirmPrestamoModal] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,12 +51,12 @@ const PrestamosModule = ({ idSocio }) => {
   const [historialPagosPrestamo, setHistorialPagosPrestamo] = useState([]);
   const [selectedSocioForHistorial, setSelectedSocioForHistorial] = useState(null);
   const [socioPrestamos, setSocioPrestamos] = useState([]);
-  const [showEditPrestamosModal, setShowEditPrestamosModal] = useState(false); // Nuevo estado para el modal de edición
+  const [showEditPrestamosModal, setShowEditPrestamosModal] = useState(false);
 
   const currentUserRole = localStorage.getItem('currentUser') ? JSON.parse(localStorage.getItem('currentUser')).role : '';
 
-  const plazoOpciones = Array.from({ length: 48 }, (_, i) => i + 1);
-  const tasaOpciones = Array.from({ length: 7 }, (_, i) => i + 2);
+  const plazoOpciones = Array.from({ length: 48 }, (_, i) => i + 1);  // meses (como antes)
+  const tasaOpciones = Array.from({ length: 7 }, (_, i) => i + 2);    // % mensual (2..8) como tenías
 
   useEffect(() => {
     fetchGlobalPrestamoStats();
@@ -152,7 +171,7 @@ const PrestamosModule = ({ idSocio }) => {
         throw new Error(`Error al cargar préstamos activos: ${prestamosActivosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
       }
       const prestamosActivosData = await prestamosActivosResponse.json();
-      
+
       const uniqueSocioIds = [...new Set(prestamosActivosData.map(item => item.id_socio))];
 
       if (uniqueSocioIds.length === 0) {
@@ -174,7 +193,7 @@ const PrestamosModule = ({ idSocio }) => {
         throw new Error(`Error al cargar detalles de socios: ${sociosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
       }
       const sociosData = await sociosResponse.json();
-      
+
       setSociosConPrestamosActivos(sociosData);
     } catch (err) {
       setError(err.message);
@@ -184,7 +203,7 @@ const PrestamosModule = ({ idSocio }) => {
   };
 
   const formatCurrency = (value) => {
-    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
+    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
   };
 
   const handleNewPrestamoInputChange = (e) => {
@@ -192,27 +211,49 @@ const PrestamosModule = ({ idSocio }) => {
     setNewPrestamo(prev => ({ ...prev, [name]: value }));
   };
 
+  // === NUEVO: cálculo por tipo de plazo ===
   const calculatePrestamoDetails = useCallback(() => {
     const monto = parseFloat(newPrestamo.monto_solicitado);
-    const plazo = parseInt(newPrestamo.plazo_meses);
-    const tasa = parseFloat(newPrestamo.tasa_interes_mensual);
 
-    if (monto > 0 && plazo > 0 && tasa > 0) {
-      const tasaDecimal = tasa / 100;
+    let periods = 0;
+    let rate = 0; // % por periodo
+    const tipo = newPrestamo.tipo_plazo;
 
-      const cuotaCapital = monto / plazo;
-      const interes = monto * tasaDecimal;
-      const pagoMensualCalc = cuotaCapital + interes;
+    if (tipo === 'mensual') {
+      periods = parseInt(newPrestamo.plazo_meses);
+      rate = parseFloat(newPrestamo.tasa_interes_mensual);
+    } else if (tipo === 'semanal') {
+      periods = parseInt(newPrestamo.plazo_semanas);
+      rate = parseFloat(newPrestamo.tasa_interes_semanal);
+    } else if (tipo === 'quincenal') {
+      periods = parseInt(newPrestamo.plazo_quincenas);
+      rate = parseFloat(newPrestamo.tasa_interes_quincenal);
+    }
 
-      setPagoMensual(pagoMensualCalc);
-      setAbonoCapitalMensual(cuotaCapital);
-      setInteresMensualEstimado(interes);
+    if (monto > 0 && periods > 0 && rate > 0) {
+      const tasaDecimal = rate / 100;
+      const cuotaCapitalPorPeriodo = monto / periods;
+      const interesPorPeriodo = monto * tasaDecimal; // interés simple por periodo
+      const pagoPorPeriodo = cuotaCapitalPorPeriodo + interesPorPeriodo;
+
+      setPagoMensual(pagoPorPeriodo);            // ahora es “pago por periodo”
+      setAbonoCapitalMensual(cuotaCapitalPorPeriodo);
+      setInteresMensualEstimado(interesPorPeriodo);
     } else {
       setPagoMensual(0);
       setAbonoCapitalMensual(0);
       setInteresMensualEstimado(0);
     }
-  }, [newPrestamo.monto_solicitado, newPrestamo.plazo_meses, newPrestamo.tasa_interes_mensual]);
+  }, [
+    newPrestamo.monto_solicitado,
+    newPrestamo.tipo_plazo,
+    newPrestamo.plazo_meses,
+    newPrestamo.tasa_interes_mensual,
+    newPrestamo.plazo_semanas,
+    newPrestamo.tasa_interes_semanal,
+    newPrestamo.plazo_quincenas,
+    newPrestamo.tasa_interes_quincenal
+  ]);
 
   useEffect(() => {
     calculatePrestamoDetails();
@@ -224,15 +265,60 @@ const PrestamosModule = ({ idSocio }) => {
     setError(null);
     setToastMessage('');
 
-    const { id_socio, monto_solicitado, plazo_meses, tasa_interes_mensual } = newPrestamo;
+    const {
+      id_socio,
+      monto_solicitado,
+      plazo_meses,
+      tasa_interes_mensual,
+      tipo_plazo,
+      plazo_semanas,
+      tasa_interes_semanal,
+      plazo_quincenas,
+      tasa_interes_quincenal
+    } = newPrestamo;
 
-    if (!id_socio || !monto_solicitado || !plazo_meses || !tasa_interes_mensual) {
+    // Validaciones básicas
+    if (!id_socio || !monto_solicitado || !tipo_plazo) {
       setError('Todos los campos del préstamo son obligatorios.');
       setLoading(false);
       return;
     }
-    if (parseFloat(monto_solicitado) <= 0) {
-      setError('El monto solicitado debe ser mayor a cero.');
+
+    // Determinar periodos y tasa según selección
+    let periods = 0;
+    let tasaSeleccionada = 0;
+    let diasPorPeriodo = 30; // default mes (solo para fallback de fechas)
+    if (tipo_plazo === 'mensual') {
+      if (!plazo_meses || !tasa_interes_mensual) {
+        setError('Completa plazo y tasa mensual.');
+        setLoading(false);
+        return;
+      }
+      periods = parseInt(plazo_meses);
+      tasaSeleccionada = parseFloat(tasa_interes_mensual);
+      diasPorPeriodo = 30; // no se usa para mensual (usamos addMonth)
+    } else if (tipo_plazo === 'semanal') {
+      if (!plazo_semanas || !tasa_interes_semanal) {
+        setError('Completa semanas y tasa semanal.');
+        setLoading(false);
+        return;
+      }
+      periods = parseInt(plazo_semanas);
+      tasaSeleccionada = parseFloat(tasa_interes_semanal);
+      diasPorPeriodo = 7;
+    } else if (tipo_plazo === 'quincenal') {
+      if (!plazo_quincenas || !tasa_interes_quincenal) {
+        setError('Completa quincenas y tasa quincenal.');
+        setLoading(false);
+        return;
+      }
+      periods = parseInt(plazo_quincenas);
+      tasaSeleccionada = parseFloat(tasa_interes_quincenal);
+      diasPorPeriodo = 14;
+    }
+
+    if (parseFloat(monto_solicitado) <= 0 || periods <= 0 || tasaSeleccionada <= 0) {
+      setError('Verifica monto, plazo y tasa.');
       setLoading(false);
       return;
     }
@@ -242,17 +328,35 @@ const PrestamosModule = ({ idSocio }) => {
       const fecha_solicitud = currentDate.toISOString().split('T')[0];
       const fecha_creacion = currentDate.toISOString();
 
-      const fechaVencimiento = new Date(currentDate);
-      fechaVencimiento.setMonth(currentDate.getMonth() + parseInt(plazo_meses));
+      // Vencimiento según tipo de plazo
+      let fechaVencimiento = new Date(currentDate);
+      if (tipo_plazo === 'mensual') {
+        fechaVencimiento.setMonth(currentDate.getMonth() + periods);
+      } else if (tipo_plazo === 'semanal') {
+        fechaVencimiento.setDate(currentDate.getDate() + periods * 7);
+      } else if (tipo_plazo === 'quincenal') {
+        fechaVencimiento.setDate(currentDate.getDate() + periods * 14);
+      }
       const fecha_vencimiento_str = fechaVencimiento.toISOString().split('T')[0];
+
+      // Cálculos finales (ya los tienes en estado, los uso)
+      const pagoPorPeriodo = pagoMensual; // ya calculado; puede ser mensual/semanal/quincenal
+      const montoAPagar = pagoPorPeriodo * periods;
+
+      // Compatibilidad: tu tabla usa “plazo_meses” e “interes”.
+      // Para semanal/quincenal transformo a meses aproximados (ceil).
+      const plazo_meses_compat =
+        tipo_plazo === 'mensual'
+          ? periods
+          : (tipo_plazo === 'semanal' ? Math.ceil(periods / 4) : Math.ceil(periods / 2));
 
       const prestamoData = {
         id_socio: id_socio,
         monto_solicitado: parseFloat(monto_solicitado),
-        plazo_meses: parseInt(plazo_meses),
-        interes: parseFloat(tasa_interes_mensual),
-        pago_mensual: pagoMensual,
-        monto_a_pagar: pagoMensual * parseInt(plazo_meses),
+        plazo_meses: plazo_meses_compat,          // compat
+        interes: parseFloat(tasaSeleccionada),    // tasa por periodo elegido
+        pago_mensual: pagoPorPeriodo,             // pago por periodo
+        monto_a_pagar: montoAPagar,
         fecha_solicitud: fecha_solicitud,
         fecha_creacion: fecha_creacion,
         fecha_vencimiento: fecha_vencimiento_str,
@@ -277,15 +381,23 @@ const PrestamosModule = ({ idSocio }) => {
       const addedPrestamo = await prestamoResponse.json();
       const newPrestamoId = addedPrestamo[0].id_prestamo;
 
-      for (let i = 1; i <= parseInt(plazo_meses); i++) {
-        const fechaProgramada = new Date(fecha_solicitud);
-        fechaProgramada.setMonth(fechaProgramada.getMonth() + i);
-        
+      // Programar pagos por periodo según tipo de plazo
+      for (let i = 1; i <= periods; i++) {
+        let fechaProgramada = new Date(fecha_solicitud);
+
+        if (tipo_plazo === 'mensual') {
+          fechaProgramada.setMonth(fechaProgramada.getMonth() + i);
+        } else if (tipo_plazo === 'semanal') {
+          fechaProgramada.setDate(fechaProgramada.getDate() + i * 7);
+        } else if (tipo_plazo === 'quincenal') {
+          fechaProgramada.setDate(fechaProgramada.getDate() + i * 14);
+        }
+
         const pagoItem = {
           id_socio: id_socio,
           id_prestamo: newPrestamoId,
           numero_pago: i,
-          monto_pago: pagoMensual,
+          monto_pago: pagoPorPeriodo,
           fecha_programada: fechaProgramada.toISOString().split('T')[0],
           estatus: 'pendiente',
           fecha_pago: null,
@@ -294,16 +406,18 @@ const PrestamosModule = ({ idSocio }) => {
           capital_pagado: null,
           estado_pago: null
         };
+
         const pagoResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-              'Prefer': 'return=representation'
-            },
-            body: JSON.stringify(pagoItem)
-          });
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(pagoItem)
+        });
+
         if (!pagoResponse.ok) {
           const errorData = await pagoResponse.json();
           console.error(`Error al registrar pago ${i}:`, errorData);
@@ -317,8 +431,14 @@ const PrestamosModule = ({ idSocio }) => {
         id_socio: '',
         monto_solicitado: '',
         plazo_meses: '',
-        tasa_interes_mensual: ''
+        tasa_interes_mensual: '',
+        tipo_plazo: 'mensual',
+        plazo_semanas: '',
+        tasa_interes_semanal: '',
+        plazo_quincenas: '',
+        tasa_interes_quincenal: ''
       });
+
       fetchGlobalPrestamoStats();
       if (!idSocio) {
         fetchAllSociosConPrestamoActivo();
@@ -337,7 +457,7 @@ const PrestamosModule = ({ idSocio }) => {
     setSelectedSocioForHistorial(socio);
     setLoading(true);
     setError(null);
-    setShowPrestamoHistorial(true); // Mostrar la vista de historial de préstamos del socio
+    setShowPrestamoHistorial(true);
 
     try {
       const response = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,plazo_meses`, {
@@ -398,7 +518,7 @@ const PrestamosModule = ({ idSocio }) => {
     setSelectedSocioForHistorial(socio);
     setLoading(true);
     setError(null);
-    setShowEditPrestamosModal(true); // Mostrar el modal de edición de préstamos
+    setShowEditPrestamosModal(true);
 
     try {
       const response = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,plazo_meses`, {
@@ -455,7 +575,6 @@ const PrestamosModule = ({ idSocio }) => {
       setError(null);
       setToastMessage('');
       try {
-        // Eliminar pagos_prestamos relacionados
         const deletePagosResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamoId}`, {
           method: 'DELETE',
           headers: {
@@ -468,7 +587,6 @@ const PrestamosModule = ({ idSocio }) => {
           throw new Error(`Error al eliminar pagos relacionados: ${deletePagosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
         }
 
-        // Eliminar el préstamo
         const deletePrestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_prestamo=eq.${prestamoId}`, {
           method: 'DELETE',
           headers: {
@@ -482,7 +600,6 @@ const PrestamosModule = ({ idSocio }) => {
         }
 
         setToastMessage('Préstamo eliminado exitosamente.');
-        // Refrescar la lista de préstamos del socio
         handleEditarPrestamosSocio(selectedSocioForHistorial);
         fetchGlobalPrestamoStats();
         if (!idSocio) {
@@ -534,7 +651,7 @@ const PrestamosModule = ({ idSocio }) => {
 
   const handleBackToMainView = () => {
     setShowPrestamoHistorial(false);
-    setShowEditPrestamosModal(false); // Ocultar también el modal de edición
+    setShowEditPrestamosModal(false);
     setSelectedSocioForHistorial(null);
     setSocioPrestamos([]);
     setSearchTerm('');
@@ -574,7 +691,6 @@ const PrestamosModule = ({ idSocio }) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Tarjeta: Total de Socios con Préstamo */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
@@ -589,7 +705,6 @@ const PrestamosModule = ({ idSocio }) => {
           </div>
         </div>
 
-        {/* Tarjeta: Total de Dinero Prestado */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
@@ -605,7 +720,7 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       </div>
 
-      {/* Sección de búsqueda */}
+      {/* Búsqueda */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <h3 className="text-xl font-semibold text-slate-900 mb-4">Buscar Socio</h3>
         <input
@@ -633,7 +748,7 @@ const PrestamosModule = ({ idSocio }) => {
         )}
       </div>
 
-      {/* Listado de Socios con Préstamos Activos */}
+      {/* Listado de socios con préstamos activos (admin) */}
       {currentUserRole === 'admin' && sociosConPrestamosActivos.length > 0 && !showPrestamoHistorial && !showEditPrestamosModal && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h3 className="text-xl font-semibold text-slate-900 mb-4">Socios con Préstamos Activos</h3>
@@ -672,6 +787,79 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
+      {/* Tabla préstamos del socio */}
+      {!showPrestamoHistorial && !showEditPrestamosModal && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          {loading && <p className="text-center text-slate-600">Cargando préstamos...</p>}
+          {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
+          {!loading && !error && prestamosList.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="text-left py-3 px-4 font-semibold text-slate-700">ID Préstamo</th>
+                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Monto Original</th>
+                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Saldo Restante</th>
+                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Tasa</th>
+                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Pago por periodo</th>
+                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Vencimiento</th>
+                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Estado</th>
+                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {prestamosList.map((prestamo) => (
+                    <tr key={prestamo.id_prestamo} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="py-4 px-4 text-slate-700">{prestamo.id_prestamo}</td>
+                      <td className="py-4 px-4 font-bold text-slate-900">
+                        {formatCurrency(parseFloat(prestamo.monto_solicitado) || 0)}
+                      </td>
+                      <td className="py-4 px-4 font-bold text-red-600">
+                        {formatCurrency(parseFloat(prestamo.monto_restante) || 0)}
+                      </td>
+                      <td className="py-4 px-4 text-orange-600 font-medium">
+                        {prestamo.interes}%
+                      </td>
+                      <td className="py-4 px-4 font-medium text-slate-900">
+                        {formatCurrency(parseFloat(prestamo.pago_mensual) || 0)}
+                      </td>
+                      <td className="py-4 px-4 text-slate-700">
+                        {prestamo.fecha_vencimiento}
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          prestamo.estatus === 'vigente' 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-red-100 text-red-700'
+                        }`}>
+                          {prestamo.estatus}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex space-x-2">
+                          <button onClick={() => handleVerDetallesPrestamo(prestamo)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          </button>
+                          <button className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Historial / Edición (secciones existentes) */}
       {showPrestamoHistorial && selectedSocioForHistorial && !showEditPrestamosModal ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h3 className="text-xl font-bold text-slate-900 mb-4">Historial de Préstamos de {selectedSocioForHistorial.nombre} {selectedSocioForHistorial.apellido_paterno}</h3>
@@ -731,79 +919,9 @@ const PrestamosModule = ({ idSocio }) => {
             </div>
           )}
         </div>
-      ) : (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          {loading && <p className="text-center text-slate-600">Cargando préstamos...</p>}
-          {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
+      ) : null}
 
-          {!loading && !error && prestamosList.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-3 px-4 font-semibold text-slate-700">ID Préstamo</th>
-                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Monto Original</th>
-                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Saldo Restante</th>
-                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Tasa</th>
-                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Cuota Mensual</th>
-                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Vencimiento</th>
-                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Estado</th>
-                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {prestamosList.map((prestamo) => (
-                    <tr key={prestamo.id_prestamo} className="border-b border-slate-100 hover:bg-slate-50">
-                      <td className="py-4 px-4 text-slate-700">{prestamo.id_prestamo}</td>
-                      <td className="py-4 px-4 font-bold text-slate-900">
-                        ${(parseFloat(prestamo.monto_solicitado) || 0).toLocaleString()}
-                      </td>
-                      <td className="py-4 px-4 font-bold text-red-600">
-                        ${(parseFloat(prestamo.monto_restante) || 0).toLocaleString()}
-                      </td>
-                      <td className="py-4 px-4 text-orange-600 font-medium">
-                        {prestamo.interes}%
-                      </td>
-                      <td className="py-4 px-4 font-medium text-slate-900">
-                        ${(parseFloat(prestamo.pago_mensual) || 0).toLocaleString()}
-                      </td>
-                      <td className="py-4 px-4 text-slate-700">
-                        {prestamo.fecha_vencimiento}
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          prestamo.estatus === 'vigente' 
-                            ? 'bg-green-100 text-green-700' 
-                            : 'bg-red-100 text-red-700'
-                        }`}>
-                          {prestamo.estatus}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex space-x-2">
-                          <button onClick={() => handleVerDetallesPrestamo(prestamo)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                          </button>
-                          <button className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Modal para Registrar Nuevo Préstamo */}
+      {/* Modal: Registrar Nuevo Préstamo */}
       {showAddPrestamoModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
@@ -826,6 +944,7 @@ const PrestamosModule = ({ idSocio }) => {
                   ))}
                 </select>
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Monto Solicitado</label>
                 <input
@@ -840,40 +959,134 @@ const PrestamosModule = ({ idSocio }) => {
                   required
                 />
               </div>
+
+              {/* NUEVO: elección de tipo de plazo (solo uno activo) */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Plazo en meses</label>
-                <select
-                  name="plazo_meses"
-                  value={newPrestamo.plazo_meses}
-                  onChange={handleNewPrestamoInputChange}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Seleccione plazo</option>
-                  {plazoOpciones.map(plazo => (
-                    <option key={plazo} value={plazo}>{plazo}</option>
+                <p className="block text-sm font-medium text-slate-700 mb-2">Tipo de plazo</p>
+                <div className="flex gap-3">
+                  {['mensual','semanal','quincenal'].map(tp => (
+                    <label key={tp} className={`px-3 py-1.5 rounded-lg border cursor-pointer ${newPrestamo.tipo_plazo === tp ? 'bg-slate-100 font-semibold' : 'hover:bg-slate-50'}`}>
+                      <input
+                        type="radio"
+                        name="tipo_plazo"
+                        value={tp}
+                        checked={newPrestamo.tipo_plazo === tp}
+                        onChange={handleNewPrestamoInputChange}
+                        className="mr-2"
+                      />
+                      {tp === 'mensual' ? 'Mensual' : tp === 'semanal' ? 'Semanal' : 'Quincenal'}
+                    </label>
                   ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Tasa de interés mensual (%)</label>
-                <select
-                  name="tasa_interes_mensual"
-                  value={newPrestamo.tasa_interes_mensual}
-                  onChange={handleNewPrestamoInputChange}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Seleccione tasa</option>
-                  {tasaOpciones.map(tasa => (
-                    <option key={tasa} value={tasa}>{tasa}%</option>
-                  ))}
-                </select>
+                </div>
               </div>
 
-              {/* Cálculos automáticos */}
+              {/* Controles condicionados por tipo de plazo */}
+              {newPrestamo.tipo_plazo === 'mensual' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Plazo en meses</label>
+                    <select
+                      name="plazo_meses"
+                      value={newPrestamo.plazo_meses}
+                      onChange={handleNewPrestamoInputChange}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="">Seleccione plazo</option>
+                      {plazoOpciones.map(plazo => (
+                        <option key={plazo} value={plazo}>{plazo}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tasa de interés mensual (%)</label>
+                    <select
+                      name="tasa_interes_mensual"
+                      value={newPrestamo.tasa_interes_mensual}
+                      onChange={handleNewPrestamoInputChange}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="">Seleccione tasa</option>
+                      {tasaOpciones.map(tasa => (
+                        <option key={tasa} value={tasa}>{tasa}%</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {newPrestamo.tipo_plazo === 'semanal' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tasa semanal (%)</label>
+                    <select
+                      name="tasa_interes_semanal"
+                      value={newPrestamo.tasa_interes_semanal}
+                      onChange={handleNewPrestamoInputChange}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="">Seleccione tasa</option>
+                      {weeklyRateOptions.map(r => (
+                        <option key={r} value={r}>{r}%</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Plazo en semanas</label>
+                    <input
+                      type="number"
+                      name="plazo_semanas"
+                      value={newPrestamo.plazo_semanas}
+                      onChange={handleNewPrestamoInputChange}
+                      placeholder="Ej: 12"
+                      step="1"
+                      min="1"
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
+              {newPrestamo.tipo_plazo === 'quincenal' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tasa quincenal (%)</label>
+                    <select
+                      name="tasa_interes_quincenal"
+                      value={newPrestamo.tasa_interes_quincenal}
+                      onChange={handleNewPrestamoInputChange}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="">Seleccione tasa</option>
+                      {biweeklyRateOptions.map(r => (
+                        <option key={r} value={r}>{r}%</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Plazo en quincenas</label>
+                    <input
+                      type="number"
+                      name="plazo_quincenas"
+                      value={newPrestamo.plazo_quincenas}
+                      onChange={handleNewPrestamoInputChange}
+                      placeholder="Ej: 10"
+                      step="1"
+                      min="1"
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Cálculos automáticos (por periodo) */}
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Pago Mensual</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Pago por periodo</label>
                 <input
                   type="text"
                   value={formatCurrency(pagoMensual)}
@@ -881,10 +1094,10 @@ const PrestamosModule = ({ idSocio }) => {
                   readOnly
                 />
                 <p className="text-sm text-slate-600 mt-2">
-                  Abono a capital mensual: <span className="font-semibold text-blue-600">{formatCurrency(abonoCapitalMensual)}</span>
+                  Abono a capital por periodo: <span className="font-semibold text-blue-600">{formatCurrency(abonoCapitalMensual)}</span>
                 </p>
                 <p className="text-sm text-slate-600">
-                  Interés mensual estimado: <span className="font-semibold text-red-600">{formatCurrency(interesMensualEstimado)}</span>
+                  Interés por periodo estimado: <span className="font-semibold text-red-600">{formatCurrency(interesMensualEstimado)}</span>
                 </p>
               </div>
 
@@ -910,34 +1123,7 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* Modal de Confirmación de Préstamo */}
-      {showConfirmPrestamoModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center">
-            <h3 className="text-xl font-bold text-slate-900 mb-4">Confirmar Préstamo</h3>
-            <p className="text-slate-700 mb-6">
-              ¿Estás seguro de registrar este préstamo?
-            </p>
-            <div className="flex justify-center space-x-4">
-              <button
-                onClick={() => setShowConfirmPrestamoModal(false)}
-                className="px-5 py-2 bg-slate-200 text-slate-800 rounded-xl hover:bg-slate-300 transition-colors font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleConfirmPrestamo}
-                className="px-5 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
-                disabled={loading}
-              >
-                {loading ? 'Registrando...' : 'Aceptar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Detalles del Préstamo (Historial de Pagos de un Préstamo Específico) */}
+      {/* Modal: Detalles del préstamo (historial pagos) */}
       {showDetailsModal && selectedPrestamo && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
@@ -958,7 +1144,7 @@ const PrestamosModule = ({ idSocio }) => {
                   </thead>
                   <tbody>
                     {historialPagosPrestamo.map((pago, index) => {
-                      const { fecha, hora } = convertirFechaHoraLocal(pago.fecha_pago); // Aplicar conversión
+                      const { fecha, hora } = convertirFechaHoraLocal(pago.fecha_pago);
                       return (
                         <tr key={index} className="border-b border-slate-100 hover:bg-slate-50">
                           <td className="py-4 px-4 font-bold text-slate-900">{formatCurrency(pago.monto_pagado)}</td>
