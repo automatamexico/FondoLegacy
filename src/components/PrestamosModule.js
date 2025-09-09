@@ -1,10 +1,14 @@
 import React from "react";
 
+const formatMXN = (n) =>
+  (Number(n) || 0).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
+
 const PrestamosModule = () => {
   const data = [
-    { id: 1, socio: "Ana Martínez", monto: 5000, estado: "Activo" },
-    { id: 2, socio: "Luis Pérez", monto: 12000, estado: "Liquidado" },
+    { id: 1, socio: "Ana Martínez",  monto: 5000,  estado: "Activo" },
+    { id: 2, socio: "Luis Pérez",     monto: 12000, estado: "Liquidado" },
   ];
+
   return (
     <div className="bg-white rounded-xl p-6 shadow-sm border">
       <h2 className="text-lg font-semibold mb-4">Préstamos</h2>
@@ -18,11 +22,11 @@ const PrestamosModule = () => {
           </tr>
         </thead>
         <tbody>
-          {data.map((r)=>(
+          {data.map((r) => (
             <tr key={r.id} className="border-t">
               <td className="py-2">{r.id}</td>
               <td className="py-2">{r.socio}</td>
-              <td className="py-2">${"{:,}".format(r.monto)}</td>
+              <td className="py-2">{formatMXN(r.monto)}</td>
               <td className="py-2">{r.estado}</td>
             </tr>
           ))}
