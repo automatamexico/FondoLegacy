@@ -1,50 +1,88 @@
 import React, { useState } from "react";
 
-const PagosModule = () => {
-  const [propina, setPropina] = useState(0);
-  const [monto, setMonto] = useState(350);
-  const [darPropina, setDarPropina] = useState(false);
+const formatMXN = (n) =>
+  (Number(n) || 0).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 
-  const tipPercent = [5,10,15];
-  const total = darPropina ? monto + (monto * propina / 100) : monto;
+const nowCDMX = () =>
+  new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "America/Mexico_City",
+  }).format(new Date());
+
+const PagosModule = () => {
+  const [monto, setMonto] = useState("");
+  const [entregado, setEntregado] = useState("");
+  const [metodo, setMetodo] = useState("Transferencia");
+  const [referencia, setReferencia] = useState("");
+  const [concepto, setConcepto] = useState("Abono a préstamo");
+  const [registro, setRegistro] = useState(null);
+
+  const montoNum = parseFloat(monto) || 0;
+  const entregadoNum = parseFloat(entregado) || 0;
+  const cambio = metodo === "Efectivo" ? Math.max(0, entregadoNum - montoNum) : 0;
+  const puedeRegistrar = montoNum > 0 && metodo;
+
+  const handleRegistrar = () => {
+    if (!puedeRegistrar) return;
+    setRegistro({
+      id: Date.now(),
+      fecha: nowCDMX(),
+      monto: montoNum,
+      entregado: entregadoNum,
+      cambio,
+      metodo,
+      referencia: referencia.trim(),
+      concepto,
+    });
+  };
+
+  const handleLimpiar = () => {
+    setMonto("");
+    setEntregado("");
+    setMetodo("Transferencia");
+    setReferencia("");
+    setConcepto("Abono a préstamo");
+    setRegistro(null);
+  };
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-sm border space-y-4">
+    <div className="bg-white rounded-xl p-6 shadow-sm border space-y-5">
       <h2 className="text-lg font-semibold">Registrar pago</h2>
+
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="text-sm text-slate-600">Monto</label>
-          <input type="number" value={monto} onChange={(e)=>setMonto(Number(e.target.value)||0)} className="w-full border rounded-lg px-3 py-2" />
-        </div>
-        <div>
-          <label className="text-sm text-slate-600 block">¿Agregar propina?</label>
-          <select value={darPropina? "si" : "no"} onChange={(e)=>setDarPropina(e.target.value==="si")} className="border rounded-lg px-3 py-2">
-            <option value="no">No</option>
-            <option value="si">Sí</option>
+          <label className="block text-sm text-slate-600 mb-1">Concepto</label>
+          <select
+            className="w-full border rounded-lg px-3 py-2"
+            value={concepto}
+            onChange={(e) => setConcepto(e.target.value)}
+          >
+            <option>Abono a préstamo</option>
+            <option>Depósito de ahorro</option>
+            <option>Cuota administrativa</option>
+            <option>Otro</option>
           </select>
         </div>
-        {darPropina && (
-          <div className="sm:col-span-2">
-            <label className="text-sm text-slate-600 block mb-1">Selecciona porcentaje</label>
-            <div className="flex items-center gap-2">
-              {tipPercent.map(p => (
-                <button key={p} onClick={()=>setPropina(p)} className={`px-3 py-1.5 rounded-lg border ${propina===p?"bg-slate-800 text-white":"hover:bg-slate-50"}`}>{p}%</button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="p-4 bg-slate-50 rounded-lg">
-        <p className="text-sm">Total a cobrar: <strong>${"{:,.2f}".format(total)}</strong></p>
-      </div>
-      <div className="border rounded-lg p-4">
-        <h3 className="font-semibold mb-2">Ticket</h3>
-        <p className="text-sm">Monto base: ${"{:,.2f}".format(monto)}</p>
-        <p className="text-sm">Propina: {darPropina ? f"${propina}%" : "—"}</p>
-        <p className="text-sm font-semibold">Total: ${"{:,.2f}".format(total)}</p>
-      </div>
-    </div>
-  );
-};
 
-export default PagosModule;
+        <div>
+          <label className="block text-sm text-slate-600 mb-1">Método de pago</label>
+          <select
+            className="w-full border rounded-lg px-3 py-2"
+            value={metodo}
+            onChange={(e) => setMetodo(e.target.value)}
+          >
+            <option>Transferencia</option>
+            <option>Depósito</option>
+            <option>Efectivo</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm text-slate-600 mb-1">Monto a pagar</label>
+          <input
+            type="number"
+            className="w-full border rounded-lg px-3 py-2"
+            value={monto}
+            onChange={(e) => setMonto(e.target.value)}
+
