@@ -146,7 +146,7 @@ const LoginForm = ({ onLogin }) => {
 
           <div className="mt-6 text-center">
             <p className="text-sm text-slate-500">
-              Desarrollado por Fondo Legacy
+              Desarrollado por Soluciones Delsu
             </p>
           </div>
         </div>
