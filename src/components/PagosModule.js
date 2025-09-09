@@ -659,4 +659,237 @@ const PagosModule = () => {
 
       {/* Historial del socio seleccionado */}
       {selectedSocio && (
-        <
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <h3 className="text-xl font-bold text-slate-900 mb-4">
+            Historial de pagos de {selectedSocio.nombre}{' '}
+            {selectedSocio.apellido_paterno}
+          </h3>
+
+          {loading && (
+            <p className="text-center text-slate-600">Cargando historial...</p>
+          )}
+          {error && !loading && (
+            <p className="text-center text-red-500">Error: {error}</p>
+          )}
+
+          {!loading && !error && !socioHasActiveLoan && (
+            <p className="text-center text-red-500 text-lg font-semibold mb-2">
+              Este socio no cuenta con ningún préstamo activo.
+            </p>
+          )}
+
+          {!loading && !error && socioHasActiveLoan && (
+            <>
+              {socioHistorialPagos.length === 0 ? (
+                <p className="text-center text-slate-600">
+                  Este socio no tiene pagos registrados.
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-500 mb-2">
+                    Mostrando {socioHistorialPagos.length} de máximo {PAGE_LIMIT}{' '}
+                    registros (ordenados del más reciente al más antiguo).
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-slate-200">
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                            ID Préstamo
+                          </th>
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                            Monto Pagado
+                          </th>
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                            Fecha Pago
+                          </th>
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                            Nº Pago
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {socioHistorialPagos.map((pago) => {
+                          const { fecha, hora } = convertirFechaHoraLocal(
+                            pago.fecha_pago
+                          );
+                          return (
+                            <tr
+                              key={pago.id_pago}
+                              className="border-b border-slate-100 hover:bg-slate-50"
+                            >
+                              <td className="py-4 px-4 text-slate-700">
+                                {pago.id_prestamo}
+                              </td>
+                              <td className="py-4 px-4 font-bold text-slate-900">
+                                {formatCurrency(pago.monto_pagado)}
+                              </td>
+                              <td className="py-4 px-4 text-slate-700">
+                                {fecha} {hora}
+                              </td>
+                              <td className="py-4 px-4 text-slate-700">
+                                {pago.numero_pago}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* MODAL: REALIZAR PAGO */}
+      {showPayModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-slate-900">
+                Realizar pago
+              </h3>
+              <button
+                onClick={closePayModal}
+                className="px-3 py-1 rounded-md bg-slate-100 hover:bg-slate-200"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            {/* Buscador en modal */}
+            <input
+              type="text"
+              placeholder="Buscar socio por ID o Nombre completo..."
+              value={paySearchTerm}
+              onChange={handlePaySearch}
+              className="w-full mb-4 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+
+            {paySearchTerm && paySearchResults.length > 0 && (
+              <div className="space-y-2 mb-4">
+                {paySearchResults.map((s) => (
+                  <div
+                    key={s.id_socio}
+                    className="flex justify-between items-center p-3 bg-slate-100 rounded-lg"
+                  >
+                    <span className="text-slate-800">
+                      ID: {s.id_socio} - {s.nombre} {s.apellido_paterno}{' '}
+                      {s.apellido_materno}
+                    </span>
+                    <button
+                      onClick={() => handlePaySelectSocio(s)}
+                      className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                    >
+                      Seleccionar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {paySelectedSocio && (
+              <>
+                <p className="text-slate-700 font-medium mb-3">
+                  Socio: ID {paySelectedSocio.id_socio} — {paySelectedSocio.nombre}{' '}
+                  {paySelectedSocio.apellido_paterno} {paySelectedSocio.apellido_materno}
+                </p>
+
+                {payLoading ? (
+                  <p className="text-slate-600">Cargando pagos...</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Pendientes */}
+                    <div className="border border-slate-200 rounded-xl p-4">
+                      <h4 className="font-semibold text-slate-900 mb-3">
+                        Pendientes
+                      </h4>
+                      {payPendientes.length === 0 ? (
+                        <p className="text-slate-500 text-sm">
+                          No hay pagos pendientes.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {payPendientes.map((p) => {
+                            const { fecha } = convertirFechaHoraLocal(
+                              p.fecha_programada
+                            );
+                            return (
+                              <li
+                                key={p.id_pago}
+                                className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"
+                              >
+                                <div>
+                                  <p className="font-medium text-slate-800">
+                                    Nº {p.numero_pago} — {formatCurrency(p.monto_pago)}
+                                  </p>
+                                  <p className="text-xs text-slate-500">
+                                    Programado: {fecha} — Préstamo {p.id_prestamo}
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={() => handleRealizarPago(p)}
+                                  className="px-3 py-1.5 bg-green-600 text-white rounded-md text-sm hover:bg-green-700"
+                                >
+                                  Pagar
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+
+                    {/* Realizados */}
+                    <div className="border border-slate-200 rounded-xl p-4">
+                      <h4 className="font-semibold text-slate-900 mb-3">
+                        Realizados (últimos 50)
+                      </h4>
+                      {payPagados.length === 0 ? (
+                        <p className="text-slate-500 text-sm">
+                          Aún no hay pagos registrados.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {payPagados.map((p) => {
+                            const { fecha, hora } = convertirFechaHoraLocal(
+                              p.fecha_pago
+                            );
+                            return (
+                              <li
+                                key={p.id_pago}
+                                className="bg-white border border-slate-200 rounded-lg px-3 py-2"
+                              >
+                                <p className="font-medium text-slate-800">
+                                  Nº {p.numero_pago} — {formatCurrency(p.monto_pagado)}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  Pago: {fecha} {hora} — Préstamo {p.id_prestamo}
+                                </p>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TOAST */}
+      {toastMessage && (
+        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-5 py-3 rounded-xl shadow-lg z-50">
+          {toastMessage}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default PagosModule;
