@@ -11,7 +11,7 @@ const DashboardHeader = ({ user, onLogout }) => {
             </svg>
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">FinanceHub Pro</h1>
+            <h1 className="text-xl font-bold text-slate-900">Fondo Legacy</h1>
             <p className="text-sm text-slate-600">Sistema de Gestión Financiera</p>
           </div>
         </div>
