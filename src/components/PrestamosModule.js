@@ -595,7 +595,7 @@ const PrestamosModule = ({ idSocio }) => {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY',
+            'apikey': SUPABASE_ANON_KEY,
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'Prefer': 'count=exact',
             'Range': '0-0',
