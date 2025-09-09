@@ -85,4 +85,85 @@ const PagosModule = () => {
             className="w-full border rounded-lg px-3 py-2"
             value={monto}
             onChange={(e) => setMonto(e.target.value)}
+            placeholder="0.00"
+            min="0"
+            step="0.01"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm text-slate-600 mb-1">
+            Monto recibido {metodo === "Efectivo" ? "(para calcular cambio)" : "(opcional)"}
+          </label>
+          <input
+            type="number"
+            className="w-full border rounded-lg px-3 py-2"
+            value={entregado}
+            onChange={(e) => setEntregado(e.target.value)}
+            placeholder="0.00"
+            min="0"
+            step="0.01"
+          />
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className="block text-sm text-slate-600 mb-1">
+            Referencia / folio (transferencia, depósito, etc.)
+          </label>
+          <input
+            className="w-full border rounded-lg px-3 py-2"
+            value={referencia}
+            onChange={(e) => setReferencia(e.target.value)}
+            placeholder="Ej. 1234-REF-BANCO"
+          />
+        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="p-4 bg-slate-50 rounded-lg border">
+          <p className="text-sm text-slate-600">Resumen</p>
+          <div className="mt-2 space-y-1">
+            <p className="text-sm">Monto: <strong>{formatMXN(montoNum)}</strong></p>
+            <p className="text-sm">Entregado: <strong>{formatMXN(entregadoNum)}</strong></p>
+            <p className="text-sm">Cambio: <strong>{formatMXN(cambio)}</strong></p>
+          </div>
+        </div>
+
+        <div className="flex items-end justify-end gap-2">
+          <button onClick={handleLimpiar} className="px-4 py-2 border rounded-lg hover:bg-slate-50">
+            Limpiar
+          </button>
+          <button
+            onClick={handleRegistrar}
+            className={`px-4 py-2 rounded-lg text-white ${
+              puedeRegistrar ? "bg-indigo-600 hover:bg-indigo-700" : "bg-slate-400 cursor-not-allowed"
+            }`}
+            disabled={!puedeRegistrar}
+          >
+            Registrar pago
+          </button>
+        </div>
+      </div>
+
+      {registro && (
+        <div className="border rounded-lg p-4">
+          <h3 className="font-semibold mb-2">Ticket — DELSU Fondo de Inversión</h3>
+          <div className="text-sm space-y-1">
+            <p>ID: {registro.id}</p>
+            <p>Fecha (CDMX): {registro.fecha}</p>
+            <p>Concepto: {registro.concepto}</p>
+            <p>Método: {registro.metodo}</p>
+            <p>Referencia: {registro.referencia || "—"}</p>
+            <p>Monto: <strong>{formatMXN(registro.monto)}</strong></p>
+            <p>Entregado: <strong>{formatMXN(registro.entregado)}</strong></p>
+            <p>Cambio: <strong>{formatMXN(registro.cambio)}</strong></p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default PagosModule;
+
 
