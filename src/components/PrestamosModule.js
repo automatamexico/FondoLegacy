@@ -11,52 +11,60 @@ const PrestamosModule = ({ idSocio }) => {
   const [error, setError] = useState(null);
   const [totalSociosConPrestamo, setTotalSociosConPrestamo] = useState(0);
   const [totalDineroPrestado, setTotalDineroPrestado] = useState(0);
+
   const [showAddPrestamoModal, setShowAddPrestamoModal] = useState(false);
-
-  // === NUEVO: soporte de 3 tipos de plazo ===
-  // mensual (como estaba), semanal (tasas 0.5..6 step 0.5), quincenal (2..8 step 0.5)
-  const weeklyRateOptions = Array.from({ length: 12 }, (_, i) => (0.5 * (i + 1)));     // 0.5..6.0
-  const biweeklyRateOptions = Array.from({ length: 13 }, (_, i) => 2 + 0.5 * i);       // 2.0..8.0
-
-  const [newPrestamo, setNewPrestamo] = useState({
-    id_socio: '',
-    // mensual
-    plazo_meses: '',
-    tasa_interes_mensual: '',
-    // NUEVO: tipo de plazo activo
-    tipo_plazo: 'mensual', // 'mensual' | 'semanal' | 'quincenal'
-    // semanal
-    plazo_semanas: '',
-    tasa_interes_semanal: '',
-    // quincenal
-    plazo_quincenas: '',
-    tasa_interes_quincenal: '',
-    // común
-    monto_solicitado: ''
-  });
-
-  // Mantengo tus 3 estados (nombres “mensual”) pero ahora representan “por periodo” según el tipo elegido
-  const [pagoMensual, setPagoMensual] = useState(0);
-  const [abonoCapitalMensual, setAbonoCapitalMensual] = useState(0);
-  const [interesMensualEstimado, setInteresMensualEstimado] = useState(0);
-
   const [showConfirmPrestamoModal, setShowConfirmPrestamoModal] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [sociosConPrestamosActivos, setSociosConPrestamosActivos] = useState([]);
+
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedPrestamo, setSelectedPrestamo] = useState(null);
-  const [showPrestamoHistorial, setShowPrestamoHistorial] = useState(false);
   const [historialPagosPrestamo, setHistorialPagosPrestamo] = useState([]);
+
+  const [showPrestamoHistorial, setShowPrestamoHistorial] = useState(false);
   const [selectedSocioForHistorial, setSelectedSocioForHistorial] = useState(null);
   const [socioPrestamos, setSocioPrestamos] = useState([]);
   const [showEditPrestamosModal, setShowEditPrestamosModal] = useState(false);
 
+  // === NUEVO: control de envío para que el botón funcione bien
+  const [submitting, setSubmitting] = useState(false);
+
+  // === NUEVO: soporte de plazos semanal / quincenal
+  const weeklyRateOptions = Array.from({ length: 12 }, (_, i) => (0.5 * (i + 1))); // 0.5 .. 6.0
+  const biweeklyRateOptions = Array.from({ length: 13 }, (_, i) => 2 + 0.5 * i);   // 2.0 .. 8.0
+
+  const [newPrestamo, setNewPrestamo] = useState({
+    id_socio: '',
+    monto_solicitado: '',
+
+    // mensual (legacy)
+    plazo_meses: '',
+    tasa_interes_mensual: '',
+
+    // NUEVO: tipo de plazo
+    tipo_plazo: 'mensual', // 'mensual' | 'semanal' | 'quincenal'
+
+    // semanal
+    plazo_semanas: '',
+    tasa_interes_semanal: '',
+
+    // quincenal
+    plazo_quincenas: '',
+    tasa_interes_quincenal: ''
+  });
+
+  // tus estados “mensual” ahora representan “por periodo” según tipo de plazo
+  const [pagoMensual, setPagoMensual] = useState(0);
+  const [abonoCapitalMensual, setAbonoCapitalMensual] = useState(0);
+  const [interesMensualEstimado, setInteresMensualEstimado] = useState(0);
+
   const currentUserRole = localStorage.getItem('currentUser') ? JSON.parse(localStorage.getItem('currentUser')).role : '';
 
-  const plazoOpciones = Array.from({ length: 48 }, (_, i) => i + 1);  // meses (como antes)
-  const tasaOpciones = Array.from({ length: 7 }, (_, i) => i + 2);    // % mensual (2..8) como tenías
+  const plazoOpciones = Array.from({ length: 48 }, (_, i) => i + 1); // meses 1..48
+  const tasaOpciones = Array.from({ length: 7 }, (_, i) => i + 2);   // 2..8 %
 
   useEffect(() => {
     fetchGlobalPrestamoStats();
@@ -69,6 +77,7 @@ const PrestamosModule = ({ idSocio }) => {
     }
   }, [idSocio]);
 
+  // ======= FETCHERS =========================================================
   const fetchGlobalPrestamoStats = async () => {
     try {
       const sociosConPrestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=id_socio`, {
@@ -102,7 +111,6 @@ const PrestamosModule = ({ idSocio }) => {
       const sumData = await sumResponse.json();
       const accumulatedSum = sumData.reduce((sum, item) => sum + (parseFloat(item.monto_solicitado) || 0), 0);
       setTotalDineroPrestado(accumulatedSum);
-
     } catch (err) {
       console.error("Error al cargar estadísticas globales de préstamo:", err);
     }
@@ -202,30 +210,57 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
-  };
+  // ======= UTILIDADES =======================================================
+  const formatCurrency = (value) =>
+    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
 
   const handleNewPrestamoInputChange = (e) => {
     const { name, value } = e.target;
     setNewPrestamo(prev => ({ ...prev, [name]: value }));
   };
 
-  // === NUEVO: cálculo por tipo de plazo ===
+  // Habilita el botón solo cuando el formulario está completo según el tipo de plazo
+  const isFormReady = () => {
+    const montoOK = parseFloat(newPrestamo.monto_solicitado) > 0;
+    const socioOK = !!newPrestamo.id_socio;
+
+    if (newPrestamo.tipo_plazo === 'mensual') {
+      return (
+        montoOK && socioOK &&
+        parseInt(newPrestamo.plazo_meses) > 0 &&
+        parseFloat(newPrestamo.tasa_interes_mensual) > 0
+      );
+    }
+    if (newPrestamo.tipo_plazo === 'semanal') {
+      return (
+        montoOK && socioOK &&
+        parseInt(newPrestamo.plazo_semanas) > 0 &&
+        parseFloat(newPrestamo.tasa_interes_semanal) > 0
+      );
+    }
+    if (newPrestamo.tipo_plazo === 'quincenal') {
+      return (
+        montoOK && socioOK &&
+        parseInt(newPrestamo.plazo_quincenas) > 0 &&
+        parseFloat(newPrestamo.tasa_interes_quincenal) > 0
+      );
+    }
+    return false;
+  };
+
+  // Cálculo de pagos por periodo (interés simple por periodo como tenías)
   const calculatePrestamoDetails = useCallback(() => {
     const monto = parseFloat(newPrestamo.monto_solicitado);
-
     let periods = 0;
     let rate = 0; // % por periodo
-    const tipo = newPrestamo.tipo_plazo;
 
-    if (tipo === 'mensual') {
+    if (newPrestamo.tipo_plazo === 'mensual') {
       periods = parseInt(newPrestamo.plazo_meses);
       rate = parseFloat(newPrestamo.tasa_interes_mensual);
-    } else if (tipo === 'semanal') {
+    } else if (newPrestamo.tipo_plazo === 'semanal') {
       periods = parseInt(newPrestamo.plazo_semanas);
       rate = parseFloat(newPrestamo.tasa_interes_semanal);
-    } else if (tipo === 'quincenal') {
+    } else if (newPrestamo.tipo_plazo === 'quincenal') {
       periods = parseInt(newPrestamo.plazo_quincenas);
       rate = parseFloat(newPrestamo.tasa_interes_quincenal);
     }
@@ -233,10 +268,10 @@ const PrestamosModule = ({ idSocio }) => {
     if (monto > 0 && periods > 0 && rate > 0) {
       const tasaDecimal = rate / 100;
       const cuotaCapitalPorPeriodo = monto / periods;
-      const interesPorPeriodo = monto * tasaDecimal; // interés simple por periodo
+      const interesPorPeriodo = monto * tasaDecimal;
       const pagoPorPeriodo = cuotaCapitalPorPeriodo + interesPorPeriodo;
 
-      setPagoMensual(pagoPorPeriodo);            // ahora es “pago por periodo”
+      setPagoMensual(pagoPorPeriodo);
       setAbonoCapitalMensual(cuotaCapitalPorPeriodo);
       setInteresMensualEstimado(interesPorPeriodo);
     } else {
@@ -259,9 +294,11 @@ const PrestamosModule = ({ idSocio }) => {
     calculatePrestamoDetails();
   }, [calculatePrestamoDetails]);
 
+  // ======= CONFIRMAR PRÉSTAMO ==============================================
   const handleConfirmPrestamo = async () => {
+    if (submitting) return;
+    setSubmitting(true);
     setShowConfirmPrestamoModal(false);
-    setLoading(true);
     setError(null);
     setToastMessage('');
 
@@ -277,49 +314,31 @@ const PrestamosModule = ({ idSocio }) => {
       tasa_interes_quincenal
     } = newPrestamo;
 
-    // Validaciones básicas
     if (!id_socio || !monto_solicitado || !tipo_plazo) {
       setError('Todos los campos del préstamo son obligatorios.');
-      setLoading(false);
+      setSubmitting(false);
       return;
     }
 
-    // Determinar periodos y tasa según selección
     let periods = 0;
     let tasaSeleccionada = 0;
-    let diasPorPeriodo = 30; // default mes (solo para fallback de fechas)
     if (tipo_plazo === 'mensual') {
-      if (!plazo_meses || !tasa_interes_mensual) {
-        setError('Completa plazo y tasa mensual.');
-        setLoading(false);
-        return;
-      }
+      if (!plazo_meses || !tasa_interes_mensual) { setError('Completa plazo y tasa mensual.'); setSubmitting(false); return; }
       periods = parseInt(plazo_meses);
       tasaSeleccionada = parseFloat(tasa_interes_mensual);
-      diasPorPeriodo = 30; // no se usa para mensual (usamos addMonth)
     } else if (tipo_plazo === 'semanal') {
-      if (!plazo_semanas || !tasa_interes_semanal) {
-        setError('Completa semanas y tasa semanal.');
-        setLoading(false);
-        return;
-      }
+      if (!plazo_semanas || !tasa_interes_semanal) { setError('Completa semanas y tasa semanal.'); setSubmitting(false); return; }
       periods = parseInt(plazo_semanas);
       tasaSeleccionada = parseFloat(tasa_interes_semanal);
-      diasPorPeriodo = 7;
     } else if (tipo_plazo === 'quincenal') {
-      if (!plazo_quincenas || !tasa_interes_quincenal) {
-        setError('Completa quincenas y tasa quincenal.');
-        setLoading(false);
-        return;
-      }
+      if (!plazo_quincenas || !tasa_interes_quincenal) { setError('Completa quincenas y tasa quincenal.'); setSubmitting(false); return; }
       periods = parseInt(plazo_quincenas);
       tasaSeleccionada = parseFloat(tasa_interes_quincenal);
-      diasPorPeriodo = 14;
     }
 
     if (parseFloat(monto_solicitado) <= 0 || periods <= 0 || tasaSeleccionada <= 0) {
       setError('Verifica monto, plazo y tasa.');
-      setLoading(false);
+      setSubmitting(false);
       return;
     }
 
@@ -328,42 +347,40 @@ const PrestamosModule = ({ idSocio }) => {
       const fecha_solicitud = currentDate.toISOString().split('T')[0];
       const fecha_creacion = currentDate.toISOString();
 
-      // Vencimiento según tipo de plazo
       let fechaVencimiento = new Date(currentDate);
       if (tipo_plazo === 'mensual') {
         fechaVencimiento.setMonth(currentDate.getMonth() + periods);
       } else if (tipo_plazo === 'semanal') {
         fechaVencimiento.setDate(currentDate.getDate() + periods * 7);
-      } else if (tipo_plazo === 'quincenal') {
+      } else {
         fechaVencimiento.setDate(currentDate.getDate() + periods * 14);
       }
       const fecha_vencimiento_str = fechaVencimiento.toISOString().split('T')[0];
 
-      // Cálculos finales (ya los tienes en estado, los uso)
-      const pagoPorPeriodo = pagoMensual; // ya calculado; puede ser mensual/semanal/quincenal
+      const pagoPorPeriodo = pagoMensual; // ya calculado
       const montoAPagar = pagoPorPeriodo * periods;
 
-      // Compatibilidad: tu tabla usa “plazo_meses” e “interes”.
-      // Para semanal/quincenal transformo a meses aproximados (ceil).
       const plazo_meses_compat =
         tipo_plazo === 'mensual'
           ? periods
           : (tipo_plazo === 'semanal' ? Math.ceil(periods / 4) : Math.ceil(periods / 2));
 
-      const prestamoData = {
-        id_socio: id_socio,
+      // Intento con tipo_plazo (si la columna no existe, hago fallback)
+      const prestamoDataBase = {
+        id_socio,
         monto_solicitado: parseFloat(monto_solicitado),
-        plazo_meses: plazo_meses_compat,          // compat
-        interes: parseFloat(tasaSeleccionada),    // tasa por periodo elegido
-        pago_mensual: pagoPorPeriodo,             // pago por periodo
+        plazo_meses: plazo_meses_compat,
+        interes: parseFloat(tasaSeleccionada),
+        pago_mensual: pagoPorPeriodo,     // pago por periodo
         monto_a_pagar: montoAPagar,
-        fecha_solicitud: fecha_solicitud,
-        fecha_creacion: fecha_creacion,
+        fecha_solicitud,
+        fecha_creacion,
         fecha_vencimiento: fecha_vencimiento_str,
         estatus: 'activo'
       };
+      const prestamoDataConTipo = { ...prestamoDataBase, tipo_plazo };
 
-      const prestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos`, {
+      let prestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -371,8 +388,27 @@ const PrestamosModule = ({ idSocio }) => {
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           'Prefer': 'return=representation'
         },
-        body: JSON.stringify(prestamoData)
+        body: JSON.stringify(prestamoDataConTipo)
       });
+
+      // fallback si columna tipo_plazo no existe
+      if (!prestamoResponse.ok) {
+        const errJson = await prestamoResponse.json().catch(() => ({}));
+        if ((errJson?.message || '').toLowerCase().includes('column') && (errJson?.message || '').toLowerCase().includes('tipo_plazo')) {
+          prestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify(prestamoDataBase)
+          });
+        } else {
+          throw new Error(`Error al registrar préstamo: ${prestamoResponse.statusText} - ${errJson.message || 'Error desconocido'}`);
+        }
+      }
 
       if (!prestamoResponse.ok) {
         const errorData = await prestamoResponse.json();
@@ -381,20 +417,19 @@ const PrestamosModule = ({ idSocio }) => {
       const addedPrestamo = await prestamoResponse.json();
       const newPrestamoId = addedPrestamo[0].id_prestamo;
 
-      // Programar pagos por periodo según tipo de plazo
+      // Programación de pagos
       for (let i = 1; i <= periods; i++) {
         let fechaProgramada = new Date(fecha_solicitud);
-
         if (tipo_plazo === 'mensual') {
           fechaProgramada.setMonth(fechaProgramada.getMonth() + i);
         } else if (tipo_plazo === 'semanal') {
           fechaProgramada.setDate(fechaProgramada.getDate() + i * 7);
-        } else if (tipo_plazo === 'quincenal') {
+        } else {
           fechaProgramada.setDate(fechaProgramada.getDate() + i * 14);
         }
 
-        const pagoItem = {
-          id_socio: id_socio,
+        const pagoBase = {
+          id_socio,
           id_prestamo: newPrestamoId,
           numero_pago: i,
           monto_pago: pagoPorPeriodo,
@@ -407,7 +442,8 @@ const PrestamosModule = ({ idSocio }) => {
           estado_pago: null
         };
 
-        const pagoResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos`, {
+        // intentar con frecuencia
+        let pagoResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -415,12 +451,30 @@ const PrestamosModule = ({ idSocio }) => {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'Prefer': 'return=representation'
           },
-          body: JSON.stringify(pagoItem)
+          body: JSON.stringify({ ...pagoBase, frecuencia: tipo_plazo })
         });
 
         if (!pagoResponse.ok) {
+          const errJson = await pagoResponse.json().catch(() => ({}));
+          if ((errJson?.message || '').toLowerCase().includes('column') && (errJson?.message || '').toLowerCase().includes('frecuencia')) {
+            // fallback sin columna frecuencia
+            pagoResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'Prefer': 'return=representation'
+              },
+              body: JSON.stringify(pagoBase)
+            });
+          } else {
+            throw new Error(`Error al registrar pago ${i}: ${pagoResponse.statusText} - ${errJson.message || 'Error desconocido'}`);
+          }
+        }
+
+        if (!pagoResponse.ok) {
           const errorData = await pagoResponse.json();
-          console.error(`Error al registrar pago ${i}:`, errorData);
           throw new Error(`Error al registrar pago ${i}: ${pagoResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
         }
       }
@@ -448,11 +502,12 @@ const PrestamosModule = ({ idSocio }) => {
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
       setTimeout(() => setToastMessage(''), 3000);
     }
   };
 
+  // ======= OTRAS ACCIONES ===================================================
   const handleVerHistorialPrestamosSocio = async (socio) => {
     setSelectedSocioForHistorial(socio);
     setLoading(true);
@@ -540,7 +595,7 @@ const PrestamosModule = ({ idSocio }) => {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
+            'apikey': SUPABASE_ANON_KEY',
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'Prefer': 'count=exact',
             'Range': '0-0',
@@ -673,6 +728,7 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
+  // ======= RENDER ===========================================================
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -748,7 +804,7 @@ const PrestamosModule = ({ idSocio }) => {
         )}
       </div>
 
-      {/* Listado de socios con préstamos activos (admin) */}
+      {/* Socios con préstamos activos (admin) */}
       {currentUserRole === 'admin' && sociosConPrestamosActivos.length > 0 && !showPrestamoHistorial && !showEditPrestamosModal && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h3 className="text-xl font-semibold text-slate-900 mb-4">Socios con Préstamos Activos</h3>
@@ -787,7 +843,7 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* Tabla préstamos del socio */}
+      {/* Tabla de préstamos del socio */}
       {!showPrestamoHistorial && !showEditPrestamosModal && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           {loading && <p className="text-center text-slate-600">Cargando préstamos...</p>}
@@ -828,8 +884,8 @@ const PrestamosModule = ({ idSocio }) => {
                       </td>
                       <td className="py-4 px-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          prestamo.estatus === 'vigente' 
-                            ? 'bg-green-100 text-green-700' 
+                          prestamo.estatus === 'vigente'
+                            ? 'bg-green-100 text-green-700'
                             : 'bg-red-100 text-red-700'
                         }`}>
                           {prestamo.estatus}
@@ -859,7 +915,7 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* Historial / Edición (secciones existentes) */}
+      {/* Historial / Edición */}
       {showPrestamoHistorial && selectedSocioForHistorial && !showEditPrestamosModal ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h3 className="text-xl font-bold text-slate-900 mb-4">Historial de Préstamos de {selectedSocioForHistorial.nombre} {selectedSocioForHistorial.apellido_paterno}</h3>
@@ -960,7 +1016,7 @@ const PrestamosModule = ({ idSocio }) => {
                 />
               </div>
 
-              {/* NUEVO: elección de tipo de plazo (solo uno activo) */}
+              {/* Tipo de plazo: solo uno activo */}
               <div>
                 <p className="block text-sm font-medium text-slate-700 mb-2">Tipo de plazo</p>
                 <div className="flex gap-3">
@@ -980,7 +1036,7 @@ const PrestamosModule = ({ idSocio }) => {
                 </div>
               </div>
 
-              {/* Controles condicionados por tipo de plazo */}
+              {/* Campos según tipo */}
               {newPrestamo.tipo_plazo === 'mensual' && (
                 <>
                   <div>
@@ -1084,7 +1140,7 @@ const PrestamosModule = ({ idSocio }) => {
                 </>
               )}
 
-              {/* Cálculos automáticos (por periodo) */}
+              {/* Cálculos automáticos */}
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Pago por periodo</label>
                 <input
@@ -1110,12 +1166,16 @@ const PrestamosModule = ({ idSocio }) => {
                 >
                   Cancelar
                 </button>
+
+                {/* Botón corregido: ya no depende de loading */}
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium"
-                  disabled={loading}
+                  className={`px-5 py-2 rounded-xl text-white ${
+                    !isFormReady() ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+                  }`}
+                  disabled={!isFormReady()}
                 >
-                  {loading ? 'Calculando...' : 'Aceptar Préstamo'}
+                  Aceptar Préstamo
                 </button>
               </div>
             </form>
@@ -1123,7 +1183,32 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* Modal: Detalles del préstamo (historial pagos) */}
+      {/* Modal de Confirmación */}
+      {showConfirmPrestamoModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center">
+            <h3 className="text-xl font-bold text-slate-900 mb-4">Confirmar Préstamo</h3>
+            <p className="text-slate-700 mb-6">¿Estás seguro de registrar este préstamo?</p>
+            <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => setShowConfirmPrestamoModal(false)}
+                className="px-5 py-2 bg-slate-200 text-slate-800 rounded-xl hover:bg-slate-300 transition-colors font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmPrestamo}
+                className={`px-5 py-2 rounded-xl text-white ${submitting ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+                disabled={submitting}
+              >
+                {submitting ? 'Registrando…' : 'Aceptar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Detalles */}
       {showDetailsModal && selectedPrestamo && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
@@ -1178,3 +1263,4 @@ const PrestamosModule = ({ idSocio }) => {
 };
 
 export default PrestamosModule;
+
