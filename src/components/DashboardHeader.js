@@ -1,15 +1,22 @@
 import React from 'react';
 
+const LOGO_URL =
+  'https://ubfkhtkmlvutwdivmoff.supabase.co/storage/v1/object/public/Logos/LOGO_OK.png';
+
 const DashboardHeader = ({ user, onLogout }) => {
   return (
     <header className="bg-white border-b border-slate-200 px-6 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-            </svg>
+          {/* Logo igual al del login */}
+          <div className="w-10 h-10 rounded-xl bg-white ring-2 ring-[#0ea15a] flex items-center justify-center">
+            <img
+              src={LOGO_URL}
+              alt="Fondo Legacy"
+              className="w-8 h-8 object-contain"
+            />
           </div>
+
           <div>
             <h1 className="text-xl font-bold text-slate-900">Fondo Legacy</h1>
             <p className="text-sm text-slate-600">Sistema de Gestión Financiera</p>
@@ -39,3 +46,4 @@ const DashboardHeader = ({ user, onLogout }) => {
 };
 
 export default DashboardHeader;
+
