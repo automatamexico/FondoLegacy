@@ -9,8 +9,7 @@ import PrestamosModule from './components/PrestamosModule';
 import CentroDigitalModule from './components/CentroDigitalModule';
 import UsuariosModule from './components/UsuariosModule';
 import PagosModule from './components/PagosModule';
-import ReportesModule from './components/ReportesModule'; // ← NUEVO
-
+import ReportesModule from './components/ReportesModule'; // ← Reportes
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -40,12 +39,12 @@ function App() {
     if (user.role === 'usuario' && user.id_socio) {
       localStorage.setItem('id_socio', user.id_socio);
     } else {
-      localStorage.removeItem('id_socio'); // Asegurarse de que no quede id_socio si no es usuario
+      localStorage.removeItem('id_socio'); // Asegurar que no quede id_socio si no es usuario
     }
 
     // Redirigir según el rol
     if (user.role === 'admin') {
-      setActiveSection('dashboard'); // O la sección por defecto para admin
+      setActiveSection('dashboard'); // Sección por defecto admin
     } else if (user.role === 'usuario') {
       setActiveSection('ahorros'); // Redirigir a ahorros para usuarios
     }
@@ -75,11 +74,11 @@ function App() {
         case 'prestamos':
           return <PrestamosModule idSocio={idSocio} />;
         case 'digital':
-          return <CentroDigitalModule idSocio={idSocio} />; // Si CentroDigital también necesita filtrar por socio
+          return <CentroDigitalModule idSocio={idSocio} />;
         case 'pagos':
-          return <PagosModule idSocio={idSocio} />; // Si Pagos también necesita filtrar por socio
+          return <PagosModule idSocio={idSocio} />;
         default:
-          return <AhorrosModule idSocio={idSocio} />; // Redirigir a una vista permitida
+          return <AhorrosModule idSocio={idSocio} />; // Vista permitida por defecto
       }
     }
 
@@ -99,8 +98,8 @@ function App() {
         return <UsuariosModule />;
       case 'pagos':
         return <PagosModule />;
-           case 'reportes':                            
-    return <ReportesModule />;  
+      case 'reportes':               // ← AÑADIDO
+        return <ReportesModule />;   // ← AÑADIDO
       default:
         return <DashboardMain />;
     }
@@ -114,10 +113,10 @@ function App() {
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader user={currentUser} onLogout={handleLogout} />
       <div className="flex h-[calc(100vh-80px)]">
-        <DashboardSidebar 
-          activeSection={activeSection} 
-          onSectionChange={setActiveSection} 
-          currentUser={currentUser} // Pasar el usuario actual al sidebar para control de visibilidad
+        <DashboardSidebar
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+          currentUser={currentUser} // (opcional) por si lo ocupas para ocultar items por rol
         />
         <main className="flex-1 overflow-y-auto">
           {renderActiveSection()}
@@ -128,3 +127,4 @@ function App() {
 }
 
 export default App;
+
