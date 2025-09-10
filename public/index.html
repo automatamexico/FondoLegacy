@@ -2,92 +2,22 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Fondo Legacy</title>
 
     <!-- Favicon desde Supabase -->
-    <link rel="icon" type="image/x-icon"
-      href="https://ubfkhtkmlvutwdivmoff.supabase.co/storage/v1/object/public/Logos/favicon.ico"/>
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="https://ubfkhtkmlvutwdivmoff.supabase.co/storage/v1/object/public/Logos/favicon.ico"
+    />
 
-    <!-- Inyecta 'dark' ANTES de pintar si estaba guardado -->
-    <script>
-      (function () {
-        try {
-          var t = localStorage.getItem('theme');
-          if (t === 'dark') document.documentElement.classList.add('dark');
-        } catch (e) {}
-      })();
-    </script>
-
-    <!-- Tailwind en modo oscuro por clase -->
-    <script>
-      window.tailwind = window.tailwind || {};
-      tailwind.config = { darkMode: 'class' };
-    </script>
+    <!-- Tailwind CDN (sin dark mode) -->
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- PARCHE GLOBAL DARK: fuerza colores para clases comunes -->
-    <style>
-      /* Fondo base */
-      html.dark, .dark body { background-color:#0b1220; }
-
-      /* BACKGROUNDS más usados en tus módulos */
-      .dark .bg-white,
-      .dark .bg-gray-50,.dark .bg-gray-100,
-      .dark .bg-slate-50,.dark .bg-slate-100,
-      .dark .bg-neutral-50,.dark .bg-neutral-100 {
-        background-color:#111827 !important; /* slate-900-ish */
-      }
-
-      /* Paneles/cards con borde claro */
-      .dark .border-slate-100,.dark .border-slate-200,.dark .border-gray-200,.dark .border-neutral-200 {
-        border-color:#334155 !important; /* slate-700 */
-      }
-      .dark .divide-slate-200 { --tw-divide-opacity:1; border-color:rgba(51,65,85,var(--tw-divide-opacity)) !important; }
-
-      /* Texto */
-      .dark .text-slate-900,.dark .text-gray-900,.dark .text-neutral-900 { color:#f1f5f9 !important; } /* slate-100 */
-      .dark .text-slate-800,.dark .text-gray-800,.dark .text-neutral-800 { color:#e2e8f0 !important; }
-      .dark .text-slate-700,.dark .text-gray-700,.dark .text-neutral-700 { color:#cbd5e1 !important; }
-      .dark .text-slate-600,.dark .text-gray-600,.dark .text-neutral-600 { color:#94a3b8 !important; }
-
-      /* Inputs / selects */
-      .dark input,.dark select,.dark textarea {
-        background-color:#0b1220 !important;
-        color:#e2e8f0 !important;
-        border-color:#334155 !important;
-      }
-      .dark input::placeholder,.dark textarea::placeholder { color:#94a3b8 !important; }
-
-      /* Tablas */
-      .dark table thead tr { background-color:#0f172a !important; }
-      .dark tr:hover { background-color:rgba(255,255,255,0.04) !important; }
-
-      /* Sombras más discretas en dark */
-      .dark .shadow,.dark .shadow-md,.dark .shadow-lg {
-        box-shadow: 0 1px 2px rgba(0,0,0,.45), 0 1px 1px rgba(0,0,0,.08) !important;
-      }
-
-      /* Badges pastel */
-      .dark .bg-yellow-100 { background-color:rgba(234,179,8,.16) !important; }
-      .dark .bg-green-100  { background-color:rgba(16,185,129,.16) !important; }
-      .dark .bg-red-100    { background-color:rgba(239,68,68,.16) !important; }
-      .dark .bg-purple-100 { background-color:rgba(168,85,247,.16) !important; }
-
-      /* Hovers claros */
-      .dark .hover\:bg-slate-50:hover   { background-color:#1f2937 !important; }
-      .dark .hover\:bg-blue-50:hover    { background-color:rgba(59,130,246,.12) !important; }
-      .dark .hover\:bg-green-50:hover   { background-color:rgba(16,185,129,.12) !important; }
-      .dark .hover\:bg-red-50:hover     { background-color:rgba(239,68,68,.12) !important; }
-      .dark .hover\:bg-yellow-50:hover  { background-color:rgba(234,179,8,.12) !important; }
-      .dark .hover\:bg-purple-50:hover  { background-color:rgba(168,85,247,.12) !important; }
-
-      /* Scrollbars (opcional) */
-      .dark * { scrollbar-color: #475569 #0b1220; }
-    </style>
   </head>
 
-  <body class="bg-slate-50 dark:bg-slate-900">
+  <body class="bg-slate-50">
     <div id="root"></div>
   </body>
 </html>
+
