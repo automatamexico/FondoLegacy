@@ -1,13 +1,11 @@
 // src/components/CentroDigitalModule.js
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
-const CentroDigitalModule = ({ idSocio }) => {
-  const [activeTab, setActiveTab] = useState('documentos');
-
+const CentroDigitalModule = () => {
   // --- búsqueda y selección de socio ---
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -19,13 +17,10 @@ const CentroDigitalModule = ({ idSocio }) => {
   const [documentosSocio, setDocumentosSocio] = useState([]);
   const [fotoUrlSocio, setFotoUrlSocio] = useState('');
 
-  // --- modal subida (el que ya tenías) ---
+  // --- modal subida ---
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
-  // -------------------------------------------------------
-  // Utilidades
-  // -------------------------------------------------------
   const authHeaders = useMemo(
     () => ({
       'Content-Type': 'application/json',
@@ -65,7 +60,6 @@ const CentroDigitalModule = ({ idSocio }) => {
     }
 
     try {
-      // Traemos nombre/apellidos y filtramos en front sencillamente
       const resp = await fetch(
         `${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno`,
         { headers: authHeaders }
@@ -82,7 +76,7 @@ const CentroDigitalModule = ({ idSocio }) => {
             .includes(lower)
       );
       setSearchResults(filtered.slice(0, 10));
-    } catch (err) {
+    } catch {
       setSearchResults([]);
     }
   };
@@ -108,7 +102,7 @@ const CentroDigitalModule = ({ idSocio }) => {
     setFotoUrlSocio('');
 
     try {
-      // Traer foto del socio (campo foto_url)
+      // Foto
       const socioResp = await fetch(
         `${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${selectedSocio.id_socio}&select=foto_url`,
         { headers: authHeaders }
@@ -120,7 +114,7 @@ const CentroDigitalModule = ({ idSocio }) => {
       const socioJson = await socioResp.json();
       setFotoUrlSocio(socioJson?.[0]?.foto_url || '');
 
-      // Traer documentos del socio
+      // Documentos
       const resp = await fetch(
         `${SUPABASE_URL}/rest/v1/documentos_socios?id_socio=eq.${selectedSocio.id_socio}&order=fecha_subida.desc&select=id_documento,tipo_documento,nombre_documento,url_documento,fecha_subida`,
         { headers: authHeaders }
@@ -139,7 +133,7 @@ const CentroDigitalModule = ({ idSocio }) => {
   };
 
   // -------------------------------------------------------
-  // Lógica de subida (modal). Reutiliza selectedSocio.
+  // Subida a Storage y registro en DB
   // -------------------------------------------------------
   const subirArchivo = async (file, tipo) => {
     setUploadError('');
@@ -148,16 +142,11 @@ const CentroDigitalModule = ({ idSocio }) => {
       return;
     }
     try {
-      // Validaciones por tipo
       const isImage = file.type === 'image/png' || file.type === 'image/jpeg';
       const isPdf = file.type === 'application/pdf';
 
-      if (tipo === 'foto' && !isImage) {
-        throw new Error('La foto debe ser JPG o PNG');
-      }
-      if (tipo !== 'foto' && !isPdf) {
-        throw new Error('Los documentos deben ser PDF');
-      }
+      if (tipo === 'foto' && !isImage) throw new Error('La foto debe ser JPG o PNG');
+      if (tipo !== 'foto' && !isPdf) throw new Error('Los documentos deben ser PDF');
 
       // Ruta destino por bucket
       let bucket = '';
@@ -173,7 +162,7 @@ const CentroDigitalModule = ({ idSocio }) => {
         path = `socio_${selectedSocio.id_socio}/${Date.now()}_${file.name}`;
       }
 
-      // Subir a Storage (Signed request REST)
+      // Subir a Storage
       const uploadResp = await fetch(
         `${SUPABASE_URL}/storage/v1/object/${bucket}/${encodeURIComponent(path)}`,
         {
@@ -202,10 +191,7 @@ const CentroDigitalModule = ({ idSocio }) => {
           `${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${selectedSocio.id_socio}`,
           {
             method: 'PATCH',
-            headers: {
-              ...authHeaders,
-              Prefer: 'return=representation',
-            },
+            headers: { ...authHeaders, Prefer: 'return=representation' },
             body: JSON.stringify({ foto_url: publicUrl }),
           }
         );
@@ -218,10 +204,7 @@ const CentroDigitalModule = ({ idSocio }) => {
         // Registrar metadatos en documentos_socios
         const ins = await fetch(`${SUPABASE_URL}/rest/v1/documentos_socios`, {
           method: 'POST',
-          headers: {
-            ...authHeaders,
-            Prefer: 'return=representation',
-          },
+          headers: { ...authHeaders, Prefer: 'return=representation' },
           body: JSON.stringify({
             id_socio: selectedSocio.id_socio,
             tipo_documento: tipo, // 'ine' | 'comprobante' | 'varios'
@@ -243,17 +226,7 @@ const CentroDigitalModule = ({ idSocio }) => {
   };
 
   // -------------------------------------------------------
-  // Vistas auxiliares (tabs "servicios" y "configuracion")
-  // -------------------------------------------------------
-  const servicios = [
-    { id: 1, nombre: 'Consulta de Saldos', descripcion: 'Verificar saldos de ahorros y préstamos', activo: true },
-    { id: 2, nombre: 'Transferencias', descripcion: 'Realizar transferencias entre cuentas', activo: true },
-    { id: 3, nombre: 'Pagos en Línea', descripcion: 'Pagar cuotas de préstamos online', activo: false },
-    { id: 4, nombre: 'Solicitud de Préstamos', descripcion: 'Solicitar préstamos digitalmente', activo: true },
-  ];
-
-  // -------------------------------------------------------
-  // UI
+  // UI (solo Documentos)
   // -------------------------------------------------------
   return (
     <div className="p-6 space-y-6">
@@ -262,243 +235,133 @@ const CentroDigitalModule = ({ idSocio }) => {
         <p className="text-slate-600">Cargar información del socio y consultar documentación</p>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200">
-        <div className="border-b border-slate-200">
-          <nav className="flex space-x-8 px-6">
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        {/* Búsqueda + acciones */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <label className="block text-sm font-medium text-slate-700 mb-2">
+            Buscar ID de socio o Nombre completo
+          </label>
+          <input
+            value={searchTerm}
+            onChange={handleSearch}
+            placeholder="Ej. 12 o 'Juan Pérez'"
+            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {/* Sugerencias */}
+          {searchResults.length > 0 && (
+            <div className="mt-2 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white">
+              {searchResults.map((s) => (
+                <button
+                  key={s.id_socio}
+                  onClick={() => handleSelectSocio(s)}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-50"
+                >
+                  ID: {s.id_socio} — {s.nombre} {s.apellido_paterno} {s.apellido_materno}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 mt-3">
             <button
-              onClick={() => setActiveTab('documentos')}
-              className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'documentos'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
+              className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
+              disabled={!selectedSocio}
+              onClick={() => setShowUploadModal(true)}
             >
-              Documentos
+              Subir
             </button>
             <button
-              onClick={() => setActiveTab('servicios')}
-              className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'servicios'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
+              className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+              disabled={!selectedSocio}
+              onClick={consultarDocumentacion}
             >
-              Servicios Digitales
+              Consultar documentación del socio
             </button>
-            <button
-              onClick={() => setActiveTab('configuracion')}
-              className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'configuracion'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              Configuración
-            </button>
-          </nav>
+            {selectedSocio && (
+              <span className="text-sm text-slate-500">
+                Seleccionado: <strong>
+                  ID {selectedSocio.id_socio} — {selectedSocio.nombre} {selectedSocio.apellido_paterno}
+                </strong>
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="p-6">
-          {activeTab === 'documentos' && (
-            <div className="space-y-6">
-              {/* Búsqueda + acciones */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Buscar ID de socio o Nombre completo
-                </label>
-                <input
-                  value={searchTerm}
-                  onChange={handleSearch}
-                  placeholder="Ej. 12 o 'Juan Pérez'"
-                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                {/* Sugerencias */}
-                {searchResults.length > 0 && (
-                  <div className="mt-2 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white">
-                    {searchResults.map((s) => (
-                      <button
-                        key={s.id_socio}
-                        onClick={() => handleSelectSocio(s)}
-                        className="w-full text-left px-4 py-2 hover:bg-slate-50"
-                      >
-                        ID: {s.id_socio} — {s.nombre} {s.apellido_paterno} {s.apellido_materno}
-                      </button>
-                    ))}
-                  </div>
-                )}
+        {/* Resultado de consulta */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 mt-6">
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Documentación del socio</h3>
 
-                <div className="flex items-center gap-3 mt-3">
-                  <button
-                    className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
-                    disabled={!selectedSocio}
-                    onClick={() => setShowUploadModal(true)}
-                  >
-                    Subir
-                  </button>
-                  <button
-                    className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
-                    disabled={!selectedSocio}
-                    onClick={consultarDocumentacion}
-                  >
-                    Consultar documentación del socio
-                  </button>
-                  {selectedSocio && (
-                    <span className="text-sm text-slate-500">
-                      Seleccionado: <strong>
-                        ID {selectedSocio.id_socio} — {selectedSocio.nombre} {selectedSocio.apellido_paterno}
-                      </strong>
-                    </span>
-                  )}
-                </div>
-              </div>
+          {docsLoading && <p className="text-slate-600">Cargando documentos...</p>}
+          {docsError && <p className="text-red-600">{docsError}</p>}
 
-              {/* Resultado de consulta */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-4">
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">Documentación del socio</h3>
-
-                {docsLoading && <p className="text-slate-600">Cargando documentos...</p>}
-                {docsError && <p className="text-red-600">{docsError}</p>}
-
-                {!docsLoading && !docsError && !selectedSocio && (
-                  <p className="text-slate-500">Selecciona un socio y pulsa “Consultar documentación del socio”.</p>
-                )}
-
-                {!docsLoading && !docsError && selectedSocio && documentosSocio.length === 0 && !fotoUrlSocio && (
-                  <p className="text-slate-500">Este socio aún no tiene documentos registrados.</p>
-                )}
-
-                {!docsLoading && !docsError && (fotoUrlSocio || documentosSocio.length > 0) && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {/* Foto del socio */}
-                    {fotoUrlSocio && (
-                      <div className="border border-slate-200 rounded-xl p-4">
-                        <div className="flex items-center mb-3">
-                          <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden mr-3">
-                            <img src={fotoUrlSocio} alt="Foto del socio" className="w-full h-full object-cover" />
-                          </div>
-                          <div>
-                            <h4 className="font-medium text-slate-900">Foto del socio</h4>
-                            <p className="text-xs text-slate-500">Vista rápida</p>
-                          </div>
-                        </div>
-                        <a
-                          href={fotoUrlSocio}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg bg-slate-100 hover:bg-slate-200"
-                        >
-                          Abrir imagen
-                        </a>
-                      </div>
-                    )}
-
-                    {/* Documentos */}
-                    {documentosSocio.map((doc) => (
-                      <div key={doc.id_documento} className="border border-slate-200 rounded-xl p-4 hover:shadow-sm">
-                        <div className="flex items-center space-x-3 mb-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-medium text-slate-900">
-                              {doc.nombre_documento || 'Documento'}
-                            </h4>
-                            <p className="text-xs text-slate-500">
-                              Tipo: <span className="uppercase">{doc.tipo_documento}</span> • Subido: {formatFechaCorta(doc.fecha_subida)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <a
-                            href={doc.url_documento}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-                          >
-                            Abrir
-                          </a>
-                          <a
-                            href={doc.url_documento}
-                            download
-                            className="px-3 py-1.5 text-sm rounded-lg bg-slate-100 hover:bg-slate-200"
-                          >
-                            Descargar
-                          </a>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+          {!docsLoading && !docsError && !selectedSocio && (
+            <p className="text-slate-500">Selecciona un socio y pulsa “Consultar documentación del socio”.</p>
           )}
 
-          {/* Las otras pestañas permanecen igual */}
-          {activeTab === 'servicios' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-slate-900">Servicios Digitales</h3>
-                <button className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium">
-                  Nuevo Servicio
-                </button>
-              </div>
-              <div className="space-y-4">
-                {servicios.map((servicio) => (
-                  <div key={servicio.id} className="border border-slate-200 rounded-xl p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className={`w-3 h-3 rounded-full ${servicio.activo ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                        <div>
-                          <h4 className="font-medium text-slate-900">{servicio.nombre}</h4>
-                          <p className="text-sm text-slate-600">{servicio.descripcion}</p>
-                        </div>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${servicio.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {servicio.activo ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {!docsLoading && !docsError && selectedSocio && documentosSocio.length === 0 && !fotoUrlSocio && (
+            <p className="text-slate-500">Este socio aún no tiene documentos registrados.</p>
           )}
 
-          {activeTab === 'configuracion' && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-slate-900">Configuración del Sistema</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <h4 className="font-medium text-slate-900">Configuración General</h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                      <span className="text-sm font-medium text-slate-700">Mantenimiento Programado</span>
-                      <button className="w-12 h-6 bg-slate-300 rounded-full relative transition-colors">
-                        <div className="w-5 h-5 bg-white rounded-full absolute top-0.5 left-0.5 transition-transform"></div>
-                      </button>
+          {!docsLoading && !docsError && (fotoUrlSocio || documentosSocio.length > 0) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Foto del socio */}
+              {fotoUrlSocio && (
+                <div className="border border-slate-200 rounded-xl p-4">
+                  <div className="flex items-center mb-3">
+                    <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden mr-3">
+                      <img src={fotoUrlSocio} alt="Foto del socio" className="w-full h-full object-cover" />
                     </div>
-                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                      <span className="text-sm font-medium text-slate-700">Notificaciones Email</span>
-                      <button className="w-12 h-6 bg-blue-500 rounded-full relative transition-colors">
-                        <div className="w-5 h-5 bg-white rounded-full absolute top-0.5 right-0.5 transition-transform"></div>
-                      </button>
+                    <div>
+                      <h4 className="font-medium text-slate-900">Foto del socio</h4>
+                      <p className="text-xs text-slate-500">Vista rápida</p>
                     </div>
                   </div>
+                  <a
+                    href={fotoUrlSocio}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg bg-slate-100 hover:bg-slate-200"
+                  >
+                    Abrir imagen
+                  </a>
                 </div>
-                <div className="space-y-4">
-                  <h4 className="font-medium text-slate-900">Seguridad</h4>
-                  <div className="space-y-3">
-                    <div className="p-3 bg-slate-50 rounded-xl">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-slate-700">Último Backup</span>
-                        <span className="text-xs text-green-600">Exitoso</span>
-                      </div>
-                      <p className="text-xs text-slate-500">Hace 2 horas</p>
+              )}
+
+              {/* Documentos */}
+              {documentosSocio.map((doc) => (
+                <div key={doc.id_documento} className="border border-slate-200 rounded-xl p-4 hover:shadow-sm">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-medium text-slate-900">{doc.nombre_documento || 'Documento'}</h4>
+                      <p className="text-xs text-slate-500">
+                        Tipo: <span className="uppercase">{doc.tipo_documento}</span> • Subido: {formatFechaCorta(doc.fecha_subida)}
+                      </p>
                     </div>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={doc.url_documento}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      Abrir
+                    </a>
+                    <a
+                      href={doc.url_documento}
+                      download
+                      className="px-3 py-1.5 text-sm rounded-lg bg-slate-100 hover:bg-slate-200"
+                    >
+                      Descargar
+                    </a>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
           )}
         </div>
@@ -523,7 +386,6 @@ const CentroDigitalModule = ({ idSocio }) => {
               </button>
             </div>
 
-            {/* Cuadrícula de dropzones simples (botones elegir archivo) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Foto */}
               <div className="border-2 border-dashed rounded-xl p-4 text-center">
@@ -610,3 +472,4 @@ const CentroDigitalModule = ({ idSocio }) => {
 };
 
 export default CentroDigitalModule;
+
