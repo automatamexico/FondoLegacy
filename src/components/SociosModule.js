@@ -1,351 +1,290 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
-/* Utilidades */
-const fmtDate = (d) => {
-  const dt = new Date(d);
-  const y = dt.getFullYear();
-  const m = String(dt.getMonth() + 1).padStart(2, '0');
-  const day = String(dt.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
-const todayStr = fmtDate(new Date());
-const money = (n) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(n || 0));
-
-/* Config de buckets/carpetas (usa exactamente estos nombres) */
-const BUCKET_FOTOS = 'fotos-socios';
-const BUCKET_DOCS  = 'documentos-socios';
-const BUCKET_AVAL  = 'Avales y Varios'; // con espacio; se codifica para la URL
-
-/* Subida a Supabase Storage usando REST */
-async function uploadToStorage({ bucket, path, file }) {
-  const bucketEncoded = encodeURIComponent(bucket);
-  // mantenemos las barras del path
-  const pathEncoded = encodeURIComponent(path).replace(/%2F/g, '/');
-
-  const res = await fetch(
-    `${SUPABASE_URL}/storage/v1/object/${bucketEncoded}/${pathEncoded}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': file.type || 'application/octet-stream',
-        'x-upsert': 'true',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      },
-      body: file
-    }
-  );
-  if (!res.ok) {
-    const t = await res.text().catch(() => '');
-    throw new Error(`Error subiendo a Storage: ${res.status} ${t}`);
-  }
-
-  // URL pública (asumiendo bucket con política pública)
-  const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${bucketEncoded}/${pathEncoded}`;
-  return { publicUrl };
-}
-
-/* Registrar documento en tabla documentos_socios */
-async function registrarDocumento({ id_socio, tipo, nombre, url }) {
-  const body = {
-    id_socio,
-    tipo_documento: tipo,              // 'INE' | 'Comprobante' | 'Varios'
-    nombre_documento: nombre,
-    url_documento: url,
-    fecha_subida: todayStr
-  };
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/documentos_socios`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'Prefer': 'return=representation'
-    },
-    body: JSON.stringify(body)
+const SociosModule = () => {
+  const [sociosList, setSociosList] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editingSocio, setEditingSocio] = useState(null);
+  const [newSocio, setNewSocio] = useState({
+    nombre: '', apellido_paterno: '', apellido_materno: '',
+    email: '', contrasena: '', telefono: '', direccion: '',
+    cp: '', estatus: 'activo', foto_url: ''
   });
-  if (!r.ok) {
-    const j = await r.json().catch(() => ({}));
-    throw new Error(`No se pudo registrar el documento: ${r.status} ${j.message || ''}`);
-  }
-  return (await r.json())[0];
-}
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [socioToDelete, setSocioToDelete] = useState(null);
 
-/* Actualizar foto_url del socio */
-async function actualizarFotoSocio({ id_socio, url }) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${id_socio}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-    },
-    body: JSON.stringify({ foto_url: url })
-  });
-  if (!r.ok) {
-    const j = await r.json().catch(() => ({}));
-    throw new Error(`No se pudo guardar la foto en el socio: ${r.status} ${j.message || ''}`);
-  }
-}
+  useEffect(() => { fetchSocios(); }, []);
 
-const DropBox = ({ title, accept, multiple=false, onFiles, hint }) => {
-  const [drag, setDrag] = useState(false);
-  const inputId = useMemo(() => `in-${Math.random().toString(36).slice(2)}`, []);
-
-  const onDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDrag(false);
-    const files = Array.from(e.dataTransfer.files || []);
-    if (files.length) onFiles(files);
-  };
-
-  return (
-    <div
-      onDragOver={(e)=>{e.preventDefault(); setDrag(true);}}
-      onDragLeave={()=>setDrag(false)}
-      onDrop={onDrop}
-      className={`border-2 border-dashed rounded-xl p-4 text-center transition ${drag ? 'border-blue-500 bg-blue-50' : 'border-slate-300'}`}
-    >
-      <p className="font-medium mb-2">{title}</p>
-      <p className="text-sm text-slate-500 mb-3">{hint || 'Arrastra y suelta aquí o haz clic'}</p>
-      <label htmlFor={inputId} className="px-3 py-1.5 bg-slate-800 text-white rounded-lg cursor-pointer inline-block">
-        Elegir archivo{multiple ? 's' : ''}
-      </label>
-      <input id={inputId} type="file" className="hidden" accept={accept} multiple={multiple}
-             onChange={(e)=> onFiles(Array.from(e.target.files || []))}/>
-    </div>
-  );
-};
-
-const CentroDigitalModule = ({ idSocio }) => {
-  const [socios, setSocios] = useState([]);
-  const [term, setTerm] = useState('');
-  const [selSocio, setSelSocio] = useState(null);
-
-  const [docs, setDocs] = useState([]);
-  const [loadingDocs, setLoadingDocs] = useState(false);
-
-  const [showModal, setShowModal] = useState(false);
-  const [uploadMsg, setUploadMsg] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    // precarga lista de socios para búsqueda local
-    fetch(`${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno,foto_url`, {
-      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
-    }).then(r => r.json()).then(setSocios).catch(()=>setSocios([]));
-  }, []);
-
-  useEffect(() => {
-    if (!selSocio) return;
-    (async () => {
-      setLoadingDocs(true);
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/documentos_socios?id_socio=eq.${selSocio.id_socio}&select=*&order=fecha_subida.desc`, {
-        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
-      });
-      const j = await r.json().catch(()=>[]);
-      setDocs(Array.isArray(j) ? j : []);
-      setLoadingDocs(false);
-    })();
-  }, [selSocio]);
-
-  useEffect(() => { // si viene por prop (usuario)
-    if (!idSocio) return;
-    const s = socios.find(x => x.id_socio === idSocio);
-    if (s) setSelSocio(s);
-  }, [idSocio, socios]);
-
-  const results = useMemo(() => {
-    const t = term.trim().toLowerCase();
-    if (!t) return [];
-    return socios.filter(s =>
-      String(s.id_socio).includes(t) ||
-      `${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`.toLowerCase().includes(t)
-    ).slice(0, 20);
-  }, [term, socios]);
-
-  /* HANDLERS DE SUBIDA */
-  const doUpload = async (kind, files) => {
-    if (!selSocio) { alert('Selecciona un socio primero.'); return; }
-    setBusy(true);
-    setUploadMsg('Subiendo…');
-
+  const fetchSocios = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      for (const file of files) {
-        const ext = (file.name.split('.').pop() || '').toLowerCase();
-        const ts = Date.now();
-        const basePath = `${selSocio.id_socio}`;
-        let bucket = '';
-        let path = '';
-        let tipoDoc = '';
-        let nombreDoc = file.name;
-
-        if (kind === 'foto') {
-          if (!['jpg', 'jpeg', 'png'].includes(ext)) throw new Error('La foto debe ser JPG o PNG.');
-          bucket = BUCKET_FOTOS;
-          path = `${basePath}/foto-${ts}.${ext}`;
-        } else if (kind === 'ine') {
-          if (ext !== 'pdf') throw new Error('El INE debe ser PDF.');
-          bucket = BUCKET_DOCS;
-          path = `${basePath}/INE-${ts}.pdf`;
-          tipoDoc = 'INE';
-          nombreDoc = `INE ${selSocio.id_socio}`;
-        } else if (kind === 'comprobante') {
-          if (ext !== 'pdf') throw new Error('El comprobante debe ser PDF.');
-          bucket = BUCKET_DOCS;
-          path = `${basePath}/Comprobante-${ts}.pdf`;
-          tipoDoc = 'Comprobante';
-          nombreDoc = `Comprobante ${selSocio.id_socio}`;
-        } else if (kind === 'varios') {
-          if (ext !== 'pdf') throw new Error('Los “varios” deben ser PDF.');
-          bucket = BUCKET_AVAL;
-          path = `${basePath}/Varios-${ts}-${file.name.replace(/\s+/g,'_')}`;
-          tipoDoc = 'Varios';
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/socios?select=*`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
         }
-
-        const { publicUrl } = await uploadToStorage({ bucket, path, file });
-
-        // Si es foto -> guardamos URL en el socio
-        if (kind === 'foto') {
-          await actualizarFotoSocio({ id_socio: selSocio.id_socio, url: publicUrl });
-          // refrescamos en memoria
-          setSelSocio(prev => ({ ...prev, foto_url: publicUrl }));
-          setSocios(prev => prev.map(s => s.id_socio === selSocio.id_socio ? { ...s, foto_url: publicUrl } : s));
-        } else {
-          // registramos documento en la tabla
-          await registrarDocumento({
-            id_socio: selSocio.id_socio,
-            tipo: tipoDoc,
-            nombre: nombreDoc,
-            url: publicUrl
-          });
-        }
-      }
-      setUploadMsg('¡Archivos subidos correctamente!');
-      // refrescar documentos
-      const rr = await fetch(`${SUPABASE_URL}/rest/v1/documentos_socios?id_socio=eq.${selSocio.id_socio}&select=*&order=fecha_subida.desc`, {
-        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
       });
-      setDocs(await rr.json());
-    } catch (e) {
-      setUploadMsg(`Error: ${e.message}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Error al cargar socios: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
+      }
+      const data = await response.json();
+      setSociosList(data);
+    } catch (err) {
+      setError(err.message);
     } finally {
-      setBusy(false);
-      setTimeout(()=>setUploadMsg(''), 3000);
+      setLoading(false);
     }
   };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewSocio(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddOrUpdateSocio = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      if (!newSocio.nombre || !newSocio.apellido_paterno || !newSocio.email || !newSocio.contrasena) {
+        throw new Error('Los campos Nombre, Apellido Paterno, Email y Contraseña son obligatorios.');
+      }
+      const socioToSend = { ...newSocio };
+      socioToSend.estatus = (newSocio.estatus === 'activo');
+
+      let response;
+      let addedOrUpdatedSocio;
+
+      if (editingSocio) {
+        response = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${editingSocio.id_socio}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(socioToSend)
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`Error al actualizar socio: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
+        }
+        addedOrUpdatedSocio = await response.json();
+        setSociosList(prev => prev.map(s => s.id_socio === editingSocio.id_socio ? addedOrUpdatedSocio[0] : s));
+      } else {
+        response = await fetch(`${SUPABASE_URL}/rest/v1/socios`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(socioToSend)
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`Error al registrar socio: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
+        }
+        addedOrUpdatedSocio = await response.json();
+        const newSocioId = addedOrUpdatedSocio[0].id_socio;
+
+        if (!newSocio.email || !newSocio.contrasena) {
+          throw new Error('Email y Contraseña son necesarios para crear el usuario del sistema.');
+        }
+        const usernameFromEmail = newSocio.email.split('@')[0];
+        const newUserSystem = { usuario: usernameFromEmail, email: newSocio.email, contrasena: newSocio.contrasena, rol: 'usuario', id_socio: newSocioId };
+        const userSystemResponse = await fetch(`${SUPABASE_URL}/rest/v1/usuarios_sistema`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(newUserSystem)
+        });
+        if (!userSystemResponse.ok) {
+          const errorData = await userSystemResponse.json();
+          throw new Error(`Error al registrar usuario en sistema: ${userSystemResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
+        }
+        setSociosList(prev => [...prev, addedOrUpdatedSocio[0]]);
+      }
+
+      setNewSocio({ nombre: '', apellido_paterno: '', apellido_materno: '', email: '', contrasena: '', telefono: '', direccion: '', cp: '', estatus: 'activo', foto_url: '' });
+      setEditingSocio(null);
+      setShowForm(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditClick = (socio) => {
+    setEditingSocio(socio);
+    setNewSocio({
+      nombre: socio.nombre, apellido_paterno: socio.apellido_paterno, apellido_materno: socio.apellido_materno,
+      email: socio.email, contrasena: socio.contrasena, telefono: socio.telefono, direccion: socio.direccion,
+      cp: socio.cp, estatus: socio.estatus ? 'activo' : 'inactivo', foto_url: socio.foto_url
+    });
+    setShowForm(true);
+  };
+
+  const handleDeleteClick = (socio) => { setSocioToDelete(socio); setShowConfirmModal(true); };
+
+  const confirmDelete = async () => {
+    setLoading(true); setError(null); setShowConfirmModal(false);
+    try {
+      const socioId = socioToDelete.id_socio;
+      await fetch(`${SUPABASE_URL}/rest/v1/usuarios_sistema?id_socio=eq.${socioId}`, { method: 'DELETE', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } });
+      await fetch(`${SUPABASE_URL}/rest/v1/ahorros?id_socio=eq.${socioId}`, { method: 'DELETE', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } });
+      await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioId}`, { method: 'DELETE', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } });
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioId}`, { method: 'DELETE', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Error al eliminar socio: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
+      }
+      setSociosList(prev => prev.filter(s => s.id_socio !== socioId));
+      setSocioToDelete(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  const cancelDelete = () => { setShowConfirmModal(false); setSocioToDelete(null); };
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">Cargar información del Socio</h2>
-        <p className="text-slate-600">Foto (JPG/PNG), INE y comprobante (PDF), y archivos varios (PDF).</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Gestión de Socios</h2>
+          <p className="text-slate-600">Administra la información de todos los socios</p>
+        </div>
+        <button
+          onClick={() => { setShowForm(!showForm); setEditingSocio(null); setNewSocio({ nombre: '', apellido_paterno: '', apellido_materno: '', email: '', contrasena: '', telefono: '', direccion: '', cp: '', estatus: 'activo', foto_url: '' }); }}
+          className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+        >
+          {showForm ? 'Cancelar' : 'Nuevo Socio'}
+        </button>
       </div>
 
-      {/* Buscador */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <label className="block text-sm font-medium text-slate-700 mb-2">Buscar ID de socio o Nombre completo</label>
-        <input
-          type="text"
-          value={term}
-          onChange={(e)=>setTerm(e.target.value)}
-          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Ej: 12 o Juan Pérez"
-        />
-
-        {results.length > 0 && (
-          <div className="mt-4 space-y-2">
-            {results.map(s => (
-              <div key={s.id_socio} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  {s.foto_url ? (
-                    <img src={s.foto_url} alt="" className="w-9 h-9 rounded-full object-cover border" />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-slate-200" />
-                  )}
-                  <span className="text-slate-800">ID: {s.id_socio} — {s.nombre} {s.apellido_paterno} {s.apellido_materno}</span>
-                </div>
-                <button
-                  onClick={() => { setSelSocio(s); setShowModal(true); }}
-                  className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  Subir
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {selSocio && (
-          <div className="mt-6">
-            <h4 className="font-semibold text-slate-900 mb-2">Documentos del socio seleccionado</h4>
-            {loadingDocs ? (
-              <p className="text-slate-600">Cargando documentos…</p>
-            ) : docs.length === 0 ? (
-              <p className="text-slate-600">Aún no hay documentos registrados para este socio.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {docs.map(doc => (
-                  <div key={doc.id_documento} className="border border-slate-200 rounded-xl p-4">
-                    <div className="font-medium">{doc.nombre_documento}</div>
-                    <div className="text-sm text-slate-500">Tipo: {doc.tipo_documento} • {doc.fecha_subida}</div>
-                    <a href={doc.url_documento} target="_blank" rel="noreferrer" className="inline-block mt-2 text-blue-600 hover:underline">Ver archivo</a>
-                  </div>
-                ))}
+      {showForm && (
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-6">
+          <h3 className="text-xl font-semibold text-slate-900 mb-4">{editingSocio ? 'Editar Socio' : 'Registrar Nuevo Socio'}</h3>
+          <form onSubmit={handleAddOrUpdateSocio} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {editingSocio && (
+              <div className="col-span-full">
+                <label className="block text-sm font-medium text-slate-700 mb-1">ID Socio</label>
+                <input type="text" value={editingSocio.id_socio} className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-slate-100" disabled />
               </div>
             )}
+            <input type="text" name="nombre" value={newSocio.nombre} onChange={handleInputChange} placeholder="Nombre" className="px-4 py-2 border border-slate-200 rounded-lg" required />
+            <input type="text" name="apellido_paterno" value={newSocio.apellido_paterno} onChange={handleInputChange} placeholder="Apellido Paterno" className="px-4 py-2 border border-slate-200 rounded-lg" required />
+            <input type="text" name="apellido_materno" value={newSocio.apellido_materno} onChange={handleInputChange} placeholder="Apellido Materno" className="px-4 py-2 border border-slate-200 rounded-lg" />
+            <input type="email" name="email" value={newSocio.email} onChange={handleInputChange} placeholder="Email" className="px-4 py-2 border border-slate-200 rounded-lg" required />
+            <input type="password" name="contrasena" value={newSocio.contrasena} onChange={handleInputChange} placeholder="Contraseña" className="px-4 py-2 border border-slate-200 rounded-lg" required />
+            <input type="text" name="telefono" value={newSocio.telefono} onChange={handleInputChange} placeholder="Teléfono" className="px-4 py-2 border border-slate-200 rounded-lg" />
+            <input type="text" name="direccion" value={newSocio.direccion} onChange={handleInputChange} placeholder="Dirección" className="px-4 py-2 border border-slate-200 rounded-lg" />
+            <input type="text" name="cp" value={newSocio.cp} onChange={handleInputChange} placeholder="Código Postal" className="px-4 py-2 border border-slate-200 rounded-lg" />
+            <input type="text" name="foto_url" value={newSocio.foto_url} onChange={handleInputChange} placeholder="URL de Foto (opcional)" className="px-4 py-2 border border-slate-200 rounded-lg" />
+            <select name="estatus" value={newSocio.estatus} onChange={handleInputChange} className="px-4 py-2 border border-slate-200 rounded-lg">
+              <option value="activo">Activo</option>
+              <option value="inactivo">Inactivo</option>
+            </select>
+            <button type="submit" className="col-span-full px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium" disabled={loading}>
+              {loading ? (editingSocio ? 'Actualizando...' : 'Registrando...') : (editingSocio ? 'Actualizar Socio' : 'Registrar Socio')}
+            </button>
+          </form>
+          {error && <p className="text-red-500 mt-4">{error}</p>}
+        </div>
+      )}
+
+      {loading && <p className="text-center text-slate-600">Cargando socios...</p>}
+      {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
+
+      {!loading && !error && sociosList.length === 0 && (
+        <p className="text-center text-slate-600">No hay socios registrados.</p>
+      )}
+
+      {!loading && !error && sociosList.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <h3 className="text-xl font-semibold text-slate-900 mb-4">Todos los Socios</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">ID</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Nombre Completo</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Email</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Teléfono</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Estatus</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sociosList.map((socio) => (
+                  <tr key={socio.id_socio} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="py-4 px-4 text-slate-700">{socio.id_socio}</td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center space-x-3">
+                        {socio.foto_url ? (
+                          <img src={socio.foto_url} alt="" className="w-8 h-8 rounded-full object-cover border" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-slate-200" />
+                        )}
+                        <div className="font-medium text-slate-900">{socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}</div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-4 text-slate-700">{socio.email}</td>
+                    <td className="py-4 px-4 text-slate-700">{socio.telefono}</td>
+                    <td className="py-4 px-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${socio.estatus ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {socio.estatus ? 'activo' : 'inactivo'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex space-x-2">
+                        <button onClick={() => handleEditClick(socio)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button onClick={() => handleDeleteClick(socio)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* MODAL SUBIDA */}
-      {showModal && selSocio && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-4xl shadow-xl">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold">Subir archivos — ID {selSocio.id_socio} — {selSocio.nombre} {selSocio.apellido_paterno}</h3>
-              <button className="px-3 py-1 rounded-lg bg-slate-100" onClick={()=>setShowModal(false)}>Cerrar</button>
-            </div>
-
-            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
-              <DropBox
-                title="Foto del socio"
-                hint="JPG o PNG"
-                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                onFiles={(files)=>!busy && doUpload('foto', [files[0]])}
-              />
-              <DropBox
-                title="INE (PDF)"
-                hint="Solo PDF"
-                accept=".pdf,application/pdf"
-                onFiles={(files)=>!busy && doUpload('ine', [files[0]])}
-              />
-              <DropBox
-                title="Comprobante de domicilio (PDF)"
-                hint="Solo PDF"
-                accept=".pdf,application/pdf"
-                onFiles={(files)=>!busy && doUpload('comprobante', [files[0]])}
-              />
-              <DropBox
-                title="Avales y varios (PDF)"
-                hint="Puedes subir varios PDFs"
-                multiple
-                accept=".pdf,application/pdf"
-                onFiles={(files)=>!busy && doUpload('varios', files)}
-              />
-            </div>
-
-            <div className="px-5 pb-5">
-              {uploadMsg && (
-                <div className={`mt-3 text-sm ${uploadMsg.startsWith('Error') ? 'text-red-600' : 'text-emerald-600'}`}>
-                  {uploadMsg}
-                </div>
-              )}
-              {busy && <div className="text-sm text-slate-500">Procesando…</div>}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center">
+            <h3 className="text-xl font-bold text-slate-900 mb-4">Confirmar Eliminación</h3>
+            <p className="text-slate-700 mb-6">¿Estás seguro de que deseas eliminar este socio? Esta acción es irreversible y se perderán todos los datos relacionados.</p>
+            <div className="flex justify-center space-x-4">
+              <button onClick={cancelDelete} className="px-5 py-2 bg-slate-200 text-slate-800 rounded-xl hover:bg-slate-300 transition-colors font-medium">Cancelar</button>
+              <button onClick={confirmDelete} className="px-5 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium" disabled={loading}>
+                {loading ? 'Eliminando...' : 'Eliminar'}
+              </button>
             </div>
           </div>
         </div>
@@ -354,4 +293,5 @@ const CentroDigitalModule = ({ idSocio }) => {
   );
 };
 
-export default CentroDigitalModule;
+export default SociosModule;
+
