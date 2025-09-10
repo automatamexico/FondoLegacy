@@ -15,9 +15,8 @@ function toDateInput(d) {
   return `${y}-${m}-${day}`;
 }
 function toLocalISO(now = new Date()) {
-  // ISO “local”: evita desfase UTC
   const tz = now.getTimezoneOffset() * 60000;
-  return new Date(now.getTime() - tz).toISOString(); // yyyy-mm-ddThh:mm:ss.sssZ (hora local representada en ISO)
+  return new Date(now.getTime() - tz).toISOString();
 }
 function fmt12h(iso) {
   if (!iso) return '';
@@ -30,6 +29,12 @@ function fmt12h(iso) {
     month: '2-digit',
     day: '2-digit'
   });
+}
+function daysDiff(dateStr) {
+  if (!dateStr) return 0;
+  const t = new Date(); t.setHours(0,0,0,0);
+  const d = new Date(dateStr); d.setHours(0,0,0,0);
+  return Math.max(0, Math.floor((t.getTime() - d.getTime()) / (1000*60*60*24)));
 }
 
 const PagosModule = ({ idSocio }) => {
@@ -72,6 +77,13 @@ const PagosModule = ({ idSocio }) => {
   const [nota, setNota] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // NUEVO: modal de detalles de tarjetas
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [cardModalTitle, setCardModalTitle] = useState('');
+  const [cardModalRows, setCardModalRows] = useState([]);
+  const [cardModalLoading, setCardModalLoading] = useState(false);
+  const [cardModalError, setCardModalError] = useState(null);
+
   // ---------- TARJETAS ----------
   useEffect(() => {
     (async () => {
@@ -97,7 +109,7 @@ const PagosModule = ({ idSocio }) => {
         const c2 = parseInt(r2.headers.get('content-range')?.split('/')?.[1] || '0', 10);
         setProximos(c2);
 
-        // Recibidos hoy (monto_pagado sum)
+        // Recibidos hoy
         const r3 = await fetch(
           `${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_pago=eq.${hoy}&select=monto_pagado`,
           { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
@@ -160,7 +172,7 @@ const PagosModule = ({ idSocio }) => {
 
   // ---------- MODAL: cargar pendientes/realizados ----------
   const cargarModalListas = async (socio) => {
-    // Pendientes (no filtra por fecha si no hay rango)
+    // Pendientes
     const pParts = [`${SUPABASE_URL}/rest/v1/pagos_prestamos?id_socio=eq.${socio.id_socio}`, `estatus=eq.pendiente`, `select=id_pago,id_prestamo,numero_pago,fecha_programada,monto_pago,frecuencia`];
     if (pendFrom) pParts.push(`fecha_programada=gte.${pendFrom}`);
     if (pendTo) pParts.push(`fecha_programada=lte.${pendTo}`);
@@ -169,7 +181,7 @@ const PagosModule = ({ idSocio }) => {
     const dataP = await rp.json();
     setPendientes(dataP);
 
-    // Realizados (monto_pagado > 0)
+    // Realizados
     const rParts = [`${SUPABASE_URL}/rest/v1/pagos_prestamos?id_socio=eq.${socio.id_socio}`, `monto_pagado=gt.0`, `select=id_pago,id_prestamo,numero_pago,fecha_pago,fecha_hora_pago,monto_pagado,nota`];
     if (realFrom) rParts.push(`fecha_pago=gte.${realFrom}`);
     if (realTo) rParts.push(`fecha_pago=lte.${realTo}`);
@@ -179,14 +191,13 @@ const PagosModule = ({ idSocio }) => {
     setRealizados(dataR);
   };
 
-  // ---------- PAGO ----------
+  // Pago
   const abrirPagar = (pago) => {
     setPagoSel(pago);
     setMontoPagar(pago.monto_pago || '');
     setParcial(false);
     setNota('');
   };
-
   const confirmarPagar = async () => {
     if (!pagoSel) return;
     if (parcial && (!montoPagar || Number(montoPagar) <= 0)) {
@@ -195,8 +206,8 @@ const PagosModule = ({ idSocio }) => {
     }
     setSaving(true);
     try {
-      const nowLocalISO = toLocalISO(new Date());       // timestamp local exacto
-      const soloFecha = nowLocalISO.slice(0, 10);       // yyyy-mm-dd para columna date
+      const nowLocalISO = toLocalISO(new Date());
+      const soloFecha = nowLocalISO.slice(0, 10);
 
       const body = {
         fecha_pago: soloFecha,
@@ -220,17 +231,61 @@ const PagosModule = ({ idSocio }) => {
       );
       if (!r.ok) throw new Error('falló pago');
 
-      // recargar
       await cargarModalListas(modalSocio);
       if (socioSel) await cargarHistorial(socioSel);
       setPagoSel(null);
       setMontoPagar('');
       setParcial(false);
       setNota('');
-    } catch (e) {
+    } catch {
       alert('No se pudo registrar el pago.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ---------- NUEVO: abrir modal de tarjetas ----------
+  const openCardDetails = async (kind) => {
+    setShowCardModal(true);
+    setCardModalLoading(true);
+    setCardModalError(null);
+    setCardModalRows([]);
+
+    const now = new Date();
+    const hoy = toDateInput(now);
+    const tomorrow = toDateInput(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+    const after = toDateInput(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2));
+
+    try {
+      let title = '';
+      let url = '';
+
+      if (kind === 'pendientes') {
+        title = 'Pagos pendientes del día';
+        url = `${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_programada=eq.${hoy}&estatus=eq.pendiente&select=id_pago,id_prestamo,id_socio,numero_pago,fecha_programada,monto_pago,frecuencia&order=fecha_programada.asc&order=id_pago.asc`;
+      } else if (kind === 'proximos') {
+        title = 'Próximos pagos (24–48h)';
+        url = `${SUPABASE_URL}/rest/v1/pagos_prestamos?or=(fecha_programada.eq.${tomorrow},fecha_programada.eq.${after})&estatus=eq.pendiente&select=id_pago,id_prestamo,id_socio,numero_pago,fecha_programada,monto_pago,frecuencia&order=fecha_programada.asc&order=id_pago.asc`;
+      } else if (kind === 'recibidos') {
+        title = 'Pagos recibidos hoy';
+        url = `${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_pago=eq.${hoy}&monto_pagado=gt.0&select=id_pago,id_prestamo,id_socio,numero_pago,fecha_pago,fecha_hora_pago,monto_pagado,nota&order=fecha_hora_pago.desc&order=id_pago.desc`;
+      } else if (kind === 'vencidos') {
+        title = 'Pagos vencidos';
+        url = `${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_programada=lt.${hoy}&estatus=eq.pendiente&select=id_pago,id_prestamo,id_socio,numero_pago,fecha_programada,monto_pago,frecuencia&order=fecha_programada.asc&order=id_pago.asc`;
+      }
+
+      setCardModalTitle(title);
+
+      const r = await fetch(url, {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+      });
+      if (!r.ok) throw new Error('fetch');
+      const data = await r.json();
+      setCardModalRows(data);
+    } catch (e) {
+      setCardModalError('No se pudo cargar la información.');
+    } finally {
+      setCardModalLoading(false);
     }
   };
 
@@ -255,7 +310,11 @@ const PagosModule = ({ idSocio }) => {
 
       {/* Tarjetas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        {/* Pendientes del día */}
+        <div
+          className="bg-white rounded-2xl border border-slate-200 p-6 cursor-pointer hover:ring-2 hover:ring-blue-100"
+          onClick={() => openCardDetails('pendientes')}
+        >
           <div className="flex items-center space-x-3 mb-2">
             <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
               <span className="text-red-600">⏲️</span>
@@ -268,7 +327,11 @@ const PagosModule = ({ idSocio }) => {
           {dashError && <p className="text-xs text-red-500">{dashError}</p>}
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        {/* Próximos pagos */}
+        <div
+          className="bg-white rounded-2xl border border-slate-200 p-6 cursor-pointer hover:ring-2 hover:ring-blue-100"
+          onClick={() => openCardDetails('proximos')}
+        >
           <div className="flex items-center space-x-3 mb-2">
             <div className="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
               <span className="text-yellow-600">📅</span>
@@ -280,7 +343,11 @@ const PagosModule = ({ idSocio }) => {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        {/* Total recibido hoy */}
+        <div
+          className="bg-white rounded-2xl border border-slate-200 p-6 cursor-pointer hover:ring-2 hover:ring-blue-100"
+          onClick={() => openCardDetails('recibidos')}
+        >
           <div className="flex items-center space-x-3 mb-2">
             <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
               <span className="text-green-600">💵</span>
@@ -293,7 +360,11 @@ const PagosModule = ({ idSocio }) => {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        {/* Pagos vencidos */}
+        <div
+          className="bg-white rounded-2xl border border-slate-200 p-6 cursor-pointer hover:ring-2 hover:ring-blue-100"
+          onClick={() => openCardDetails('vencidos')}
+        >
           <div className="flex items-center space-x-3 mb-2">
             <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
               <span className="text-purple-600">⏰</span>
@@ -379,7 +450,7 @@ const PagosModule = ({ idSocio }) => {
         )}
       </div>
 
-      {/* MODAL */}
+      {/* MODAL: Realizar pago */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-5xl shadow-xl">
@@ -443,7 +514,6 @@ const PagosModule = ({ idSocio }) => {
                               </div>
                             </div>
                           ))}
-                          {/* Paginación */}
                           <div className="flex items-center justify-end gap-2 mt-2">
                             <button className="px-3 py-1 bg-slate-100 rounded-lg disabled:opacity-50" disabled={mpageP === 1} onClick={() => setMpageP(mpageP - 1)}>Anterior</button>
                             <span className="text-sm">Página {mpageP}</span>
@@ -480,7 +550,6 @@ const PagosModule = ({ idSocio }) => {
                               </div>
                             </div>
                           ))}
-                          {/* Paginación */}
                           <div className="flex items-center justify-end gap-2 mt-2">
                             <button className="px-3 py-1 bg-slate-100 rounded-lg disabled:opacity-50" disabled={mpageR === 1} onClick={() => setMpageR(mpageR - 1)}>Anterior</button>
                             <span className="text-sm">Página {mpageR}</span>
@@ -537,10 +606,72 @@ const PagosModule = ({ idSocio }) => {
           </div>
         </div>
       )}
+
+      {/* MODAL NUEVO: Detalle de tarjetas */}
+      {showCardModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-5xl shadow-xl">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">{cardModalTitle}</h3>
+              <button className="px-3 py-1 rounded-lg bg-slate-100" onClick={() => setShowCardModal(false)}>Cerrar</button>
+            </div>
+
+            <div className="p-4 max-h-[70vh] overflow-y-auto">
+              {cardModalLoading && <p className="text-slate-600">Cargando…</p>}
+              {cardModalError && <p className="text-red-600">{cardModalError}</p>}
+              {!cardModalLoading && !cardModalError && cardModalRows.length === 0 && (
+                <p className="text-slate-600">Sin registros.</p>
+              )}
+              {!cardModalLoading && !cardModalError && cardModalRows.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-slate-200">
+                        <th className="text-left py-2 px-3">ID Socio</th>
+                        <th className="text-left py-2 px-3">ID Préstamo</th>
+                        <th className="text-left py-2 px-3"># Pago</th>
+                        <th className="text-left py-2 px-3">Fecha</th>
+                        <th className="text-left py-2 px-3">Monto</th>
+                        <th className="text-left py-2 px-3">Frecuencia / Nota</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cardModalRows.map(row => (
+                        <tr key={row.id_pago} className="border-b border-slate-100">
+                          <td className="py-2 px-3">{row.id_socio ?? '—'}</td>
+                          <td className="py-2 px-3">{row.id_prestamo}</td>
+                          <td className="py-2 px-3">{row.numero_pago}</td>
+                          <td className="py-2 px-3">
+                            {row.fecha_hora_pago
+                              ? fmt12h(row.fecha_hora_pago)
+                              : toDateInput(row.fecha_pago || row.fecha_programada)}
+                            {row.fecha_programada && !row.fecha_pago && (
+                              <span className="ml-2 text-xs text-red-600">
+                                {daysDiff(row.fecha_programada) > 0 ? `(${daysDiff(row.fecha_programada)} día(s) de atraso)` : ''}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3">
+                            {row.monto_pagado != null
+                              ? fmtMoney(row.monto_pagado)
+                              : fmtMoney(row.monto_pago)}
+                          </td>
+                          <td className="py-2 px-3">
+                            {row.nota ? row.nota : (row.frecuencia ?? '—')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default PagosModule;
-
 
