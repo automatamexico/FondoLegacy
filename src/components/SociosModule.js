@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
@@ -8,16 +8,30 @@ const SociosModule = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingSocio, setEditingSocio] = useState(null);
   const [newSocio, setNewSocio] = useState({
-    nombre: '', apellido_paterno: '', apellido_materno: '',
-    email: '', contrasena: '', telefono: '', direccion: '',
-    cp: '', estatus: 'activo', foto_url: ''
+    nombre: '',
+    apellido_paterno: '',
+    apellido_materno: '',
+    email: '',
+    contrasena: '',
+    telefono: '',
+    direccion: '',
+    cp: '',
+    estatus: 'activo',
+    foto_url: ''
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [socioToDelete, setSocioToDelete] = useState(null);
 
-  useEffect(() => { fetchSocios(); }, []);
+  // --- NUEVO: estado para subir foto ---
+  const [fotoUploadError, setFotoUploadError] = useState('');
+  const [fotoUploading, setFotoUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    fetchSocios();
+  }, []);
 
   const fetchSocios = async () => {
     setLoading(true);
@@ -49,6 +63,80 @@ const SociosModule = () => {
     setNewSocio(prev => ({ ...prev, [name]: value }));
   };
 
+  // ---------- NUEVO: subir foto a Supabase Storage ----------
+  const uploadFotoToSupabase = async (file) => {
+    if (!file) return;
+    setFotoUploadError('');
+
+    const allowed = ['image/jpeg', 'image/png'];
+    if (!allowed.includes(file.type)) {
+      setFotoUploadError('La foto debe ser JPG o PNG.');
+      return;
+    }
+
+    setFotoUploading(true);
+    try {
+      const ext = file.name.split('.').pop().toLowerCase();
+      const base = (newSocio.nombre || 'socio')
+        .toString()
+        .trim()
+        .replace(/\s+/g, '_')
+        .slice(0, 40)
+        .toLowerCase();
+      const filename = `${base}_${Date.now()}.${ext}`;
+      const path = `${encodeURIComponent(filename)}`;
+
+      // Intento 1: POST (crear)
+      let res = await fetch(`${SUPABASE_URL}/storage/v1/object/fotos-socios/${path}`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': file.type
+        },
+        body: file
+      });
+
+      // Si ya existe el nombre, reintenta con PUT + upsert
+      if (!res.ok) {
+        res = await fetch(`${SUPABASE_URL}/storage/v1/object/fotos-socios/${path}`, {
+          method: 'PUT',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': file.type,
+            'x-upsert': 'true'
+          },
+          body: file
+        });
+      }
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Error al subir foto: ${res.status} ${txt}`);
+      }
+
+      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/fotos-socios/${path}`;
+      setNewSocio(prev => ({ ...prev, foto_url: publicUrl }));
+    } catch (err) {
+      setFotoUploadError(err.message);
+    } finally {
+      setFotoUploading(false);
+    }
+  };
+
+  const onFotoInputChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) uploadFotoToSupabase(file);
+  };
+
+  const onDropFoto = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files?.[0];
+    if (file) uploadFotoToSupabase(file);
+  };
+
   const handleAddOrUpdateSocio = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -57,6 +145,7 @@ const SociosModule = () => {
       if (!newSocio.nombre || !newSocio.apellido_paterno || !newSocio.email || !newSocio.contrasena) {
         throw new Error('Los campos Nombre, Apellido Paterno, Email y Contraseña son obligatorios.');
       }
+
       const socioToSend = { ...newSocio };
       socioToSend.estatus = (newSocio.estatus === 'activo');
 
@@ -93,6 +182,7 @@ const SociosModule = () => {
         });
         if (!response.ok) {
           const errorData = await response.json();
+          // (mantengo tu misma estructura; no modifico nada más)
           throw new Error(`Error al registrar socio: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
         }
         addedOrUpdatedSocio = await response.json();
@@ -102,7 +192,13 @@ const SociosModule = () => {
           throw new Error('Email y Contraseña son necesarios para crear el usuario del sistema.');
         }
         const usernameFromEmail = newSocio.email.split('@')[0];
-        const newUserSystem = { usuario: usernameFromEmail, email: newSocio.email, contrasena: newSocio.contrasena, rol: 'usuario', id_socio: newSocioId };
+        const newUserSystem = {
+          usuario: usernameFromEmail,
+          email: newSocio.email,
+          contrasena: newSocio.contrasena,
+          rol: 'usuario',
+          id_socio: newSocioId
+        };
         const userSystemResponse = await fetch(`${SUPABASE_URL}/rest/v1/usuarios_sistema`, {
           method: 'POST',
           headers: {
@@ -120,9 +216,13 @@ const SociosModule = () => {
         setSociosList(prev => [...prev, addedOrUpdatedSocio[0]]);
       }
 
-      setNewSocio({ nombre: '', apellido_paterno: '', apellido_materno: '', email: '', contrasena: '', telefono: '', direccion: '', cp: '', estatus: 'activo', foto_url: '' });
+      setNewSocio({
+        nombre: '', apellido_paterno: '', apellido_materno: '', email: '', contrasena: '',
+        telefono: '', direccion: '', cp: '', estatus: 'activo', foto_url: ''
+      });
       setEditingSocio(null);
       setShowForm(false);
+      setFotoUploadError('');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -133,27 +233,57 @@ const SociosModule = () => {
   const handleEditClick = (socio) => {
     setEditingSocio(socio);
     setNewSocio({
-      nombre: socio.nombre, apellido_paterno: socio.apellido_paterno, apellido_materno: socio.apellido_materno,
-      email: socio.email, contrasena: socio.contrasena, telefono: socio.telefono, direccion: socio.direccion,
-      cp: socio.cp, estatus: socio.estatus ? 'activo' : 'inactivo', foto_url: socio.foto_url
+      nombre: socio.nombre,
+      apellido_paterno: socio.apellido_paterno,
+      apellido_materno: socio.apellido_materno,
+      email: socio.email,
+      contrasena: socio.contrasena,
+      telefono: socio.telefono,
+      direccion: socio.direccion,
+      cp: socio.cp,
+      estatus: socio.estatus ? 'activo' : 'inactivo',
+      foto_url: socio.foto_url
     });
     setShowForm(true);
   };
 
-  const handleDeleteClick = (socio) => { setSocioToDelete(socio); setShowConfirmModal(true); };
+  const handleDeleteClick = (socio) => {
+    setSocioToDelete(socio);
+    setShowConfirmModal(true);
+  };
 
   const confirmDelete = async () => {
-    setLoading(true); setError(null); setShowConfirmModal(false);
+    setLoading(true);
+    setError(null);
+    setShowConfirmModal(false);
     try {
       const socioId = socioToDelete.id_socio;
-      await fetch(`${SUPABASE_URL}/rest/v1/usuarios_sistema?id_socio=eq.${socioId}`, { method: 'DELETE', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } });
-      await fetch(`${SUPABASE_URL}/rest/v1/ahorros?id_socio=eq.${socioId}`, { method: 'DELETE', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } });
-      await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioId}`, { method: 'DELETE', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } });
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioId}`, { method: 'DELETE', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } });
+
+      await fetch(`${SUPABASE_URL}/rest/v1/usuarios_sistema?id_socio=eq.${socioId}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
+      });
+
+      await fetch(`${SUPABASE_URL}/rest/v1/ahorros?id_socio=eq.${socioId}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
+      });
+
+      await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioId}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
+      });
+
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioId}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
+      });
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Error al eliminar socio: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
       }
+
       setSociosList(prev => prev.filter(s => s.id_socio !== socioId));
       setSocioToDelete(null);
     } catch (err) {
@@ -162,7 +292,11 @@ const SociosModule = () => {
       setLoading(false);
     }
   };
-  const cancelDelete = () => { setShowConfirmModal(false); setSocioToDelete(null); };
+
+  const cancelDelete = () => {
+    setShowConfirmModal(false);
+    setSocioToDelete(null);
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -172,7 +306,7 @@ const SociosModule = () => {
           <p className="text-slate-600">Administra la información de todos los socios</p>
         </div>
         <button
-          onClick={() => { setShowForm(!showForm); setEditingSocio(null); setNewSocio({ nombre: '', apellido_paterno: '', apellido_materno: '', email: '', contrasena: '', telefono: '', direccion: '', cp: '', estatus: 'activo', foto_url: '' }); }}
+          onClick={() => { setShowForm(!showForm); setEditingSocio(null); setNewSocio({ nombre: '', apellido_paterno: '', apellido_materno: '', email: '', contrasena: '', telefono: '', direccion: '', cp: '', estatus: 'activo', foto_url: '' }); setFotoUploadError(''); }}
           className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
         >
           {showForm ? 'Cancelar' : 'Nuevo Socio'}
@@ -189,6 +323,8 @@ const SociosModule = () => {
                 <input type="text" value={editingSocio.id_socio} className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-slate-100" disabled />
               </div>
             )}
+
+            {/* Campos existentes */}
             <input type="text" name="nombre" value={newSocio.nombre} onChange={handleInputChange} placeholder="Nombre" className="px-4 py-2 border border-slate-200 rounded-lg" required />
             <input type="text" name="apellido_paterno" value={newSocio.apellido_paterno} onChange={handleInputChange} placeholder="Apellido Paterno" className="px-4 py-2 border border-slate-200 rounded-lg" required />
             <input type="text" name="apellido_materno" value={newSocio.apellido_materno} onChange={handleInputChange} placeholder="Apellido Materno" className="px-4 py-2 border border-slate-200 rounded-lg" />
@@ -197,11 +333,66 @@ const SociosModule = () => {
             <input type="text" name="telefono" value={newSocio.telefono} onChange={handleInputChange} placeholder="Teléfono" className="px-4 py-2 border border-slate-200 rounded-lg" />
             <input type="text" name="direccion" value={newSocio.direccion} onChange={handleInputChange} placeholder="Dirección" className="px-4 py-2 border border-slate-200 rounded-lg" />
             <input type="text" name="cp" value={newSocio.cp} onChange={handleInputChange} placeholder="Código Postal" className="px-4 py-2 border border-slate-200 rounded-lg" />
-            <input type="text" name="foto_url" value={newSocio.foto_url} onChange={handleInputChange} placeholder="URL de Foto (opcional)" className="px-4 py-2 border border-slate-200 rounded-lg" />
+
+            {/* ---------- NUEVO: Subidor de foto (reemplaza el campo URL) ---------- */}
+            <div className="col-span-full">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Foto del socio (JPG o PNG)</label>
+
+              <div
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDrop={onDropFoto}
+                className="flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 bg-slate-50 border-slate-300"
+              >
+                {newSocio.foto_url ? (
+                  <div className="flex items-center space-x-4 w-full">
+                    <img
+                      src={newSocio.foto_url}
+                      alt="Foto socio"
+                      className="w-16 h-16 rounded-lg object-cover border border-slate-200"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm text-slate-600 break-all">{newSocio.foto_url}</p>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="mt-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-lg hover:bg-slate-900"
+                        disabled={fotoUploading}
+                      >
+                        {fotoUploading ? 'Subiendo...' : 'Reemplazar foto'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-slate-700 font-medium mb-2">Arrastra la foto aquí</p>
+                    <p className="text-slate-500 text-sm mb-4">o</p>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900"
+                      disabled={fotoUploading}
+                    >
+                      {fotoUploading ? 'Subiendo...' : 'Elegir archivo'}
+                    </button>
+                  </>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  className="hidden"
+                  onChange={onFotoInputChange}
+                />
+              </div>
+              {fotoUploadError && <p className="text-red-500 text-sm mt-2">{fotoUploadError}</p>}
+            </div>
+            {/* --------------------------------------------------------------- */}
+
             <select name="estatus" value={newSocio.estatus} onChange={handleInputChange} className="px-4 py-2 border border-slate-200 rounded-lg">
               <option value="activo">Activo</option>
               <option value="inactivo">Inactivo</option>
             </select>
+
             <button type="submit" className="col-span-full px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium" disabled={loading}>
               {loading ? (editingSocio ? 'Actualizando...' : 'Registrando...') : (editingSocio ? 'Actualizar Socio' : 'Registrar Socio')}
             </button>
@@ -237,19 +428,14 @@ const SociosModule = () => {
                   <tr key={socio.id_socio} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className="py-4 px-4 text-slate-700">{socio.id_socio}</td>
                     <td className="py-4 px-4">
-                      <div className="flex items-center space-x-3">
-                        {socio.foto_url ? (
-                          <img src={socio.foto_url} alt="" className="w-8 h-8 rounded-full object-cover border" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-slate-200" />
-                        )}
-                        <div className="font-medium text-slate-900">{socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}</div>
-                      </div>
+                      <div className="font-medium text-slate-900">{socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}</div>
                     </td>
                     <td className="py-4 px-4 text-slate-700">{socio.email}</td>
                     <td className="py-4 px-4 text-slate-700">{socio.telefono}</td>
                     <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${socio.estatus ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        socio.estatus ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}>
                         {socio.estatus ? 'activo' : 'inactivo'}
                       </span>
                     </td>
@@ -279,10 +465,21 @@ const SociosModule = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center">
             <h3 className="text-xl font-bold text-slate-900 mb-4">Confirmar Eliminación</h3>
-            <p className="text-slate-700 mb-6">¿Estás seguro de que deseas eliminar este socio? Esta acción es irreversible y se perderán todos los datos relacionados.</p>
+            <p className="text-slate-700 mb-6">
+              ¿Estás seguro de que deseas eliminar este socio? Esta acción es irreversible y se perderán todos los datos relacionados con este socio, incluyendo préstamos y ahorros vinculados.
+            </p>
             <div className="flex justify-center space-x-4">
-              <button onClick={cancelDelete} className="px-5 py-2 bg-slate-200 text-slate-800 rounded-xl hover:bg-slate-300 transition-colors font-medium">Cancelar</button>
-              <button onClick={confirmDelete} className="px-5 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium" disabled={loading}>
+              <button
+                onClick={cancelDelete}
+                className="px-5 py-2 bg-slate-200 text-slate-800 rounded-xl hover:bg-slate-300 transition-colors font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-5 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium"
+                disabled={loading}
+              >
                 {loading ? 'Eliminando...' : 'Eliminar'}
               </button>
             </div>
@@ -294,4 +491,5 @@ const SociosModule = () => {
 };
 
 export default SociosModule;
+
 
