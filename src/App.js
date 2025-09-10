@@ -9,6 +9,8 @@ import PrestamosModule from './components/PrestamosModule';
 import CentroDigitalModule from './components/CentroDigitalModule';
 import UsuariosModule from './components/UsuariosModule';
 import PagosModule from './components/PagosModule';
+import ReportesModule from './components/ReportesModule'; // ← NUEVO
+
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
