@@ -24,10 +24,14 @@ const SociosModule = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [socioToDelete, setSocioToDelete] = useState(null);
 
-  // --- NUEVO: estado para subir foto ---
+  // Subida de foto (drag & drop)
   const [fotoUploadError, setFotoUploadError] = useState('');
   const [fotoUploading, setFotoUploading] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Modal de ficha
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedSocioDetails, setSelectedSocioDetails] = useState(null);
 
   useEffect(() => {
     fetchSocios();
@@ -63,7 +67,7 @@ const SociosModule = () => {
     setNewSocio(prev => ({ ...prev, [name]: value }));
   };
 
-  // ---------- NUEVO: subir foto a Supabase Storage ----------
+  // ---- Subir foto a Supabase Storage (fotos-socios) ----
   const uploadFotoToSupabase = async (file) => {
     if (!file) return;
     setFotoUploadError('');
@@ -86,7 +90,6 @@ const SociosModule = () => {
       const filename = `${base}_${Date.now()}.${ext}`;
       const path = `${encodeURIComponent(filename)}`;
 
-      // Intento 1: POST (crear)
       let res = await fetch(`${SUPABASE_URL}/storage/v1/object/fotos-socios/${path}`, {
         method: 'POST',
         headers: {
@@ -97,8 +100,8 @@ const SociosModule = () => {
         body: file
       });
 
-      // Si ya existe el nombre, reintenta con PUT + upsert
       if (!res.ok) {
+        // reintento con upsert
         res = await fetch(`${SUPABASE_URL}/storage/v1/object/fotos-socios/${path}`, {
           method: 'PUT',
           headers: {
@@ -182,7 +185,6 @@ const SociosModule = () => {
         });
         if (!response.ok) {
           const errorData = await response.json();
-          // (mantengo tu misma estructura; no modifico nada más)
           throw new Error(`Error al registrar socio: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
         }
         addedOrUpdatedSocio = await response.json();
@@ -230,7 +232,8 @@ const SociosModule = () => {
     }
   };
 
-  const handleEditClick = (socio) => {
+  const handleEditClick = (socio, e) => {
+    e.stopPropagation();
     setEditingSocio(socio);
     setNewSocio({
       nombre: socio.nombre,
@@ -247,7 +250,8 @@ const SociosModule = () => {
     setShowForm(true);
   };
 
-  const handleDeleteClick = (socio) => {
+  const handleDeleteClick = (socio, e) => {
+    e.stopPropagation();
     setSocioToDelete(socio);
     setShowConfirmModal(true);
   };
@@ -298,6 +302,32 @@ const SociosModule = () => {
     setSocioToDelete(null);
   };
 
+  // --- abrir modal de ficha al hacer clic en la fila ---
+  const handleRowClick = (socio) => {
+    setSelectedSocioDetails(socio);
+    setShowDetailsModal(true);
+  };
+
+  const Avatar = ({ url, name }) => {
+    if (url) {
+      return (
+        <img
+          src={url}
+          alt={name || 'Foto socio'}
+          className="w-10 h-10 rounded-lg object-cover border border-slate-200"
+        />
+      );
+    }
+    return (
+      <div className="w-10 h-10 rounded-lg bg-slate-200 flex items-center justify-center text-slate-600">
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      </div>
+    );
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -306,7 +336,15 @@ const SociosModule = () => {
           <p className="text-slate-600">Administra la información de todos los socios</p>
         </div>
         <button
-          onClick={() => { setShowForm(!showForm); setEditingSocio(null); setNewSocio({ nombre: '', apellido_paterno: '', apellido_materno: '', email: '', contrasena: '', telefono: '', direccion: '', cp: '', estatus: 'activo', foto_url: '' }); setFotoUploadError(''); }}
+          onClick={() => {
+            setShowForm(!showForm);
+            setEditingSocio(null);
+            setNewSocio({
+              nombre: '', apellido_paterno: '', apellido_materno: '', email: '', contrasena: '',
+              telefono: '', direccion: '', cp: '', estatus: 'activo', foto_url: ''
+            });
+            setFotoUploadError('');
+          }}
           className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
         >
           {showForm ? 'Cancelar' : 'Nuevo Socio'}
@@ -324,7 +362,6 @@ const SociosModule = () => {
               </div>
             )}
 
-            {/* Campos existentes */}
             <input type="text" name="nombre" value={newSocio.nombre} onChange={handleInputChange} placeholder="Nombre" className="px-4 py-2 border border-slate-200 rounded-lg" required />
             <input type="text" name="apellido_paterno" value={newSocio.apellido_paterno} onChange={handleInputChange} placeholder="Apellido Paterno" className="px-4 py-2 border border-slate-200 rounded-lg" required />
             <input type="text" name="apellido_materno" value={newSocio.apellido_materno} onChange={handleInputChange} placeholder="Apellido Materno" className="px-4 py-2 border border-slate-200 rounded-lg" />
@@ -334,10 +371,9 @@ const SociosModule = () => {
             <input type="text" name="direccion" value={newSocio.direccion} onChange={handleInputChange} placeholder="Dirección" className="px-4 py-2 border border-slate-200 rounded-lg" />
             <input type="text" name="cp" value={newSocio.cp} onChange={handleInputChange} placeholder="Código Postal" className="px-4 py-2 border border-slate-200 rounded-lg" />
 
-            {/* ---------- NUEVO: Subidor de foto (reemplaza el campo URL) ---------- */}
+            {/* Subidor de foto */}
             <div className="col-span-full">
               <label className="block text-sm font-medium text-slate-700 mb-1">Foto del socio (JPG o PNG)</label>
-
               <div
                 onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onDrop={onDropFoto}
@@ -386,7 +422,6 @@ const SociosModule = () => {
               </div>
               {fotoUploadError && <p className="text-red-500 text-sm mt-2">{fotoUploadError}</p>}
             </div>
-            {/* --------------------------------------------------------------- */}
 
             <select name="estatus" value={newSocio.estatus} onChange={handleInputChange} className="px-4 py-2 border border-slate-200 rounded-lg">
               <option value="activo">Activo</option>
@@ -415,6 +450,7 @@ const SociosModule = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200">
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Foto</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-700">ID</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Nombre Completo</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Email</th>
@@ -425,28 +461,33 @@ const SociosModule = () => {
               </thead>
               <tbody>
                 {sociosList.map((socio) => (
-                  <tr key={socio.id_socio} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="py-4 px-4 text-slate-700">{socio.id_socio}</td>
-                    <td className="py-4 px-4">
+                  <tr
+                    key={socio.id_socio}
+                    className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+                    onClick={() => handleRowClick(socio)}
+                  >
+                    <td className="py-3 px-4">
+                      <Avatar url={socio.foto_url} name={`${socio.nombre} ${socio.apellido_paterno}`} />
+                    </td>
+                    <td className="py-3 px-4 text-slate-700">{socio.id_socio}</td>
+                    <td className="py-3 px-4">
                       <div className="font-medium text-slate-900">{socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}</div>
                     </td>
-                    <td className="py-4 px-4 text-slate-700">{socio.email}</td>
-                    <td className="py-4 px-4 text-slate-700">{socio.telefono}</td>
-                    <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        socio.estatus ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}>
+                    <td className="py-3 px-4 text-slate-700">{socio.email}</td>
+                    <td className="py-3 px-4 text-slate-700">{socio.telefono}</td>
+                    <td className="py-3 px-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${socio.estatus ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {socio.estatus ? 'activo' : 'inactivo'}
                       </span>
                     </td>
-                    <td className="py-4 px-4">
+                    <td className="py-3 px-4">
                       <div className="flex space-x-2">
-                        <button onClick={() => handleEditClick(socio)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                        <button onClick={(e) => handleEditClick(socio, e)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </button>
-                        <button onClick={() => handleDeleteClick(socio)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                        <button onClick={(e) => handleDeleteClick(socio, e)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
@@ -457,6 +498,89 @@ const SociosModule = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ficha del socio */}
+      {showDetailsModal && selectedSocioDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900">Ficha del socio</h3>
+              <button
+                onClick={() => setShowDetailsModal(false)}
+                className="px-3 py-1.5 rounded-lg text-slate-700 hover:bg-slate-100"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Foto */}
+                <div className="md:col-span-1">
+                  <div className="border-2 border-dashed border-slate-200 rounded-xl p-3 flex items-center justify-center bg-slate-50">
+                    {selectedSocioDetails.foto_url ? (
+                      <img
+                        src={selectedSocioDetails.foto_url}
+                        alt="Foto socio"
+                        className="w-40 h-40 object-cover rounded-xl border border-slate-200"
+                      />
+                    ) : (
+                      <div className="w-40 h-40 rounded-xl bg-slate-200 flex items-center justify-center text-slate-600">
+                        <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Datos */}
+                <div className="md:col-span-2">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-slate-500">ID Socio</p>
+                        <p className="text-base font-semibold text-slate-900">{selectedSocioDetails.id_socio}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-slate-500">Nombre completo</p>
+                        <p className="text-base font-semibold text-slate-900">
+                          {selectedSocioDetails.nombre} {selectedSocioDetails.apellido_paterno} {selectedSocioDetails.apellido_materno || ''}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-slate-500">Código Postal</p>
+                          <p className="text-base font-semibold text-slate-900">{selectedSocioDetails.cp || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-slate-500">Teléfono</p>
+                          <p className="text-base font-semibold text-slate-900">{selectedSocioDetails.telefono || '—'}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-slate-500">Dirección</p>
+                        <p className="text-base font-semibold text-slate-900">{selectedSocioDetails.direccion || '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pie */}
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+                >
+                  Aceptar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -491,5 +615,4 @@ const SociosModule = () => {
 };
 
 export default SociosModule;
-
 
