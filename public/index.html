@@ -1,35 +1,94 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es" class="">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Fondo Legacy</title>
 
-       <!-- Configurar Tailwind para dark mode por CLASE -->
+    <!-- Favicon desde Supabase -->
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="https://ubfkhtkmlvutwdivmoff.supabase.co/storage/v1/object/public/Logos/favicon.ico"
+    />
+
+    <!-- Aplica 'dark' al <html> ANTES de pintar, según preferencia guardada -->
     <script>
-      tailwind = window.tailwind || {};
+      (function () {
+        try {
+          var t = localStorage.getItem('theme');
+          if (t === 'dark') document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
+
+    <!-- Configurar Tailwind para dark mode por CLASE -->
+    <script>
+      window.tailwind = window.tailwind || {};
       tailwind.config = { darkMode: 'class' };
     </script>
 
     <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- Favicon desde Supabase -->
-    <link
-      rel="icon"
-      href="https://ubfkhtkmlvutwdivmoff.supabase.co/storage/v1/object/public/Logos/favicon.ico"
-      type="image/x-icon"
-    />
-    <link
-      rel="shortcut icon"
-      href="https://ubfkhtkmlvutwdivmoff.supabase.co/storage/v1/object/public/Logos/favicon.ico"
-      type="image/x-icon"
-    />
+    <!-- Parche global de modo oscuro (aplica a todos los módulos) -->
+    <style id="dark-mode-patch">
+      /* Fondos comunes */
+      .dark .bg-white { background-color:#1f2937 !important; }    /* slate-800 */
+      .dark .bg-slate-50 { background-color:#0f172a !important; }  /* slate-900 */
+      .dark .bg-slate-100 { background-color:#111827 !important; } /* cerca slate-900 */
+      .dark .bg-slate-200 { background-color:#0b1220 !important; }
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+      /* Bordes */
+      .dark .border-slate-200 { border-color:#334155 !important; } /* slate-700 */
+      .dark .border-slate-300 { border-color:#475569 !important; } /* slate-600~700 */
+
+      /* Texto */
+      .dark .text-slate-900 { color:#f1f5f9 !important; } /* slate-100 */
+      .dark .text-slate-800 { color:#e2e8f0 !important; } /* slate-200 */
+      .dark .text-slate-700 { color:#cbd5e1 !important; } /* slate-300 */
+      .dark .text-slate-600,
+      .dark .text-slate-500 { color:#94a3b8 !important; } /* slate-400 */
+
+      /* Hovers frecuentes */
+      .dark .hover\:bg-slate-50:hover { background-color:#1f2937 !important; }
+      .dark .hover\:bg-blue-50:hover { background-color:rgba(59,130,246,.10) !important; }
+      .dark .hover\:bg-green-50:hover { background-color:rgba(16,185,129,.10) !important; }
+      .dark .hover\:bg-red-50:hover { background-color:rgba(239,68,68,.10) !important; }
+      .dark .hover\:bg-yellow-50:hover { background-color:rgba(234,179,8,.10) !important; }
+      .dark .hover\:bg-purple-50:hover { background-color:rgba(168,85,247,.10) !important; }
+
+      /* Tablas y cards */
+      .dark table thead tr { background-color:#0b1220 !important; }
+      .dark tr:hover { background-color:rgba(255,255,255,0.03) !important; }
+      .dark .shadow, .dark .shadow-lg {
+        box-shadow: 0 1px 2px rgba(0,0,0,.45), 0 1px 1px rgba(0,0,0,.08) !important;
+      }
+
+      /* Chips/Badges por estado (si usas bg-*-100) */
+      .dark .bg-yellow-100 { background-color:rgba(234,179,8,.15) !important; }
+      .dark .bg-green-100 { background-color:rgba(16,185,129,.15) !important; }
+      .dark .bg-red-100 { background-color:rgba(239,68,68,.15) !important; }
+      .dark .bg-purple-100 { background-color:rgba(168,85,247,.15) !important; }
+
+      /* Inputs */
+      .dark input, .dark select, .dark textarea {
+        background-color:#0b1220 !important;
+        border-color:#334155 !important;
+        color:#e2e8f0 !important;
+      }
+      .dark input::placeholder, .dark textarea::placeholder {
+        color:#94a3b8 !important;
+      }
+
+      /* Links */
+      .dark a { color:#93c5fd; }
+      .dark a:hover { color:#bfdbfe; }
+    </style>
   </head>
-  <body>
+
+  <body class="bg-slate-50 dark:bg-slate-900">
     <div id="root"></div>
   </body>
 </html>
+
