@@ -16,25 +16,6 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [activeSection, setActiveSection] = useState('dashboard');
 
-    // THEME: 'light' | 'dark'
-  const [theme, setTheme] = useState(() => {
-    // lee la preferencia guardada o usa 'light'
-    return localStorage.getItem('theme') || 'light';
-  });
-
-  // Aplica/remueve la clase 'dark' en <html> y guarda preferencia
-  useEffect(() => {
-    const root = document.documentElement; // <html>
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-    localStorage.setItem('theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
-
   // Cargar el usuario desde localStorage al inicio
   useEffect(() => {
     const storedUser = localStorage.getItem('currentUser');
@@ -129,7 +110,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       <DashboardHeader user={currentUser} onLogout={handleLogout} />
       <div className="flex h-[calc(100vh-80px)]">
         <DashboardSidebar
@@ -146,4 +127,5 @@ function App() {
 }
 
 export default App;
+
 
