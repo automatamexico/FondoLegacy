@@ -99,6 +99,8 @@ function App() {
         return <UsuariosModule />;
       case 'pagos':
         return <PagosModule />;
+           case 'reportes':                            
+    return <ReportesModule />;  
       default:
         return <DashboardMain />;
     }
