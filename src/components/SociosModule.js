@@ -266,12 +266,10 @@ const SociosModule = () => {
         socioId = socio.id_socio;
 
         // Subir foto si adjuntó
-        let fotoURL = socio.foto_url || null;
         if (photoFile) {
           const url = await uploadPhotoToSupabase(socioId);
           if (url) {
-            fotoURL = url;
-            const r2 = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioId}`, {
+            await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioId}`, {
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
@@ -281,12 +279,8 @@ const SociosModule = () => {
               },
               body: JSON.stringify({ foto_url: url }),
             });
-            if (r2.ok) {
-              const j2 = await r2.json();
-              setSociosList((prev) => [...prev, j2[0]]);
-            } else {
-              setSociosList((prev) => [...prev, socio]); // fallback
-            }
+            // recarga lista local
+            await fetchSocios();
           } else {
             setSociosList((prev) => [...prev, socio]); // sin foto
           }
@@ -411,7 +405,6 @@ const SociosModule = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Gestión de Socios</h2>
-          <p className="text-slate-600">Administra la información de todos los socios</p>
         </div>
         <button
           onClick={() => {
@@ -724,7 +717,7 @@ const SociosModule = () => {
         </div>
       )}
 
-      {/* Modal Ficha del socio */}
+      {/* Modal Ficha del socio (con teléfono agregado en el encabezado) */}
       {showFicha && socioFicha && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg">
@@ -744,6 +737,13 @@ const SociosModule = () => {
                 <div className="text-lg font-semibold">{socioFicha.id_socio}</div>
                 <div className="text-slate-900 font-medium">
                   {socioFicha.nombre} {socioFicha.apellido_paterno} {socioFicha.apellido_materno}
+                </div>
+                {/* NUEVO: Teléfono en el encabezado */}
+                <div className="text-sm text-slate-600 mt-1">
+                  Teléfono:{' '}
+                  <span className="font-medium text-slate-900">
+                    {socioFicha.telefono || '-'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -779,3 +779,4 @@ const SociosModule = () => {
 };
 
 export default SociosModule;
+
