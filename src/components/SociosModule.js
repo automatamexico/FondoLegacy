@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
-const SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
+
+/** Util para avatar de respaldo */
+const avatarFallback = (s) => {
+  const name = `${s?.nombre || ''} ${s?.apellido_paterno || ''}`.trim() || 'Socio';
+  const bg = '0ea15a'; // tu verde
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bg}&color=fff&size=128`;
+};
 
 const SociosModule = () => {
   const [sociosList, setSociosList] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingSocio, setEditingSocio] = useState(null);
-
   const [newSocio, setNewSocio] = useState({
     nombre: '',
     apellido_paterno: '',
@@ -19,14 +24,27 @@ const SociosModule = () => {
     direccion: '',
     cp: '',
     estatus: 'activo',
-    foto_url: '' // opcional, no requerido
   });
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [validationErrors, setValidationErrors] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Modal eliminar
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [socioToDelete, setSocioToDelete] = useState(null);
+
+  // Foto (drag & drop / input)
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState('');
+  const [photoError, setPhotoError] = useState('');
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const dropRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // Ficha (modal de detalles)
+  const [showFicha, setShowFicha] = useState(false);
+  const [socioFicha, setSocioFicha] = useState(null);
 
   useEffect(() => {
     fetchSocios();
@@ -34,23 +52,20 @@ const SociosModule = () => {
 
   const fetchSocios = async () => {
     setLoading(true);
-    setError('');
+    setError(null);
     try {
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/socios?select=*`, {
-        method: 'GET',
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/socios?select=*&order=id_socio.asc`, {
         headers: {
           'Content-Type': 'application/json',
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`
-        }
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
       });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          `Error al cargar socios: ${response.statusText} - ${errorData.message || 'Error desconocido'}`
-        );
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(`Error al cargar socios: ${res.statusText} - ${e.message || 'Error desconocido'}`);
       }
-      const data = await response.json();
+      const data = await res.json();
       setSociosList(data);
     } catch (err) {
       setError(err.message);
@@ -59,193 +74,256 @@ const SociosModule = () => {
     }
   };
 
-  // -------------------------
-  // Validaciones
-  // -------------------------
-  const isEmpty = (v) => !v || String(v).trim() === '';
-
-  const validateForm = () => {
-    const errs = {};
-
-    if (isEmpty(newSocio.nombre)) errs.nombre = 'Campo obligatorio';
-    if (isEmpty(newSocio.apellido_paterno)) errs.apellido_paterno = 'Campo obligatorio';
-    if (isEmpty(newSocio.apellido_materno)) errs.apellido_materno = 'Campo obligatorio';
-
-    if (isEmpty(newSocio.email)) {
-      errs.email = 'Campo obligatorio';
-    } else {
-      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newSocio.email.trim());
-      if (!emailOk) errs.email = 'Correo inválido';
-    }
-
-    if (isEmpty(newSocio.contrasena)) errs.contrasena = 'Campo obligatorio';
-    if (isEmpty(newSocio.telefono)) errs.telefono = 'Campo obligatorio';
-    if (isEmpty(newSocio.direccion)) errs.direccion = 'Campo obligatorio';
-    if (isEmpty(newSocio.cp)) errs.cp = 'Campo obligatorio';
-
-    return errs;
+  /** Validación rápida de foto */
+  const validatePhoto = (file) => {
+    if (!file) return '';
+    const okTypes = ['image/jpeg', 'image/png'];
+    if (!okTypes.includes(file.type)) return 'Formato inválido. Solo JPG o PNG.';
+    const maxMB = 5;
+    if (file.size > maxMB * 1024 * 1024) return `La imagen supera ${maxMB}MB.`;
+    return '';
   };
 
-  // Checar duplicado de correo en socios (excluye el socio en edición)
-  const checkEmailExists = async () => {
-    const emailEncoded = encodeURIComponent(newSocio.email.trim());
-    let url = `${SUPABASE_URL}/rest/v1/socios?select=id_socio&email=eq.${emailEncoded}`;
-    if (editingSocio?.id_socio) {
-      url += `&id_socio=neq.${editingSocio.id_socio}`;
+  const handleChooseFile = () => fileInputRef.current?.click();
+
+  const handleFileChange = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const v = validatePhoto(f);
+    setPhotoError(v);
+    if (!v) {
+      setPhotoFile(f);
+      setPhotoPreview(URL.createObjectURL(f));
     }
-    const r = await fetch(url, {
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    dropRef.current?.classList.add('ring-2', 'ring-emerald-500');
+  };
+
+  const handleDragLeave = () => {
+    dropRef.current?.classList.remove('ring-2', 'ring-emerald-500');
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    dropRef.current?.classList.remove('ring-2', 'ring-emerald-500');
+    const f = e.dataTransfer.files?.[0];
+    if (!f) return;
+    const v = validatePhoto(f);
+    setPhotoError(v);
+    if (!v) {
+      setPhotoFile(f);
+      setPhotoPreview(URL.createObjectURL(f));
+    }
+  };
+
+  /** Subida a Supabase Storage y retorna URL pública */
+  const uploadPhotoToSupabase = async (socioId) => {
+    if (!photoFile) return null;
+    setPhotoUploading(true);
+    try {
+      const ext = photoFile.type === 'image/png' ? 'png' : 'jpg';
+      const path = `socio_${socioId}.${ext}`; // archivo por id, se puede sobrescribir
+      const uploadUrl = `${SUPABASE_URL}/storage/v1/object/fotos-socios/${encodeURIComponent(path)}?upsert=true`;
+
+      const upRes = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': photoFile.type,
+          'x-upsert': 'true',
+          'cache-control': '3600',
+        },
+        body: photoFile,
+      });
+
+      if (!upRes.ok) {
+        const e = await upRes.json().catch(() => ({}));
+        throw new Error(`Error subiendo foto: ${upRes.statusText} - ${e.message || ''}`);
       }
-    });
-    if (!r.ok) {
-      // en caso de error de red, no bloquear, pero registra en consola
-      console.warn('No se pudo validar el email en Supabase');
-      return false;
+
+      const publicURL = `${SUPABASE_URL}/storage/v1/object/public/fotos-socios/${encodeURIComponent(path)}`;
+      return publicURL;
+    } finally {
+      setPhotoUploading(false);
     }
-    const rows = await r.json();
-    return rows && rows.length > 0; // existe otro socio con ese email
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setNewSocio((prev) => ({ ...prev, [name]: value }));
-    setValidationErrors((prev) => ({ ...prev, [name]: undefined })); // limpia error de ese campo
-    setError('');
+  };
+
+  const resetForm = () => {
+    setNewSocio({
+      nombre: '',
+      apellido_paterno: '',
+      apellido_materno: '',
+      email: '',
+      contrasena: '',
+      telefono: '',
+      direccion: '',
+      cp: '',
+      estatus: 'activo',
+    });
+    setEditingSocio(null);
+    setPhotoFile(null);
+    setPhotoPreview('');
+    setPhotoError('');
+    setShowForm(false);
   };
 
   const handleAddOrUpdateSocio = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
+    setError(null);
 
+    // Validaciones mínimas
+    const required = ['nombre', 'apellido_paterno', 'apellido_materno', 'email', 'contrasena', 'telefono', 'direccion', 'cp'];
+    const missing = required.filter((k) => !`${newSocio[k]}`.trim());
+    if (missing.length) {
+      setError('Complete los campos obligatorios.');
+      return;
+    }
+
+    setSaving(true);
     try {
-      // 1) Validar campos obligatorios
-      const errs = validateForm();
-      if (Object.keys(errs).length > 0) {
-        setValidationErrors(errs);
-        setError('Complete los campos obligatorios');
-        setLoading(false);
-        return;
-      }
-
-      // 2) Verificar correo duplicado
-      const duplicated = await checkEmailExists();
-      if (duplicated) {
-        setValidationErrors((prev) => ({
-          ...prev,
-          email: 'El correo ya existe, por favor use otro'
-        }));
-        setError('El correo ya existe, por favor use otro');
-        setLoading(false);
-        return;
-      }
-
-      // preparar payload
-      const socioToSend = { ...newSocio };
-      socioToSend.estatus = newSocio.estatus === 'activo'; // boolean en DB
-
-      let response;
-      let addedOrUpdatedSocio;
+      let socioId;
 
       if (editingSocio) {
-        // UPDATE
-        response = await fetch(
-          `${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${editingSocio.id_socio}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-              Prefer: 'return=representation'
-            },
-            body: JSON.stringify(socioToSend)
-          }
-        );
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            `Error al actualizar socio: ${response.statusText} - ${errorData.message || 'Error desconocido'}`
-          );
+        // Update principal
+        const patchBody = {
+          ...newSocio,
+          estatus: newSocio.estatus === 'activo',
+        };
+
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${editingSocio.id_socio}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Prefer': 'return=representation',
+          },
+          body: JSON.stringify(patchBody),
+        });
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({}));
+          throw new Error(`Error al actualizar socio: ${res.statusText} - ${e.message || ''}`);
         }
-        addedOrUpdatedSocio = await response.json();
-        setSociosList((prev) =>
-          prev.map((s) => (s.id_socio === editingSocio.id_socio ? addedOrUpdatedSocio[0] : s))
-        );
+        const updated = await res.json();
+        const socio = updated[0];
+        socioId = socio.id_socio;
+
+        // Si hay foto nueva, subir y guardar URL
+        if (photoFile) {
+          const url = await uploadPhotoToSupabase(socioId);
+          if (url) {
+            const r2 = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioId}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'Prefer': 'return=representation',
+              },
+              body: JSON.stringify({ foto_url: url }),
+            });
+            if (r2.ok) {
+              const j2 = await r2.json();
+              setSociosList((prev) => prev.map((s) => (s.id_socio === socioId ? j2[0] : s)));
+            }
+          }
+        } else {
+          // Actualiza en memoria sin tocar foto
+          setSociosList((prev) => prev.map((s) => (s.id_socio === socioId ? socio : s)));
+        }
       } else {
-        // INSERT
-        response = await fetch(`${SUPABASE_URL}/rest/v1/socios`, {
+        // Crear socio (sin foto_url)
+        const bodyToSend = { ...newSocio, estatus: newSocio.estatus === 'activo' };
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/socios`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            Prefer: 'return=representation'
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Prefer': 'return=representation',
           },
-          body: JSON.stringify(socioToSend)
+          body: JSON.stringify(bodyToSend),
         });
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            `Error al registrar socio: ${response.statusText} - ${errorData.message || 'Error desconocido'}`
-          );
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({}));
+          // posible duplicado de email (si tienes unique en BD)
+          if (e?.message?.toLowerCase?.().includes('duplicate') || e?.message?.includes('unique')) {
+            throw new Error('El correo ya existe, por favor use otro.');
+          }
+          throw new Error(`Error al registrar socio: ${res.statusText} - ${e.message || ''}`);
         }
-        addedOrUpdatedSocio = await response.json();
-        const newSocioId = addedOrUpdatedSocio[0].id_socio;
+        const inserted = await res.json();
+        const socio = inserted[0];
+        socioId = socio.id_socio;
 
-        // Crear usuario del sistema (usa email+contrasena del socio)
+        // Subir foto si adjuntó
+        let fotoURL = socio.foto_url || null;
+        if (photoFile) {
+          const url = await uploadPhotoToSupabase(socioId);
+          if (url) {
+            fotoURL = url;
+            const r2 = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioId}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'Prefer': 'return=representation',
+              },
+              body: JSON.stringify({ foto_url: url }),
+            });
+            if (r2.ok) {
+              const j2 = await r2.json();
+              setSociosList((prev) => [...prev, j2[0]]);
+            } else {
+              setSociosList((prev) => [...prev, socio]); // fallback
+            }
+          } else {
+            setSociosList((prev) => [...prev, socio]); // sin foto
+          }
+        } else {
+          setSociosList((prev) => [...prev, socio]); // sin foto
+        }
+
+        // Crea usuario de sistema
         const usernameFromEmail = newSocio.email.split('@')[0];
         const newUserSystem = {
           usuario: usernameFromEmail,
           email: newSocio.email,
           contrasena: newSocio.contrasena,
           rol: 'usuario',
-          id_socio: newSocioId
+          id_socio: socioId,
         };
-        const userSystemResponse = await fetch(`${SUPABASE_URL}/rest/v1/usuarios_sistema`, {
+        const sysRes = await fetch(`${SUPABASE_URL}/rest/v1/usuarios_sistema`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            Prefer: 'return=representation'
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Prefer': 'return=representation',
           },
-          body: JSON.stringify(newUserSystem)
+          body: JSON.stringify(newUserSystem),
         });
-        if (!userSystemResponse.ok) {
-          const errorData = await userSystemResponse.json();
-          throw new Error(
-            `Error al registrar usuario en sistema: ${userSystemResponse.statusText} - ${
-              errorData.message || 'Error desconocido'
-            }`
-          );
+        if (!sysRes.ok) {
+          const e = await sysRes.json().catch(() => ({}));
+          console.warn('Usuario de sistema no creado:', e?.message || sysRes.statusText);
         }
-
-        setSociosList((prev) => [...prev, addedOrUpdatedSocio[0]]);
       }
 
-      // Reset
-      setNewSocio({
-        nombre: '',
-        apellido_paterno: '',
-        apellido_materno: '',
-        email: '',
-        contrasena: '',
-        telefono: '',
-        direccion: '',
-        cp: '',
-        estatus: 'activo',
-        foto_url: ''
-      });
-      setEditingSocio(null);
-      setValidationErrors({});
-      setShowForm(false);
+      resetForm();
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -261,10 +339,10 @@ const SociosModule = () => {
       direccion: socio.direccion || '',
       cp: socio.cp || '',
       estatus: socio.estatus ? 'activo' : 'inactivo',
-      foto_url: socio.foto_url || ''
     });
-    setValidationErrors({});
-    setError('');
+    setPhotoFile(null);
+    setPhotoPreview(socio.foto_url || '');
+    setPhotoError('');
     setShowForm(true);
   };
 
@@ -274,39 +352,36 @@ const SociosModule = () => {
   };
 
   const confirmDelete = async () => {
-    setLoading(true);
-    setError('');
     setShowConfirmModal(false);
+    setLoading(true);
+    setError(null);
     try {
       const socioId = socioToDelete.id_socio;
 
       await fetch(`${SUPABASE_URL}/rest/v1/usuarios_sistema?id_socio=eq.${socioId}`, {
         method: 'DELETE',
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
       });
 
       await fetch(`${SUPABASE_URL}/rest/v1/ahorros?id_socio=eq.${socioId}`, {
         method: 'DELETE',
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
       });
 
       await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioId}`, {
         method: 'DELETE',
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
       });
 
       const response = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioId}`, {
         method: 'DELETE',
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          `Error al eliminar socio: ${response.statusText} - ${errorData.message || 'Error desconocido'}`
-        );
+        const e = await response.json().catch(() => ({}));
+        throw new Error(`Error al eliminar socio: ${response.statusText} - ${e.message || ''}`);
       }
-
       setSociosList((prev) => prev.filter((s) => s.id_socio !== socioId));
       setSocioToDelete(null);
     } catch (err) {
@@ -321,16 +396,15 @@ const SociosModule = () => {
     setSocioToDelete(null);
   };
 
-  const label = (text, required = false) => (
-    <label className="block text-sm font-medium text-slate-700 mb-1">
-      {text} {required && <span className="text-red-600">*</span>}
-    </label>
-  );
-
-  const inputClass = (field) =>
-    `px-4 py-2 border rounded-lg w-full ${
-      validationErrors[field] ? 'border-red-500 bg-red-50' : 'border-slate-200'
-    }`;
+  /** Ficha */
+  const openFicha = (socio) => {
+    setSocioFicha(socio);
+    setShowFicha(true);
+  };
+  const closeFicha = () => {
+    setShowFicha(false);
+    setSocioFicha(null);
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -341,38 +415,42 @@ const SociosModule = () => {
         </div>
         <button
           onClick={() => {
-            setShowForm(!showForm);
-            setEditingSocio(null);
-            setNewSocio({
-              nombre: '',
-              apellido_paterno: '',
-              apellido_materno: '',
-              email: '',
-              contrasena: '',
-              telefono: '',
-              direccion: '',
-              cp: '',
-              estatus: 'activo',
-              foto_url: ''
-            });
-            setValidationErrors({});
-            setError('');
+            if (showForm) {
+              resetForm();
+            } else {
+              setShowForm(true);
+              setEditingSocio(null);
+              setNewSocio({
+                nombre: '',
+                apellido_paterno: '',
+                apellido_materno: '',
+                email: '',
+                contrasena: '',
+                telefono: '',
+                direccion: '',
+                cp: '',
+                estatus: 'activo',
+              });
+              setPhotoFile(null);
+              setPhotoPreview('');
+              setPhotoError('');
+            }
           }}
-          className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+          className="px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
         >
           {showForm ? 'Cancelar' : 'Nuevo Socio'}
         </button>
       </div>
 
+      {/* Formulario */}
       {showForm && (
         <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-6">
           <h3 className="text-xl font-semibold text-slate-900 mb-4">
             {editingSocio ? 'Editar Socio' : 'Registrar Nuevo Socio'}
           </h3>
 
-          {/* Mensaje general de error */}
           {error && (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
               {error}
             </div>
           )}
@@ -380,7 +458,7 @@ const SociosModule = () => {
           <form onSubmit={handleAddOrUpdateSocio} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {editingSocio && (
               <div className="col-span-full">
-                {label('ID Socio')}
+                <label className="block text-sm font-medium text-slate-700 mb-1">ID Socio</label>
                 <input
                   type="text"
                   value={editingSocio.id_socio}
@@ -390,162 +468,144 @@ const SociosModule = () => {
               </div>
             )}
 
-            <div>
-              {label('Nombre', true)}
-              <input
-                name="nombre"
-                value={newSocio.nombre}
-                onChange={handleInputChange}
-                className={inputClass('nombre')}
-                placeholder="Nombre"
-              />
-              {validationErrors.nombre && (
-                <p className="mt-1 text-xs text-red-600">{validationErrors.nombre}</p>
-              )}
-            </div>
+            {/* Datos */}
+            <input
+              type="text"
+              name="nombre"
+              value={newSocio.nombre}
+              onChange={handleInputChange}
+              placeholder="Nombre *"
+              className="px-4 py-2 border border-slate-200 rounded-lg"
+              required
+            />
+            <input
+              type="text"
+              name="apellido_paterno"
+              value={newSocio.apellido_paterno}
+              onChange={handleInputChange}
+              placeholder="Apellido Paterno *"
+              className="px-4 py-2 border border-slate-200 rounded-lg"
+              required
+            />
+            <input
+              type="text"
+              name="apellido_materno"
+              value={newSocio.apellido_materno}
+              onChange={handleInputChange}
+              placeholder="Apellido Materno *"
+              className="px-4 py-2 border border-slate-200 rounded-lg"
+              required
+            />
+            <input
+              type="email"
+              name="email"
+              value={newSocio.email}
+              onChange={handleInputChange}
+              placeholder="Correo electrónico *"
+              className="px-4 py-2 border border-slate-200 rounded-lg"
+              required
+            />
+            <input
+              type="password"
+              name="contrasena"
+              value={newSocio.contrasena}
+              onChange={handleInputChange}
+              placeholder="Contraseña *"
+              className="px-4 py-2 border border-slate-200 rounded-lg"
+              required
+            />
+            <input
+              type="text"
+              name="telefono"
+              value={newSocio.telefono}
+              onChange={handleInputChange}
+              placeholder="Teléfono *"
+              className="px-4 py-2 border border-slate-200 rounded-lg"
+              required
+            />
+            <input
+              type="text"
+              name="direccion"
+              value={newSocio.direccion}
+              onChange={handleInputChange}
+              placeholder="Dirección *"
+              className="px-4 py-2 border border-slate-200 rounded-lg"
+              required
+            />
+            <input
+              type="text"
+              name="cp"
+              value={newSocio.cp}
+              onChange={handleInputChange}
+              placeholder="Código Postal *"
+              className="px-4 py-2 border border-slate-200 rounded-lg"
+              required
+            />
 
-            <div>
-              {label('Apellido Paterno', true)}
-              <input
-                name="apellido_paterno"
-                value={newSocio.apellido_paterno}
-                onChange={handleInputChange}
-                className={inputClass('apellido_paterno')}
-                placeholder="Apellido Paterno"
-              />
-              {validationErrors.apellido_paterno && (
-                <p className="mt-1 text-xs text-red-600">{validationErrors.apellido_paterno}</p>
-              )}
-            </div>
+            {/* Estatus */}
+            <select
+              name="estatus"
+              value={newSocio.estatus}
+              onChange={handleInputChange}
+              className="px-4 py-2 border border-slate-200 rounded-lg"
+            >
+              <option value="activo">Activo</option>
+              <option value="inactivo">Inactivo</option>
+            </select>
 
-            <div>
-              {label('Apellido Materno', true)}
-              <input
-                name="apellido_materno"
-                value={newSocio.apellido_materno}
-                onChange={handleInputChange}
-                className={inputClass('apellido_materno')}
-                placeholder="Apellido Materno"
-              />
-              {validationErrors.apellido_materno && (
-                <p className="mt-1 text-xs text-red-600">{validationErrors.apellido_materno}</p>
-              )}
-            </div>
+            {/* Subida de foto */}
+            <div className="col-span-full">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Foto del socio (JPG o PNG)</label>
 
-            <div>
-              {label('Correo electrónico', true)}
-              <input
-                type="email"
-                name="email"
-                value={newSocio.email}
-                onChange={handleInputChange}
-                className={inputClass('email')}
-                placeholder="correo@ejemplo.com"
-              />
-              {validationErrors.email && (
-                <p className="mt-1 text-xs text-red-600">{validationErrors.email}</p>
-              )}
-            </div>
-
-            <div>
-              {label('Contraseña', true)}
-              <input
-                type="password"
-                name="contrasena"
-                value={newSocio.contrasena}
-                onChange={handleInputChange}
-                className={inputClass('contrasena')}
-                placeholder="Contraseña"
-              />
-              {validationErrors.contrasena && (
-                <p className="mt-1 text-xs text-red-600">{validationErrors.contrasena}</p>
-              )}
-            </div>
-
-            <div>
-              {label('Teléfono', true)}
-              <input
-                name="telefono"
-                value={newSocio.telefono}
-                onChange={handleInputChange}
-                className={inputClass('telefono')}
-                placeholder="Teléfono"
-              />
-              {validationErrors.telefono && (
-                <p className="mt-1 text-xs text-red-600">{validationErrors.telefono}</p>
-              )}
-            </div>
-
-            <div>
-              {label('Dirección', true)}
-              <input
-                name="direccion"
-                value={newSocio.direccion}
-                onChange={handleInputChange}
-                className={inputClass('direccion')}
-                placeholder="Dirección"
-              />
-              {validationErrors.direccion && (
-                <p className="mt-1 text-xs text-red-600">{validationErrors.direccion}</p>
-              )}
-            </div>
-
-            <div>
-              {label('Código Postal', true)}
-              <input
-                name="cp"
-                value={newSocio.cp}
-                onChange={handleInputChange}
-                className={inputClass('cp')}
-                placeholder="Código Postal"
-              />
-              {validationErrors.cp && <p className="mt-1 text-xs text-red-600">{validationErrors.cp}</p>}
-            </div>
-
-            {/* Campo opcional: URL de Foto (no obligatorio) */}
-            <div className="md:col-span-2">
-              {label('URL de Foto (opcional)')}
-              <input
-                name="foto_url"
-                value={newSocio.foto_url}
-                onChange={handleInputChange}
-                className="px-4 py-2 border border-slate-200 rounded-lg w-full"
-                placeholder="https://..."
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              {label('Estatus')}
-              <select
-                name="estatus"
-                value={newSocio.estatus}
-                onChange={handleInputChange}
-                className="px-4 py-2 border border-slate-200 rounded-lg w-full"
+              <div
+                ref={dropRef}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className="border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col md:flex-row items-center gap-4"
               >
-                <option value="activo">Activo</option>
-                <option value="inactivo">Inactivo</option>
-              </select>
+                <img
+                  src={photoPreview || avatarFallback(newSocio)}
+                  alt="preview"
+                  className="w-20 h-20 rounded-full object-cover border"
+                />
+                <div className="flex-1 text-slate-600">
+                  <p className="font-medium">Arrastra y suelta la foto aquí</p>
+                  <p className="text-sm">o</p>
+                  <button
+                    type="button"
+                    onClick={handleChooseFile}
+                    className="mt-2 px-3 py-1.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900"
+                  >
+                    Elegir archivo
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                  {photoError && <p className="text-sm text-red-600 mt-2">{photoError}</p>}
+                  {photoUploading && <p className="text-sm text-slate-500 mt-2">Subiendo foto…</p>}
+                </div>
+              </div>
             </div>
 
             <button
               type="submit"
-              className="col-span-full px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
-              disabled={loading}
+              disabled={saving}
+              className="col-span-full px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
             >
-              {loading
-                ? editingSocio
-                  ? 'Actualizando...'
-                  : 'Registrando...'
-                : editingSocio
-                ? 'Actualizar Socio'
-                : 'Registrar Socio'}
+              {saving ? (editingSocio ? 'Actualizando…' : 'Registrando…') : (editingSocio ? 'Actualizar Socio' : 'Registrar Socio')}
             </button>
           </form>
         </div>
       )}
 
-      {loading && !showForm && <p className="text-center text-slate-600">Cargando socios...</p>}
-      {error && !showForm && (
+      {/* Tabla principal */}
+      {loading && <p className="text-center text-slate-600">Cargando socios...</p>}
+      {error && !loading && !showForm && (
         <p className="text-center text-red-500">Error: {error}</p>
       )}
 
@@ -553,7 +613,6 @@ const SociosModule = () => {
         <p className="text-center text-slate-600">No hay socios registrados.</p>
       )}
 
-      {/* Tabla principal de todos los socios */}
       {!loading && !error && sociosList.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h3 className="text-xl font-semibold text-slate-900 mb-4">Todos los Socios</h3>
@@ -561,6 +620,7 @@ const SociosModule = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200">
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Foto</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-700">ID</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Nombre Completo</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Email</th>
@@ -571,16 +631,27 @@ const SociosModule = () => {
               </thead>
               <tbody>
                 {sociosList.map((socio) => (
-                  <tr key={socio.id_socio} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="py-4 px-4 text-slate-700">{socio.id_socio}</td>
-                    <td className="py-4 px-4">
+                  <tr
+                    key={socio.id_socio}
+                    className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+                    onClick={() => openFicha(socio)}
+                  >
+                    <td className="py-3 px-4">
+                      <img
+                        src={socio.foto_url || avatarFallback(socio)}
+                        alt="avatar"
+                        className="w-10 h-10 rounded-full object-cover border"
+                      />
+                    </td>
+                    <td className="py-3 px-4 text-slate-700">{socio.id_socio}</td>
+                    <td className="py-3 px-4">
                       <div className="font-medium text-slate-900">
                         {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}
                       </div>
                     </td>
-                    <td className="py-4 px-4 text-slate-700">{socio.email}</td>
-                    <td className="py-4 px-4 text-slate-700">{socio.telefono}</td>
-                    <td className="py-4 px-4">
+                    <td className="py-3 px-4 text-slate-700">{socio.email}</td>
+                    <td className="py-3 px-4 text-slate-700">{socio.telefono}</td>
+                    <td className="py-3 px-4">
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-medium ${
                           socio.estatus ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
@@ -589,32 +660,30 @@ const SociosModule = () => {
                         {socio.estatus ? 'activo' : 'inactivo'}
                       </span>
                     </td>
-                    <td className="py-4 px-4">
+                    <td className="py-3 px-4">
                       <div className="flex space-x-2">
                         <button
-                          onClick={() => handleEditClick(socio)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditClick(socio);
+                          }}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Editar"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                            />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </button>
                         <button
-                          onClick={() => handleDeleteClick(socio)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClick(socio);
+                          }}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Eliminar"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                         </button>
                       </div>
@@ -627,13 +696,14 @@ const SociosModule = () => {
         </div>
       )}
 
+      {/* Modal confirmar eliminación */}
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center">
             <h3 className="text-xl font-bold text-slate-900 mb-4">Confirmar Eliminación</h3>
             <p className="text-slate-700 mb-6">
-              ¿Estás seguro de que deseas eliminar este socio? Esta acción es irreversible y se perderán todos
-              los datos relacionados con este socio, incluyendo préstamos y ahorros vinculados.
+              ¿Estás seguro de eliminar al socio <strong>{socioToDelete?.nombre} {socioToDelete?.apellido_paterno}</strong>?
+              Esta acción es irreversible.
             </p>
             <div className="flex justify-center space-x-4">
               <button
@@ -647,7 +717,58 @@ const SociosModule = () => {
                 className="px-5 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium"
                 disabled={loading}
               >
-                {loading ? 'Eliminando...' : 'Eliminar'}
+                {loading ? 'Eliminando…' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ficha del socio */}
+      {showFicha && socioFicha && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg">
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="text-xl font-bold text-slate-900">Ficha del socio</h3>
+              <button onClick={closeFicha} className="text-slate-500 hover:text-slate-900">Cerrar</button>
+            </div>
+
+            <div className="flex items-center space-x-4 mb-4">
+              <img
+                src={socioFicha.foto_url || avatarFallback(socioFicha)}
+                alt="foto"
+                className="w-20 h-20 rounded-xl object-cover border"
+              />
+              <div>
+                <div className="text-sm text-slate-500">ID Socio</div>
+                <div className="text-lg font-semibold">{socioFicha.id_socio}</div>
+                <div className="text-slate-900 font-medium">
+                  {socioFicha.nombre} {socioFicha.apellido_paterno} {socioFicha.apellido_materno}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-3 bg-slate-50 rounded-lg">
+                <div className="text-xs text-slate-500">Teléfono</div>
+                <div className="font-medium">{socioFicha.telefono || '-'}</div>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-lg">
+                <div className="text-xs text-slate-500">Código Postal</div>
+                <div className="font-medium">{socioFicha.cp || '-'}</div>
+              </div>
+              <div className="md:col-span-2 p-3 bg-slate-50 rounded-lg">
+                <div className="text-xs text-slate-500">Dirección</div>
+                <div className="font-medium">{socioFicha.direccion || '-'}</div>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={closeFicha}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+              >
+                Cerrar
               </button>
             </div>
           </div>
