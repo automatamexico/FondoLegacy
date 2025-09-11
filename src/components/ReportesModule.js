@@ -1,78 +1,105 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
+const SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
+
+function currency(n) {
+  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n || 0);
+}
 
 const ReportesModule = () => {
   const [activeCard, setActiveCard] = useState('control');
+
+  // Buscar socio
   const [search, setSearch] = useState('');
+  const [loadingSocios, setLoadingSocios] = useState(false);
   const [socios, setSocios] = useState([]);
+
+  // Selección y préstamos
   const [selectedSocio, setSelectedSocio] = useState(null);
   const [prestamos, setPrestamos] = useState([]);
-  const [loadingSocios, setLoadingSocios] = useState(false);
   const [loadingPrestamos, setLoadingPrestamos] = useState(false);
   const [errorPrestamos, setErrorPrestamos] = useState('');
 
-  // Buscar socios al escribir
+  // Debounce 500ms
+  const debounceMs = 500;
+  const typingTimer = useRef(null);
+
+  // --- BUSCAR SOCIOS (por ID exacto o por nombre con ILIKE) ---
   useEffect(() => {
-    let abort = false;
-    const run = async () => {
-      if (!search || search.trim().length < 1) {
-        setSocios([]);
-        return;
-      }
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+
+    // Si está vacío, limpiar y salir
+    if (!search || search.trim().length === 0) {
+      setSocios([]);
+      setLoadingSocios(false);
+      return;
+    }
+
+    typingTimer.current = setTimeout(async () => {
+      const term = search.trim();
+      const isNumeric = /^\d+$/.test(term);
+
       setLoadingSocios(true);
+
+      const headers = {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      };
+
       try {
-        const resp = await fetch(
-          `${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno,telefono,direccion,cp&or=(id_socio.like.%25${encodeURIComponent(
-            search
-          )}%25,nombre.ilike.%25${encodeURIComponent(
-            search
-          )}%25,apellido_paterno.ilike.%25${encodeURIComponent(
-            search
-          )}%25,apellido_materno.ilike.%25${encodeURIComponent(search)}%25)`,
-          {
-            headers: {
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            },
-          }
-        );
-        if (!resp.ok) throw new Error('No se pudo buscar socios');
+        let url = `${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno,telefono,direccion,cp&limit=10`;
+
+        if (isNumeric) {
+          // Buscar por ID exacto
+          url += `&id_socio=eq.${encodeURIComponent(term)}`;
+        } else {
+          // Buscar por nombre o apellidos (ILIKE *term*)
+          const orParam = `or=(nombre.ilike.*${term}*,apellido_paterno.ilike.*${term}*,apellido_materno.ilike.*${term}*)`;
+          url += `&${encodeURI(orParam)}`;
+        }
+
+        const resp = await fetch(url, { headers });
+        // Si la API responde error, no dejes el loader encendido
+        if (!resp.ok) {
+          setSocios([]);
+          setLoadingSocios(false);
+          return;
+        }
         const data = await resp.json();
-        if (!abort) setSocios(data);
+        setSocios(Array.isArray(data) ? data : []);
       } catch (e) {
-        if (!abort) setSocios([]);
+        setSocios([]);
       } finally {
-        if (!abort) setLoadingSocios(false);
+        setLoadingSocios(false);
       }
-    };
-    run();
-    return () => {
-      abort = true;
-    };
+    }, debounceMs);
+
+    return () => clearTimeout(typingTimer.current);
   }, [search]);
 
+  // --- SELECCIONAR SOCIO Y CARGAR SUS PRÉSTAMOS ---
   const seleccionarSocio = async (s) => {
     setSelectedSocio(s);
     setPrestamos([]);
     setErrorPrestamos('');
-    setSearch(`${s.id_socio} - ${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`);
+    // congelar el texto del buscador con la selección
+    setSearch(`ID: ${s.id_socio} — ${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`);
     setSocios([]);
+
     setLoadingPrestamos(true);
     try {
-      const resp = await fetch(
-        `${SUPABASE_URL}/rest/v1/prestamos?select=id_prestamo,monto_prestamo,estatus,fecha_inicio,plazo_meses&id_socio=eq.${s.id_socio}`,
-        {
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-        }
-      );
-      if (!resp.ok) throw new Error('No se pudieron cargar los préstamos del socio');
+      const url = `${SUPABASE_URL}/rest/v1/prestamos?select=id_prestamo,monto_prestamo,estatus,fecha_inicio,plazo_meses&id_socio=eq.${s.id_socio}`;
+      const resp = await fetch(url, {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      });
+      if (!resp.ok) throw new Error('fetch prestamos error');
       const data = await resp.json();
-      setPrestamos(data);
+      setPrestamos(Array.isArray(data) ? data : []);
     } catch (e) {
       setErrorPrestamos('No se pudieron cargar los préstamos del socio');
     } finally {
@@ -80,7 +107,7 @@ const ReportesModule = () => {
     }
   };
 
-  const limpiar = () => {
+  const limpiarSeleccion = () => {
     setSelectedSocio(null);
     setPrestamos([]);
     setErrorPrestamos('');
@@ -95,7 +122,7 @@ const ReportesModule = () => {
         <p className="text-slate-600">Exporta tus reportes directamente a Excel</p>
       </div>
 
-      {/* Tarjetas de tipos de reporte */}
+      {/* Tarjetas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <button
           onClick={() => setActiveCard('control')}
@@ -126,11 +153,11 @@ const ReportesModule = () => {
         </div>
       </div>
 
-      {/* Panel de parámetros (estilos claros) */}
+      {/* Panel parámetros */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">Parámetros del reporte</h3>
 
-        {/* Buscador de socio */}
+        {/* Buscador */}
         <div className="relative">
           <input
             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -141,27 +168,38 @@ const ReportesModule = () => {
           {loadingSocios && (
             <div className="absolute right-3 top-3 text-slate-400 text-sm">Buscando…</div>
           )}
+          {!!search && !loadingSocios && (
+            <button
+              onClick={limpiarSeleccion}
+              className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+              title="Limpiar"
+            >
+              ×
+            </button>
+          )}
 
-          {/* Lista de resultados */}
+          {/* Resultados */}
           {socios.length > 0 && (
-            <div className="mt-2 rounded-xl border border-slate-200 bg-white shadow">
-              {socios.slice(0, 8).map((s) => (
+            <div className="mt-2 rounded-xl border border-slate-200 bg-white shadow max-h-72 overflow-auto">
+              {socios.map((s) => (
                 <button
                   key={s.id_socio}
                   onClick={() => seleccionarSocio(s)}
                   className="w-full text-left px-4 py-3 hover:bg-slate-50"
                 >
-                  <span className="font-medium text-slate-900">ID: {s.id_socio}</span>{' '}
-                  <span className="text-slate-700">
-                    — {s.nombre} {s.apellido_paterno} {s.apellido_materno}
-                  </span>
+                  <div className="font-medium text-slate-900">
+                    ID: {s.id_socio} — {s.nombre} {s.apellido_paterno} {s.apellido_materno}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {s.direccion || 'Sin dirección'} • CP {s.cp || '—'} • {s.telefono || 'Sin teléfono'}
+                  </div>
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Seleccion actual */}
+        {/* Selección */}
         <div className="mt-6">
           <h4 className="text-slate-800 font-medium mb-2">Selecciona un socio</h4>
 
@@ -181,14 +219,14 @@ const ReportesModule = () => {
                   </p>
                 </div>
                 <button
-                  onClick={limpiar}
+                  onClick={limpiarSeleccion}
                   className="px-3 py-2 text-sm rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700"
                 >
                   Limpiar selección
                 </button>
               </div>
 
-              {/* Prestamos del socio */}
+              {/* Préstamos */}
               <div className="bg-white border border-slate-200 rounded-xl p-4">
                 <h5 className="font-semibold text-slate-900 mb-3">
                   Préstamos de {selectedSocio.nombre} {selectedSocio.apellido_paterno}
@@ -217,17 +255,17 @@ const ReportesModule = () => {
                         {prestamos.map((p) => (
                           <tr key={p.id_prestamo} className="border-b border-slate-100 hover:bg-slate-50">
                             <td className="py-3 px-4 text-slate-800">{p.id_prestamo}</td>
-                            <td className="py-3 px-4 text-slate-800">
-                              {new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(p.monto_prestamo || 0)}
-                            </td>
+                            <td className="py-3 px-4 text-slate-800">{currency(p.monto_prestamo)}</td>
                             <td className="py-3 px-4">
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                p.estatus === 'activo'
-                                  ? 'bg-green-100 text-green-700'
-                                  : p.estatus === 'liquidado'
-                                  ? 'bg-blue-100 text-blue-700'
-                                  : 'bg-yellow-100 text-yellow-700'
-                              }`}>
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                  p.estatus === 'activo'
+                                    ? 'bg-green-100 text-green-700'
+                                    : p.estatus === 'liquidado'
+                                    ? 'bg-blue-100 text-blue-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                                }`}
+                              >
                                 {p.estatus}
                               </span>
                             </td>
