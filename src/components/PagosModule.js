@@ -15,7 +15,7 @@ function toDateInput(d) {
   const day = String(dt.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
-// Genera 'YYYY-MM-DDTHH:MM:SS' en HORA LOCAL (sin 'Z' ni zona) para evitar desfases
+// Genera 'YYYY-MM-DDTHH:MM:SS' en HORA LOCAL (sin 'Z' ni zona)
 function localPlainDateTime() {
   const d = new Date();
   const y = d.getFullYear();
@@ -39,7 +39,6 @@ function fmtLongDate(s) {
 }
 function fmt12h(isoOrLocal) {
   if (!isoOrLocal) return '';
-  // Si viene sin 'Z', el constructor lo trata como local (perfecto para nuestro guardado local)
   const dt = new Date(isoOrLocal);
   return dt.toLocaleString('es-MX', {
     hour: 'numeric', minute: '2-digit', hour12: true,
@@ -118,14 +117,23 @@ const PagosModule = ({ idSocio }) => {
   const [pagosProgramados, setPagosProgramados] = useState([]);
   const [prestamoMeta, setPrestamoMeta] = useState(null); // {monto_solicitado, numero_plazos, interes}
 
-  // Sub-modal: ingresar monto
+  // Sub-modal: ingresar monto / forma de pago / nota
   const [showMontoModal, setShowMontoModal] = useState(false);
   const [pagoTarget, setPagoTarget] = useState(null);
   const [montoIngresado, setMontoIngresado] = useState('');
+  const [formaPago, setFormaPago] = useState(''); // 'Efectivo' | 'Transferencia'
+  const [formaPagoError, setFormaPagoError] = useState('');
+
+  // Nota
+  const [nota, setNota] = useState('');
 
   // Confirmación final
   const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Modal ver nota
+  const [showNotaModal, setShowNotaModal] = useState(false);
+  const [notaTexto, setNotaTexto] = useState('');
 
   // Sugerencias de socios
   useEffect(() => {
@@ -159,7 +167,7 @@ const PagosModule = ({ idSocio }) => {
     if (!prestamoSel) return;
     const [rp, rmeta] = await Promise.all([
       fetch(
-        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamoSel.id_prestamo}&select=id_pago,numero_pago,fecha_programada,monto_pago,fecha_pago,fecha_hora_pago,monto_pagado,interes_pagado,capital_pagado,estatus&order=numero_pago.asc`,
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamoSel.id_prestamo}&select=id_pago,numero_pago,fecha_programada,monto_pago,fecha_pago,fecha_hora_pago,monto_pagado,interes_pagado,capital_pagado,estatus,forma_pago,nota&order=numero_pago.asc`,
         { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       ),
       fetch(
@@ -179,12 +187,19 @@ const PagosModule = ({ idSocio }) => {
   const onClickRealizarPagoFila = (p) => {
     setPagoTarget(p);
     setMontoIngresado(p.monto_pago || '');
+    setFormaPago('');
+    setFormaPagoError('');
+    setNota('');
     setShowMontoModal(true);
   };
 
   const aplicarPago = () => {
     if (!montoIngresado || Number(montoIngresado) <= 0) {
       alert('Indique un monto válido.');
+      return;
+    }
+    if (!formaPago) {
+      setFormaPagoError('debe seleccionar su forma de pago');
       return;
     }
     setShowConfirm(true);
@@ -197,7 +212,7 @@ const PagosModule = ({ idSocio }) => {
     try {
       const monto = Number(montoIngresado);
 
-      // Calcula interés/capital para guardar en BD (siempre llenamos ambos)
+      // Calcula interés/capital (con base en lo definido al crear el préstamo)
       const capitalEstimado = Number(prestamoMeta.monto_solicitado) / Number(prestamoMeta.numero_plazos || 1);
       const interesEstimado = Number(prestamoMeta.monto_solicitado) * (Number(prestamoMeta.interes) / 100);
       const interes_pagado = Math.min(monto, interesEstimado);
@@ -209,11 +224,13 @@ const PagosModule = ({ idSocio }) => {
 
       const body = {
         fecha_pago: soloFecha,
-        fecha_hora_pago: nowLocalPlain, // local, sin 'Z' — corrige desfase
-        estatus: 'pagado',              // sin parciales
+        fecha_hora_pago: nowLocalPlain,
+        estatus: 'pagado',
         monto_pagado: monto,
         interes_pagado,
-        capital_pagado
+        capital_pagado,
+        forma_pago: formaPago,               // <<<<<< NUEVO
+        nota: (nota || '').trim() || null    // <<<<<< nota guardada
       };
 
       const r = await fetch(
@@ -238,6 +255,8 @@ const PagosModule = ({ idSocio }) => {
       setShowMontoModal(false);
       setPagoTarget(null);
       setMontoIngresado('');
+      setFormaPago('');
+      setNota('');
     } catch (e) {
       alert('No se pudo registrar el pago.');
     } finally {
@@ -246,9 +265,11 @@ const PagosModule = ({ idSocio }) => {
   };
 
   // ---------- RENDER ----------
+  const pagPend = useMemo(() => pagosProgramados, [pagosProgramados]); // (se renderiza completo aquí)
+
   return (
     <div className="p-6 space-y-6">
-      {/* Encabezado y botón superior (SIN CAMBIOS) */}
+      {/* Encabezado y tarjetas (SIN CAMBIOS) */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Pagos</h2>
@@ -262,7 +283,6 @@ const PagosModule = ({ idSocio }) => {
         </button>
       </div>
 
-      {/* Tarjetas (SIN CAMBIOS) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-2">
@@ -412,6 +432,8 @@ const PagosModule = ({ idSocio }) => {
                         <th className="text-left py-2 px-3">Interés</th>
                         <th className="text-left py-2 px-3">Capital</th>
                         <th className="text-left py-2 px-3">Fecha/Hora pago</th>
+                        <th className="text-left py-2 px-3">Forma de pago</th>
+                        <th className="text-left py-2 px-3">Nota</th>
                         <th className="text-left py-2 px-3">Estatus</th>
                         <th className="text-left py-2 px-3">Acción</th>
                       </tr>
@@ -425,10 +447,20 @@ const PagosModule = ({ idSocio }) => {
                             <td className="py-2 px-3">{row.numero_pago}</td>
                             <td className="py-2 px-3">{fmtLongDate(row.fecha_programada)}</td>
                             <td className="py-2 px-3">{fmtMoney(row.monto_pago)}</td>
-                            {/* Interés / Capital: TOMADOS DE BD */}
                             <td className="py-2 px-3">{row.interes_pagado != null ? fmtMoney(row.interes_pagado) : '—'}</td>
                             <td className="py-2 px-3">{row.capital_pagado != null ? fmtMoney(row.capital_pagado) : '—'}</td>
                             <td className="py-2 px-3">{fechaTxt}</td>
+                            <td className="py-2 px-3">{row.forma_pago || '—'}</td>
+                            <td className="py-2 px-3">
+                              {row.nota
+                                ? <button
+                                    className="px-3 py-1 bg-slate-200 rounded-lg hover:bg-slate-300"
+                                    onClick={() => { setNotaTexto(row.nota); setShowNotaModal(true); }}
+                                  >
+                                    Ver nota
+                                  </button>
+                                : '—'}
+                            </td>
                             <td className="py-2 px-3">{isPagado ? 'pagado' : 'pendiente'}</td>
                             <td className="py-2 px-3">
                               {!isPagado && (
@@ -452,14 +484,14 @@ const PagosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* SUB-MODAL: ingresar monto manual */}
+      {/* SUB-MODAL: ingresar monto + forma de pago + nota */}
       {showMontoModal && pagoTarget && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-5">
             <h3 className="text-lg font-semibold mb-3">Realizar pago — # {pagoTarget.numero_pago}</h3>
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div>
-                <label className="block text-sm text-slate-700 mb-1">Monto a pagar (manual)</label>
+                <label className="block text-sm text-slate-700 mb-1">Monto a pagar</label>
                 <input
                   type="number"
                   min="0"
@@ -469,6 +501,45 @@ const PagosModule = ({ idSocio }) => {
                   onChange={(e) => setMontoIngresado(e.target.value)}
                 />
               </div>
+
+              <div>
+                <p className="block text-sm text-slate-700 mb-2">Seleccione la forma de pago</p>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="forma_pago"
+                      value="Efectivo"
+                      checked={formaPago === 'Efectivo'}
+                      onChange={(e) => { setFormaPago(e.target.value); setFormaPagoError(''); }}
+                    />
+                    Efectivo
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="forma_pago"
+                      value="Transferencia"
+                      checked={formaPago === 'Transferencia'}
+                      onChange={(e) => { setFormaPago(e.target.value); setFormaPagoError(''); }}
+                    />
+                    Transferencia
+                  </label>
+                </div>
+                {formaPagoError && <p className="text-red-600 text-sm mt-1">{formaPagoError}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-700 mb-1">Nota (opcional)</label>
+                <textarea
+                  className="w-full px-3 py-2 border rounded-lg"
+                  rows="3"
+                  placeholder="Ej: transferencia realizada el 10/Octubre/2025 con referencia 123456789"
+                  value={nota}
+                  onChange={(e) => setNota(e.target.value)}
+                />
+              </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <button className="px-4 py-2 rounded-lg bg-slate-100" onClick={() => { setShowMontoModal(false); setPagoTarget(null); }}>Cancelar</button>
                 <button className="px-4 py-2 rounded-lg bg-emerald-600 text-white" onClick={aplicarPago}>Aplicar pago</button>
@@ -499,6 +570,21 @@ const PagosModule = ({ idSocio }) => {
               >
                 {saving ? 'Aplicando…' : 'Aceptar'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Ver nota */}
+      {showNotaModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl p-5">
+            <h3 className="text-lg font-semibold mb-3">Nota</h3>
+            <div className="whitespace-pre-wrap text-slate-800 border rounded-lg p-3 bg-slate-50">
+              {notaTexto}
+            </div>
+            <div className="flex justify-end mt-4">
+              <button className="px-4 py-2 rounded-lg bg-slate-100" onClick={() => setShowNotaModal(false)}>Cerrar</button>
             </div>
           </div>
         </div>
