@@ -48,34 +48,23 @@ const PagosModule = ({ idSocio }) => {
   const [loading, setLoading] = useState(true);
   const [dashError, setDashError] = useState(null);
 
-  // Tarjetas (NO TOCAR)
+  // Tarjetas
   const [pendientesHoy, setPendientesHoy] = useState(0);
-  const [proximos, setProximos] = useState(0);
+  const [proximos, setProximos] = useState(0); // ahora 1–3 días
   const [recibidosHoyCount, setRecibidosHoyCount] = useState(0);
   const [recibidosHoyMonto, setRecibidosHoyMonto] = useState(0);
   const [vencidos, setVencidos] = useState(0);
 
-  // === NUEVO FLUJO BUSCAR SOCIO -> ELEGIR PRÉSTAMO -> FECHAS -> PAGAR ===
+  // Historial por socio
   const [buscarSocioTerm, setBuscarSocioTerm] = useState('');
   const [sugSocios, setSugSocios] = useState([]);
   const [socioSel, setSocioSel] = useState(null);
+  const [histFrom, setHistFrom] = useState('');
+  const [histTo, setHistTo] = useState('');
+  const [historial, setHistorial] = useState([]);
+  const [histError, setHistError] = useState(null);
 
-  const [prestamosSocio, setPrestamosSocio] = useState([]);
-  const [prestamosLoading, setPrestamosLoading] = useState(false);
-  const [prestamosError, setPrestamosError] = useState(null);
-
-  const [prestamoSel, setPrestamoSel] = useState(null);
-  const [pagosProg, setPagosProg] = useState([]);
-  const [pagosLoading, setPagosLoading] = useState(false);
-  const [pagosError, setPagosError] = useState(null);
-
-  const [showQuickPay, setShowQuickPay] = useState(false);
-  const [pagoSel, setPagoSel] = useState(null);
-  const [montoPagar, setMontoPagar] = useState('');
-  const [nota, setNota] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  // --- (Conservo tu modal viejo y estados para el botón superior “Realizar pago”) ---
+  // Modal pagar
   const [showModal, setShowModal] = useState(false);
   const [modalSocio, setModalSocio] = useState(null);
   const [pendFrom, setPendFrom] = useState('');
@@ -88,10 +77,17 @@ const PagosModule = ({ idSocio }) => {
   const [mpageR, setMpageR] = useState(1);
   const pageSize = 10;
 
-  // Modal de tarjetas (NO TOCAR)
+  const [pagoSel, setPagoSel] = useState(null);
+  const [montoPagar, setMontoPagar] = useState('');
+  const [parcial, setParcial] = useState(false);
+  const [nota, setNota] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Modal de detalles para tarjetas
   const [showCardModal, setShowCardModal] = useState(false);
+  thead
   const [cardModalTitle, setCardModalTitle] = useState('');
-  const [cardModalKind, setCardModalKind] = useState(null);
+  const [cardModalKind, setCardModalKind] = useState(null); // 'pendientes'|'proximos'|'recibidos'|'vencidos'
   const [cardModalRows, setCardModalRows] = useState([]);
   const [cardModalLoading, setCardModalLoading] = useState(false);
   const [cardModalError, setCardModalError] = useState(null);
@@ -141,14 +137,14 @@ const PagosModule = ({ idSocio }) => {
 
         setDashError(null);
       } catch (e) {
-        setDashError('No se pudieron cargar las métrricas.');
+        setDashError('No se pudieron cargar las métricas.');
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  // ---------- BUSCAR SOCIO (sugerencias) ----------
+  // ---------- BUSCAR SOCIO (historial) ----------
   useEffect(() => {
     const run = async () => {
       const t = buscarSocioTerm.trim().toLowerCase();
@@ -165,72 +161,151 @@ const PagosModule = ({ idSocio }) => {
     run();
   }, [buscarSocioTerm]);
 
-  // ---------- NUEVO: cargar préstamos del socio ----------
-  const cargarPrestamosSocio = async (socio) => {
-    setPrestamosLoading(true);
-    setPrestamosError(null);
-    setPrestamosSocio([]);
-    setPrestamoSel(null);
-    setPagosProg([]);
+  const cargarHistorial = async (socio) => {
     try {
-      const url = `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&select=id_prestamo,monto_solicitado,interes,pago_mensual,tipo_plazo,fecha_solicitud&order=fecha_solicitud.desc`;
+      setHistError(null);
+      const base = `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_socio=eq.${socio.id_socio}&monto_pagado=gt.0&select=id_pago,id_prestamo,monto_pagado,fecha_pago,fecha_hora_pago,numero_pago,nota`;
+      const parts = [];
+      if (histFrom) parts.push(`fecha_pago=gte.${histFrom}`);
+      if (histTo) parts.push(`fecha_pago=lte.${histTo}`);
+      const url = [base, ...parts].join('&') + `&order=fecha_pago.desc&order=id_pago.desc&limit=50`;
       const r = await fetch(url, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } });
-      if (!r.ok) throw new Error('fetch prestamos');
+      if (!r.ok) throw new Error('err');
       const data = await r.json();
-      setPrestamosSocio(data);
-    } catch (e) {
-      setPrestamosError('No se pudieron cargar los préstamos del socio.');
-    } finally {
-      setPrestamosLoading(false);
+      setHistorial(data);
+    } catch {
+      setHistorial([]);
+      setHistError('Error al cargar pagos realizados');
     }
   };
 
-  // ---------- NUEVO: cargar pagos programados del préstamo ----------
-  const cargarPagosPrestamo = async (prestamo) => {
-    setPagosLoading(true);
-    setPagosError(null);
-    setPagosProg([]);
-    try {
-      const url = `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&select=id_pago,numero_pago,fecha_programada,estatus,monto_pago,monto_pagado,fecha_pago,fecha_hora_pago&order=numero_pago.asc`;
-      const r = await fetch(url, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } });
-      if (!r.ok) throw new Error('fetch pagos');
-      const data = await r.json();
-      setPagosProg(data);
-    } catch (e) {
-      setPagosError('No se pudieron cargar las fechas del préstamo.');
-    } finally {
-      setPagosLoading(false);
-    }
+  // ---------- MODAL PAGAR (ahora también trae interes_pagado y capital_pagado) ----------
+  const cargarModalListas = async (socio) => {
+    // Pendientes (agregamos interes_pagado y capital_pagado)
+    const pParts = [
+      `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_socio=eq.${socio.id_socio}`,
+      `estatus=eq.pendiente`,
+      `select=id_pago,id_prestamo,numero_pago,fecha_programada,monto_pago,frecuencia,interes_pagado,capital_pagado`
+    ];
+    if (pendFrom) pParts.push(`fecha_programada=gte.${pendFrom}`);
+    if (pendTo) pParts.push(`fecha_programada=lte.${pendTo}`);
+    const pUrl = pParts.join('&') + `&order=fecha_programada.asc&order=id_pago.asc`;
+    const rp = await fetch(pUrl, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } });
+    const dataP = await rp.json();
+    setPendientes(dataP);
+
+    // Realizados (igual que antes)
+    const rParts = [
+      `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_socio=eq.${socio.id_socio}`,
+      `monto_pagado=gt.0`,
+      `select=id_pago,id_prestamo,numero_pago,fecha_pago,fecha_hora_pago,monto_pagado,nota,interes_pagado,capital_pagado`
+    ];
+    if (realFrom) rParts.push(`fecha_pago=gte.${realFrom}`);
+    if (realTo) rParts.push(`fecha_pago=lte.${realTo}`);
+    const rUrl = rParts.join('&') + `&order=fecha_pago.desc&order=id_pago.desc`;
+    const rr = await fetch(rUrl, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } });
+    const dataR = await rr.json();
+    setRealizados(dataR);
   };
 
-  // ---------- NUEVO: flujo Quick Pay ----------
-  const abrirQuickPay = (pago) => {
+  const abrirPagar = (pago) => {
     setPagoSel(pago);
     setMontoPagar(pago.monto_pago || '');
+    setParcial(false);
     setNota('');
-    setShowQuickPay(true);
   };
 
-  const aplicarQuickPay = async () => {
+  // --- Cálculo de división de pago (interés/capital) y PATCH ---
+  const confirmarPagar = async () => {
     if (!pagoSel) return;
-    const monto = Number(montoPagar || 0);
-    if (isNaN(monto) || monto <= 0) {
-      alert('Ingresa un monto válido.');
+
+    const montoIngresado = Number(montoPagar || pagoSel.monto_pago || 0);
+    if (parcial && (!montoIngresado || montoIngresado <= 0)) {
+      alert('Indica un monto parcial válido.');
       return;
     }
-    const ok = window.confirm('¿Confirma que desea realizar el pago?');
-    if (!ok) return;
 
     setSaving(true);
     try {
+      // 1) Traer datos del préstamo
+      const rPrest = await fetch(
+        `${SUPABASE_URL}/rest/v1/prestamos?id_prestamo=eq.${pagoSel.id_prestamo}&select=id_prestamo,monto_solicitado,interes`,
+        { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+      );
+      const prestArr = await rPrest.json();
+      if (!prestArr || !prestArr.length) throw new Error('No se encontró el préstamo.');
+      const prest = prestArr[0];
+      const montoSolicitado = Number(prest.monto_solicitado || 0);
+      const tasa = Number(prest.interes || 0) / 100;
+
+      // 2) Número de periodos (conteo de pagos programados)
+      const rCount = await fetch(
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${pagoSel.id_prestamo}&select=id_pago`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Prefer: 'count=exact',
+            'Range-Unit': 'items',
+            Range: '0-0'
+          }
+        }
+      );
+      const totalPeriodos = parseInt(rCount.headers.get('content-range')?.split('/')?.[1] || '0', 10) || 0;
+
+      // 3) Interés y capital por periodo (según tu construcción original)
+      const interesPorPeriodo = montoSolicitado * tasa;
+      let capitalPorPeriodo;
+      if (pagoSel.monto_pago != null) {
+        // Usar el monto_programado menos el interés por periodo
+        capitalPorPeriodo = Math.max(Number(pagoSel.monto_pago) - interesPorPeriodo, 0);
+      } else {
+        // Respaldo: dividir capital en partes iguales
+        capitalPorPeriodo = totalPeriodos > 0 ? (montoSolicitado / totalPeriodos) : 0;
+      }
+
+      // 4) Tomar acumulados anteriores de este pago (si existen)
+      const yaInteres = Number(pagoSel.interes_pagado || 0);
+      const yaCapital = Number(pagoSel.capital_pagado || 0);
+
+      // Interés pendiente de este periodo (si hubo parciales previos)
+      const interesPendiente = Math.max(interesPorPeriodo - yaInteres, 0);
+      const capitalPendiente = Math.max(capitalPorPeriodo - yaCapital, 0);
+
+      // 5) Distribuir el monto ingresado: primero interés pendiente y luego capital
+      let interesAAgregar = 0;
+      let capitalAAgregar = 0;
+
+      if (parcial) {
+        const pagaInteres = Math.min(montoIngresado, interesPendiente);
+        const pagaCapital = Math.max(montoIngresado - pagaInteres, 0);
+        interesAAgregar = pagaInteres;
+        capitalAAgregar = Math.min(pagaCapital, capitalPendiente);
+      } else {
+        // Pago "completo" del periodo: lleva el total teórico restante
+        interesAAgregar = interesPendiente;
+        capitalAAgregar = capitalPendiente;
+      }
+
+      const nuevoInteres = yaInteres + interesAAgregar;
+      const nuevoCapital = yaCapital + capitalAAgregar;
+      const totalAcumuladoPeriodo = nuevoInteres + nuevoCapital;
+      const objetivoPeriodo = Number(pagoSel.monto_pago || (interesPorPeriodo + capitalPorPeriodo));
+
+      // decidir estatus: pagado si ya cubrió el periodo (tolerancia por centavos)
+      const estatusFinal = totalAcumuladoPeriodo >= (objetivoPeriodo - 0.01) ? 'pagado' : 'parcial';
+
+      // 6) PATCH al pago
       const nowLocalISO = toLocalISO(new Date());
       const soloFecha = nowLocalISO.slice(0, 10);
 
       const body = {
         fecha_pago: soloFecha,
         fecha_hora_pago: nowLocalISO,
-        estatus: monto >= Number(pagoSel.monto_pago || 0) ? 'pagado' : 'parcial',
-        monto_pagado: monto,
+        estatus: estatusFinal,
+        monto_pagado: Number((yaInteres + yaCapital) + interesAAgregar + capitalAAgregar).toFixed(2),
+        interes_pagado: Number(nuevoInteres).toFixed(2),
+        capital_pagado: Number(nuevoCapital).toFixed(2),
         nota: (nota || '').trim() || null
       };
 
@@ -246,48 +321,25 @@ const PagosModule = ({ idSocio }) => {
           body: JSON.stringify(body)
         }
       );
-      if (!r.ok) throw new Error('patch');
+      if (!r.ok) throw new Error('No se pudo registrar el pago.');
 
-      // refrescar lista de pagos del préstamo
-      if (prestamoSel) await cargarPagosPrestamo(prestamoSel);
-      setShowQuickPay(false);
+      // recargar listas
+      await cargarModalListas(modalSocio);
+      if (socioSel) await cargarHistorial(socioSel);
+
       setPagoSel(null);
       setMontoPagar('');
+      setParcial(false);
       setNota('');
     } catch (e) {
+      console.error(e);
       alert('No se pudo registrar el pago.');
     } finally {
       setSaving(false);
     }
   };
 
-  // ---------- (Conservo tu modal original para el botón superior) ----------
-  const cargarModalListas = async (socio) => {
-    // Pendientes
-    const pParts = [`${SUPABASE_URL}/rest/v1/pagos_prestamos?id_socio=eq.${socio.id_socio}`, `estatus=eq.pendiente`, `select=id_pago,id_prestamo,numero_pago,fecha_programada,monto_pago,frecuencia`];
-    if (pendFrom) pParts.push(`fecha_programada=gte.${pendFrom}`);
-    if (pendTo) pParts.push(`fecha_programada=lte.${pendTo}`);
-    const pUrl = pParts.join('&') + `&order=fecha_programada.asc&order=id_pago.asc`;
-    const rp = await fetch(pUrl, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } });
-    const dataP = await rp.json();
-    setPendientes(dataP);
-
-    // Realizados
-    const rParts = [`${SUPABASE_URL}/rest/v1/pagos_prestamos?id_socio=eq.${socio.id_socio}`, `monto_pagado=gt.0`, `select=id_pago,id_prestamo,numero_pago,fecha_pago,fecha_hora_pago,monto_pagado,nota`];
-    if (realFrom) rParts.push(`fecha_pago=gte.${realFrom}`);
-    if (realTo) rParts.push(`fecha_pago=lte.${realTo}`);
-    const rUrl = rParts.join('&') + `&order=fecha_pago.desc&order=id_pago.desc`;
-    const rr = await fetch(rUrl, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } });
-    const dataR = await rr.json();
-    setRealizados(dataR);
-  };
-
-  const abrirPagar = (pago) => {
-    // (modal viejo) – no lo uso en el flujo nuevo
-    setPagoSel(pago);
-  };
-
-  // ---------- MODAL TARJETAS (NO TOCAR) ----------
+  // ---------- MODAL tarjetas ----------
   const openCardDetails = async (kind) => {
     setShowCardModal(true);
     setCardModalLoading(true);
@@ -327,6 +379,7 @@ const PagosModule = ({ idSocio }) => {
       if (!r.ok) throw new Error('fetch');
       const data = await r.json();
 
+      // Enriquecer con nombre completo del socio
       if (data.length > 0) {
         const ids = [...new Set(data.map(x => x.id_socio).filter(Boolean))];
         if (ids.length > 0) {
@@ -354,7 +407,6 @@ const PagosModule = ({ idSocio }) => {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Encabezado + botón superior (NO TOCAR) */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Pagos</h2>
@@ -368,7 +420,7 @@ const PagosModule = ({ idSocio }) => {
         </button>
       </div>
 
-      {/* Tarjetas (NO TOCAR) */}
+      {/* Tarjetas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white rounded-2xl border border-slate-200 p-6 cursor-pointer hover:ring-2 hover:ring-blue-100"
              onClick={() => openCardDetails('pendientes')}>
@@ -417,12 +469,10 @@ const PagosModule = ({ idSocio }) => {
         </div>
       </div>
 
-      {/* === NUEVA SECCIÓN === Buscar Socio -> elegir préstamo -> realizar pago */}
+      {/* Buscar historial por socio (igual que antes) */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-3">Buscar Socio</h3>
-
-        {/* Buscador */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
+        <h3 className="text-lg font-semibold text-slate-900 mb-3">Buscar historial por socio</h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
           <input
             type="text"
             className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl"
@@ -430,171 +480,69 @@ const PagosModule = ({ idSocio }) => {
             value={buscarSocioTerm}
             onChange={(e) => setBuscarSocioTerm(e.target.value)}
           />
+          <input type="date" className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl" value={histFrom} onChange={e => setHistFrom(e.target.value)} />
+          <input type="date" className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl" value={histTo} onChange={e => setHistTo(e.target.value)} />
+          <button className="px-4 py-2 bg-blue-600 text-white rounded-xl"
+                  onClick={() => { if (socioSel) cargarHistorial(socioSel); }}>
+            Aplicar
+          </button>
         </div>
 
-        {/* Sugerencias */}
         {sugSocios.length > 0 && (
           <div className="mt-3 space-y-2">
             {sugSocios.map(s => (
-              <div key={s.id_socio} className="p-2 bg-slate-50 rounded-lg flex justify-between items-center">
+              <div key={s.id_socio} className="p-2 bg-slate-50 rounded-lg flex justify-between">
                 <span>ID: {s.id_socio} — {s.nombre} {s.apellido_paterno} {s.apellido_materno}</span>
                 <button
-                  className="px-3 py-1 bg-blue-600 text-white rounded-lg"
-                  onClick={async () => {
-                    setSocioSel(s);
-                    setBuscarSocioTerm(`ID: ${s.id_socio} — ${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`);
-                    setSugSocios([]);
-                    await cargarPrestamosSocio(s);
-                  }}
+                  className="px-3 py-1 bg-emerald-600 text-white rounded-lg"
+                  onClick={() => { setSocioSel(s); setBuscarSocioTerm(`ID: ${s.id_socio} — ${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`); setSugSocios([]); cargarHistorial(s); }}
                 >
-                  Seleccionar
+                  Ver historial
                 </button>
               </div>
             ))}
           </div>
         )}
 
-        {/* Préstamos del socio */}
         {socioSel && (
           <div className="mt-6">
-            <div className="flex items-center justify-between">
-              <h4 className="font-semibold text-slate-900">Préstamos de {socioSel.nombre} {socioSel.apellido_paterno}</h4>
-              {prestamosLoading && <span className="text-sm text-slate-600">Cargando préstamos…</span>}
-            </div>
-
-            {prestamosError && <p className="text-red-500 mt-2">{prestamosError}</p>}
-
-            {!prestamosLoading && !prestamosError && prestamosSocio.length === 0 && (
-              <p className="text-slate-600">El socio no tiene préstamos registrados.</p>
-            )}
-
-            {!prestamosLoading && prestamosSocio.length > 0 && (
-              <div className="overflow-x-auto mt-3">
+            <h4 className="font-semibold text-slate-900 mb-2">Historial — {socioSel.nombre} {socioSel.apellido_paterno}</h4>
+            {histError && <p className="text-red-500 mb-2">{histError}</p>}
+            {historial.length === 0 ? (
+              <p className="text-slate-600">Sin pagos para los criterios seleccionados.</p>
+            ) : (
+              <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-slate-200">
                       <th className="text-left py-2 px-3">ID Préstamo</th>
-                      <th className="text-left py-2 px-3">Monto</th>
-                      <th className="text-left py-2 px-3">Pago por periodo</th>
-                      <th className="text-left py-2 px-3">Tasa</th>
-                      <th className="text-left py-2 px-3">Tipo</th>
-                      <th className="text-left py-2 px-3">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {prestamosSocio.map(pr => (
-                      <tr key={pr.id_prestamo} className="border-b border-slate-100">
-                        <td className="py-2 px-3">{pr.id_prestamo}</td>
-                        <td className="py-2 px-3 font-semibold">{fmtMoney(pr.monto_solicitado)}</td>
-                        <td className="py-2 px-3">{fmtMoney(pr.pago_mensual || 0)}</td>
-                        <td className="py-2 px-3">{pr.interes}%</td>
-                        <td className="py-2 px-3">{pr.tipo_plazo ? pr.tipo_plazo.charAt(0).toUpperCase() + pr.tipo_plazo.slice(1) : '—'}</td>
-                        <td className="py-2 px-3">
-                          <button
-                            className={`px-3 py-1 rounded-lg ${prestamoSel?.id_prestamo === pr.id_prestamo ? 'bg-slate-300' : 'bg-slate-100 hover:bg-slate-200'}`}
-                            onClick={async () => {
-                              setPrestamoSel(pr);
-                              await cargarPagosPrestamo(pr);
-                            }}
-                          >
-                            Ver pagos
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {/* Acción de realizar pago para el préstamo seleccionado */}
-                {prestamoSel && (
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="text-slate-700">
-                      Préstamo seleccionado: <span className="font-semibold">#{prestamoSel.id_prestamo}</span>
-                    </div>
-                    <button
-                      className="px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700"
-                      onClick={() => {
-                        // ya tenemos pagosProg; si no, los pide
-                        if (!pagosProg || pagosProg.length === 0) {
-                          cargarPagosPrestamo(prestamoSel);
-                        }
-                      }}
-                    >
-                      Realizar pago
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Fechas del préstamo seleccionado */}
-        {prestamoSel && (
-          <div className="mt-6">
-            <div className="flex items-center justify-between">
-              <h4 className="font-semibold text-slate-900">Fechas de pago del préstamo #{prestamoSel.id_prestamo}</h4>
-              {pagosLoading && <span className="text-sm text-slate-600">Cargando fechas…</span>}
-            </div>
-
-            {pagosError && <p className="text-red-500 mt-2">{pagosError}</p>}
-
-            {!pagosLoading && pagosProg.length > 0 && (
-              <div className="overflow-x-auto mt-3">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-200">
+                      <th className="text-left py-2 px-3">Monto pagado</th>
+                      <th className="text-left py-2 px-3">Fecha/hora</th>
                       <th className="text-left py-2 px-3"># Pago</th>
-                      <th className="text-left py-2 px-3">Fecha programada</th>
-                      <th className="text-left py-2 px-3">Monto programado</th>
-                      <th className="text-left py-2 px-3">Estado</th>
-                      <th className="text-left py-2 px-3">Pagado</th>
-                      <th className="text-left py-2 px-3">Fecha/Hora pago</th>
-                      <th className="text-left py-2 px-3">Acción</th>
+                      <th className="text-left py-2 px-3">Nota</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pagosProg.map(pg => (
-                      <tr key={pg.id_pago} className="border-b border-slate-100">
-                        <td className="py-2 px-3">{pg.numero_pago}</td>
-                        <td className="py-2 px-3">{fmtLongDate(pg.fecha_programada)}</td>
-                        <td className="py-2 px-3">{fmtMoney(pg.monto_pago)}</td>
-                        <td className="py-2 px-3">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            pg.estatus === 'pagado' ? 'bg-green-100 text-green-700'
-                            : pg.estatus === 'parcial' ? 'bg-yellow-100 text-yellow-700'
-                            : 'bg-slate-100 text-slate-700'
-                          }`}>
-                            {pg.estatus || 'pendiente'}
-                          </span>
-                        </td>
-                        <td className="py-2 px-3">{pg.monto_pagado ? fmtMoney(pg.monto_pagado) : '—'}</td>
-                        <td className="py-2 px-3">{pg.fecha_hora_pago ? fmt12h(pg.fecha_hora_pago) : (pg.fecha_pago || '—')}</td>
-                        <td className="py-2 px-3">
-                          <button
-                            className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                            onClick={() => abrirQuickPay(pg)}
-                          >
-                            Pagar
-                          </button>
-                        </td>
+                    {historial.map(p => (
+                      <tr key={p.id_pago} className="border-b border-slate-100">
+                        <td className="py-2 px-3">{p.id_prestamo}</td>
+                        <td className="py-2 px-3 font-semibold">{fmtMoney(p.monto_pagado)}</td>
+                        <td className="py-2 px-3">{p.fecha_hora_pago ? fmt12h(p.fecha_hora_pago) : (p.fecha_pago || '')}</td>
+                        <td className="py-2 px-3">{p.numero_pago}</td>
+                        <td className="py-2 px-3">{p.nota || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            )}
-
-            {!pagosLoading && !pagosError && pagosProg.length === 0 && (
-              <p className="text-slate-600">No hay pagos programados.</p>
             )}
           </div>
         )}
       </div>
 
-      {/* ================= MODALES QUE YA TENÍAS (NO TOCAR) ================= */}
+      {/* MODAL: Realizar pago */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-40 flex items-start justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-5xl shadow-xl">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-semibold">Realizar pago</h3>
@@ -602,16 +550,146 @@ const PagosModule = ({ idSocio }) => {
             </div>
 
             <div className="p-4 max-h-[70vh] overflow-y-auto">
-              {/* (Contenido original omitido para no alterar tu flujo existente) */}
-              <p className="text-slate-600">Flujo de pago superior (sin cambios).</p>
+              {/* BUSCAR SOCIO PARA MODAL */}
+              {!modalSocio && (
+                <div className="mb-4">
+                  <p className="text-sm text-slate-700 mb-2">Buscar socio para pagar</p>
+                  <input
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                    placeholder="ID o Nombre…"
+                    value={buscarSocioTerm}
+                    onChange={(e) => setBuscarSocioTerm(e.target.value)}
+                  />
+                  {sugSocios.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {sugSocios.map(s => (
+                        <div key={s.id_socio} className="p-2 bg-slate-50 rounded-lg flex justify-between">
+                          <span>ID: {s.id_socio} — {s.nombre} {s.apellido_paterno} {s.apellido_materno}</span>
+                          <button
+                            className="px-3 py-1 bg-blue-600 text-white rounded-lg"
+                            onClick={() => { setModalSocio(s); setMpageP(1); setMpageR(1); cargarModalListas(s); }}
+                          >
+                            Seleccionar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* LISTAS PENDIENTES / REALIZADOS */}
+              {modalSocio && (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold">Socio: {modalSocio.nombre} {modalSocio.apellido_paterno} (ID {modalSocio.id_socio})</h4>
+                    <button className="px-3 py-1 rounded-lg bg-slate-100" onClick={() => { setModalSocio(null); setPendientes([]); setRealizados([]); }}>Cambiar socio</button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Pendientes */}
+                    <div className="border rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h5 className="font-semibold">Pagos pendientes</h5>
+                        <div className="flex gap-2">
+                          <input type="date" className="px-2 py-1 border rounded-lg" value={pendFrom} onChange={e => setPendFrom(e.target.value)} />
+                          <input type="date" className="px-2 py-1 border rounded-lg" value={pendTo} onChange={e => setPendTo(e.target.value)} />
+                          <button className="px-3 py-1 bg-blue-600 text-white rounded-lg" onClick={() => cargarModalListas(modalSocio)}>Filtrar</button>
+                        </div>
+                      </div>
+                      {pagPend.length === 0 ? (
+                        <p className="text-slate-600 text-sm">Sin pendientes.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {pagPend.map(p => (
+                            <div key={p.id_pago} className="p-2 bg-slate-50 rounded-lg flex items-center justify-between">
+                              <div>
+                                <div className="text-sm font-medium"># {p.numero_pago} — {fmtLongDate(p.fecha_programada)}</div>
+                                <div className="text-xs text-slate-600">Programado: {fmtMoney(p.monto_pago)}</div>
+                              </div>
+                              <button className="px-3 py-1 bg-emerald-600 text-white rounded-lg" onClick={() => abrirPagar(p)}>Pagar</button>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-end gap-2 pt-2">
+                            <button className="px-2 py-1 border rounded" disabled={mpageP===1} onClick={()=>setMpageP(p=>p-1)}>«</button>
+                            <span className="text-sm">Página {mpageP}</span>
+                            <button className="px-2 py-1 border rounded" disabled={mpageP*pageSize>=pendientes.length} onClick={()=>setMpageP(p=>p+1)}>»</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Realizados */}
+                    <div className="border rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h5 className="font-semibold">Pagos realizados</h5>
+                        <div className="flex gap-2">
+                          <input type="date" className="px-2 py-1 border rounded-lg" value={realFrom} onChange={e => setRealFrom(e.target.value)} />
+                          <input type="date" className="px-2 py-1 border rounded-lg" value={realTo} onChange={e => setRealTo(e.target.value)} />
+                          <button className="px-3 py-1 bg-blue-600 text-white rounded-lg" onClick={() => cargarModalListas(modalSocio)}>Filtrar</button>
+                        </div>
+                      </div>
+                      {pagReal.length === 0 ? (
+                        <p className="text-slate-600 text-sm">Sin realizados.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {pagReal.map(p => (
+                            <div key={p.id_pago} className="p-2 bg-slate-50 rounded-lg">
+                              <div className="text-sm">
+                                Pago #{p.numero_pago} — {p.fecha_hora_pago ? fmt12h(p.fecha_hora_pago) : (p.fecha_pago || '')}
+                              </div>
+                              <div className="text-xs text-slate-600">
+                                Monto: {fmtMoney(p.monto_pagado)} · Interés: {fmtMoney(p.interes_pagado)} · Capital: {fmtMoney(p.capital_pagado)} {p.nota ? `· Nota: ${p.nota}` : ''}
+                              </div>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-end gap-2 pt-2">
+                            <button className="px-2 py-1 border rounded" disabled={mpageR===1} onClick={()=>setMpageR(p=>p-1)}>«</button>
+                            <span className="text-sm">Página {mpageR}</span>
+                            <button className="px-2 py-1 border rounded" disabled={mpageR*pageSize>=realizados.length} onClick={()=>setMpageR(p=>p+1)}>»</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Caja de pago seleccionado */}
+                  {pagoSel && (
+                    <div className="mt-4 border rounded-xl p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-semibold">Pagar # {pagoSel.numero_pago} — {fmtLongDate(pagoSel.fecha_programada)}</div>
+                          <div className="text-sm text-slate-600">Programado: {fmtMoney(pagoSel.monto_pago)}</div>
+                        </div>
+                        <button className="px-3 py-1 rounded-lg bg-slate-100" onClick={()=>setPagoSel(null)}>Cancelar</button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+                        <input type="number" min="0" step="0.01" className="px-3 py-2 border rounded-lg" value={montoPagar} onChange={e=>setMontoPagar(e.target.value)} placeholder="Monto a pagar" />
+                        <label className="flex items-center gap-2 text-sm">
+                          <input type="checkbox" checked={parcial} onChange={e=>setParcial(e.target.checked)} />
+                          Pago parcial
+                        </label>
+                        <input type="text" className="px-3 py-2 border rounded-lg md:col-span-2" value={nota} onChange={e=>setNota(e.target.value)} placeholder="Nota (opcional)" />
+                      </div>
+                      <div className="flex justify-end mt-3 gap-2">
+                        <button className="px-4 py-2 bg-emerald-600 text-white rounded-lg" disabled={saving} onClick={()=>{
+                          if (window.confirm('¿Confirma que desea realizar el pago?')) confirmarPagar();
+                        }}>
+                          {saving ? 'Aplicando…' : 'Aplicar pago'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL TARJETAS (NO TOCAR) */}
+      {/* MODAL: Detalle de tarjetas */}
       {showCardModal && (
-        <div className="fixed inset-0 bg-black/50 z-40 flex items-start justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-6xl shadow-xl">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-semibold">{cardModalTitle}</h3>
@@ -676,66 +754,6 @@ const PagosModule = ({ idSocio }) => {
           </div>
         </div>
       )}
-
-      {/* ======== NUEVO MODAL: Quick Pay ======== */}
-      {showQuickPay && pagoSel && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
-            <div className="p-4 border-b">
-              <h3 className="text-lg font-semibold">Realizar pago ahora</h3>
-              <p className="text-sm text-slate-600 mt-1">
-                Préstamo #{prestamoSel?.id_prestamo} — Pago #{pagoSel.numero_pago} ({fmtLongDate(pagoSel.fecha_programada)})
-              </p>
-            </div>
-            <div className="p-4 space-y-3">
-              <div>
-                <label className="block text-sm text-slate-700 mb-1">Monto a pagar</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50"
-                  value={montoPagar}
-                  onChange={(e) => setMontoPagar(e.target.value)}
-                  placeholder={String(pagoSel.monto_pago || '')}
-                />
-                <p className="text-xs text-slate-500 mt-1">
-                  Monto programado: <strong>{fmtMoney(pagoSel.monto_pago || 0)}</strong>
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm text-slate-700 mb-1">Nota (opcional)</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50"
-                  value={nota}
-                  onChange={(e) => setNota(e.target.value)}
-                  placeholder="Escribe una nota (opcional)"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  className="px-4 py-2 rounded-lg bg-slate-100"
-                  onClick={() => { setShowQuickPay(false); setPagoSel(null); }}
-                  disabled={saving}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className={`px-4 py-2 rounded-lg text-white ${saving ? 'bg-blue-300' : 'bg-blue-600 hover:bg-blue-700'}`}
-                  onClick={aplicarQuickPay}
-                  disabled={saving}
-                >
-                  {saving ? 'Aplicando…' : 'Aplicar pago'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 };
