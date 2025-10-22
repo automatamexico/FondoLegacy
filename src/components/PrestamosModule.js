@@ -29,26 +29,22 @@ const PrestamosModule = ({ idSocio }) => {
   const [socioPrestamos, setSocioPrestamos] = useState([]);
   const [showEditPrestamosModal, setShowEditPrestamosModal] = useState(false);
 
-  // evitar doble submit
   const [submitting, setSubmitting] = useState(false);
 
-  // NUEVO: etiqueta visible en el modal de detalles
-  const [tipoPagoLabel, setTipoPagoLabel] = useState('');
-
-  // tasas y plazos
-  const weeklyRateOptions = Array.from({ length: 12 }, (_, i) => (0.5 * (i + 1))); // 0.5..6
-  const biweeklyRateOptions = Array.from({ length: 13 }, (_, i) => 2 + 0.5 * i);   // 2..8
+  // soporte semanal / quincenal
+  const weeklyRateOptions = Array.from({ length: 12 }, (_, i) => (0.5 * (i + 1))); // 0.5 .. 6.0
+  const biweeklyRateOptions = Array.from({ length: 13 }, (_, i) => 2 + 0.5 * i);   // 2.0 .. 8.0
 
   const [newPrestamo, setNewPrestamo] = useState({
     id_socio: '',
     monto_solicitado: '',
 
-    // mensual
+    // mensual (legacy)
     plazo_meses: '',
     tasa_interes_mensual: '',
 
-    // tipo de plazo
-    tipo_plazo: 'mensual', // mensual | semanal | quincenal
+    // NUEVO: tipo de plazo
+    tipo_plazo: 'mensual', // 'mensual' | 'semanal' | 'quincenal'
 
     // semanal
     plazo_semanas: '',
@@ -59,15 +55,14 @@ const PrestamosModule = ({ idSocio }) => {
     tasa_interes_quincenal: ''
   });
 
-  // cálculos mostrados
-  const [pagoMensual, setPagoMensual] = useState(0);
-  const [abonoCapitalMensual, setAbonoCapitalMensual] = useState(0);
-  const [interesMensualEstimado, setInteresMensualEstimado] = useState(0);
+  const [pagoPeriodo, setPagoPeriodo] = useState(0);
+  const [abonoCapitalPeriodo, setAbonoCapitalPeriodo] = useState(0);
+  const [interesPeriodoEstimado, setInteresPeriodoEstimado] = useState(0);
 
   const currentUserRole = localStorage.getItem('currentUser') ? JSON.parse(localStorage.getItem('currentUser')).role : '';
 
-  const plazoOpciones = Array.from({ length: 48 }, (_, i) => i + 1); // 1..48 meses
-  const tasaOpciones = Array.from({ length: 7 }, (_, i) => i + 2);   // 2..8%
+  const plazoOpciones = Array.from({ length: 48 }, (_, i) => i + 1); // meses 1..48
+  const tasaOpciones = Array.from({ length: 7 }, (_, i) => i + 2);   // 2..8 %
 
   useEffect(() => {
     fetchGlobalPrestamoStats();
@@ -80,42 +75,24 @@ const PrestamosModule = ({ idSocio }) => {
     }
   }, [idSocio]);
 
-  // =================== FETCHERS ===================
+  // ======= FETCHERS
   const fetchGlobalPrestamoStats = async () => {
     try {
-      const sociosConPrestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=id_socio`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
+      const respIDs = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=id_socio`, {
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
       });
-      if (!sociosConPrestamoResponse.ok) {
-        const errorData = await sociosConPrestamoResponse.json();
-        throw new Error(`Error al cargar socios con préstamo: ${sociosConPrestamoResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
-      }
-      const sociosConPrestamoData = await sociosConPrestamoResponse.json();
-      const uniqueSociosIds = new Set(sociosConPrestamoData.map(item => item.id_socio));
+      const ids = await respIDs.json();
+      const uniqueSociosIds = new Set(ids.map(item => item.id_socio));
       setTotalSociosConPrestamo(uniqueSociosIds.size);
 
-      const sumResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=monto_solicitado`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
+      const respMonto = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=monto_solicitado`, {
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
       });
-      if (!sumResponse.ok) {
-        const errorData = await sumResponse.json();
-        throw new Error(`Error al sumar monto prestado: ${sumResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
-      }
-      const sumData = await sumResponse.json();
-      const accumulatedSum = sumData.reduce((sum, item) => sum + (parseFloat(item.monto_solicitado) || 0), 0);
-      setTotalDineroPrestado(accumulatedSum);
+      const montos = await respMonto.json();
+      const sum = montos.reduce((acc, it) => acc + (parseFloat(it.monto_solicitado) || 0), 0);
+      setTotalDineroPrestado(sum);
     } catch (err) {
-      console.error("Error al cargar estadísticas globales de préstamo:", err);
+      console.error('Stats error', err);
     }
   };
 
@@ -124,12 +101,7 @@ const PrestamosModule = ({ idSocio }) => {
     setError(null);
     try {
       const response = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioId}&select=*`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -147,12 +119,7 @@ const PrestamosModule = ({ idSocio }) => {
   const fetchSocios = async () => {
     try {
       const response = await fetch(`${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -161,7 +128,7 @@ const PrestamosModule = ({ idSocio }) => {
       const data = await response.json();
       setSociosList(data);
     } catch (err) {
-      console.error("Error al cargar socios para el modal:", err);
+      console.error("Error al cargar socios:", err);
     }
   };
 
@@ -169,42 +136,28 @@ const PrestamosModule = ({ idSocio }) => {
     setLoading(true);
     setError(null);
     try {
-      const prestamosActivosResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=id_socio&estatus=eq.activo`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
+      const pa = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=id_socio&estatus=eq.activo`, {
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
       });
-      if (!prestamosActivosResponse.ok) {
-        const errorData = await prestamosActivosResponse.json();
-        throw new Error(`Error al cargar préstamos activos: ${prestamosActivosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
+      if (!pa.ok) {
+        const errorData = await pa.json();
+        throw new Error(`Error al cargar préstamos activos: ${pa.statusText} - ${errorData.message || 'Error desconocido'}`);
       }
-      const prestamosActivosData = await prestamosActivosResponse.json();
-
-      const uniqueSocioIds = [...new Set(prestamosActivosData.map(item => item.id_socio))];
-
-      if (uniqueSocioIds.length === 0) {
+      const prs = await pa.json();
+      const uniqueIds = [...new Set(prs.map(i => i.id_socio))];
+      if (uniqueIds.length === 0) {
         setSociosConPrestamosActivos([]);
         setLoading(false);
         return;
       }
-
-      const sociosResponse = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=in.(${uniqueSocioIds.join(',')})&select=id_socio,nombre,apellido_paterno,apellido_materno`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
+      const sr = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=in.(${uniqueIds.join(',')})&select=id_socio,nombre,apellido_paterno,apellido_materno`, {
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
       });
-      if (!sociosResponse.ok) {
-        const errorData = await sociosResponse.json();
-        throw new Error(`Error al cargar detalles de socios: ${sociosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
+      if (!sr.ok) {
+        const errorData = await sr.json();
+        throw new Error(`Error al cargar detalles de socios: ${sr.statusText} - ${errorData.message || 'Error desconocido'}`);
       }
-      const sociosData = await sociosResponse.json();
-
+      const sociosData = await sr.json();
       setSociosConPrestamosActivos(sociosData);
     } catch (err) {
       setError(err.message);
@@ -213,7 +166,7 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // =================== UTILS ===================
+  // ======= UTILIDADES
   const formatCurrency = (value) =>
     new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
 
@@ -227,25 +180,13 @@ const PrestamosModule = ({ idSocio }) => {
     const socioOK = !!newPrestamo.id_socio;
 
     if (newPrestamo.tipo_plazo === 'mensual') {
-      return (
-        montoOK && socioOK &&
-        parseInt(newPrestamo.plazo_meses) > 0 &&
-        parseFloat(newPrestamo.tasa_interes_mensual) > 0
-      );
+      return (montoOK && socioOK && parseInt(newPrestamo.plazo_meses) > 0 && parseFloat(newPrestamo.tasa_interes_mensual) > 0);
     }
     if (newPrestamo.tipo_plazo === 'semanal') {
-      return (
-        montoOK && socioOK &&
-        parseInt(newPrestamo.plazo_semanas) > 0 &&
-        parseFloat(newPrestamo.tasa_interes_semanal) > 0
-      );
+      return (montoOK && socioOK && parseInt(newPrestamo.plazo_semanas) > 0 && parseFloat(newPrestamo.tasa_interes_semanal) > 0);
     }
     if (newPrestamo.tipo_plazo === 'quincenal') {
-      return (
-        montoOK && socioOK &&
-        parseInt(newPrestamo.plazo_quincenas) > 0 &&
-        parseFloat(newPrestamo.tasa_interes_quincenal) > 0
-      );
+      return (montoOK && socioOK && parseInt(newPrestamo.plazo_quincenas) > 0 && parseFloat(newPrestamo.tasa_interes_quincenal) > 0);
     }
     return false;
   };
@@ -253,7 +194,7 @@ const PrestamosModule = ({ idSocio }) => {
   const calculatePrestamoDetails = useCallback(() => {
     const monto = parseFloat(newPrestamo.monto_solicitado);
     let periods = 0;
-    let rate = 0;
+    let rate = 0; // % por periodo
 
     if (newPrestamo.tipo_plazo === 'mensual') {
       periods = parseInt(newPrestamo.plazo_meses);
@@ -268,17 +209,17 @@ const PrestamosModule = ({ idSocio }) => {
 
     if (monto > 0 && periods > 0 && rate > 0) {
       const tasaDecimal = rate / 100;
-      const cuotaCapitalPorPeriodo = monto / periods;
+      const cuotaCapital = monto / periods;
       const interesPorPeriodo = monto * tasaDecimal;
-      const pagoPorPeriodo = cuotaCapitalPorPeriodo + interesPorPeriodo;
+      const pagoPorPeriodo = cuotaCapital + interesPorPeriodo;
 
-      setPagoMensual(pagoPorPeriodo);
-      setAbonoCapitalMensual(cuotaCapitalPorPeriodo);
-      setInteresMensualEstimado(interesPorPeriodo);
+      setPagoPeriodo(pagoPorPeriodo);
+      setAbonoCapitalPeriodo(cuotaCapital);
+      setInteresPeriodoEstimado(interesPorPeriodo);
     } else {
-      setPagoMensual(0);
-      setAbonoCapitalMensual(0);
-      setInteresMensualEstimado(0);
+      setPagoPeriodo(0);
+      setAbonoCapitalPeriodo(0);
+      setInteresPeriodoEstimado(0);
     }
   }, [
     newPrestamo.monto_solicitado,
@@ -295,17 +236,7 @@ const PrestamosModule = ({ idSocio }) => {
     calculatePrestamoDetails();
   }, [calculatePrestamoDetails]);
 
-  // helper para mostrar "Mensual / Semanal / Quincenal"
-  const labelizarTipo = (tipo) => {
-    if (!tipo) return '';
-    const t = String(tipo).toLowerCase();
-    if (t.includes('mensual')) return 'Mensual';
-    if (t.includes('semanal')) return 'Semanal';
-    if (t.includes('quincenal')) return 'Quincenal';
-    return tipo.charAt(0).toUpperCase() + tipo.slice(1);
-  };
-
-  // =================== CONFIRMAR PRÉSTAMO ===================
+  // ======= CONFIRMAR PRÉSTAMO
   const handleConfirmPrestamo = async () => {
     if (submitting) return;
     setSubmitting(true);
@@ -354,42 +285,50 @@ const PrestamosModule = ({ idSocio }) => {
     }
 
     try {
-      const currentDate = new Date();
-      const fecha_solicitud = currentDate.toISOString().split('T')[0];
-      const fecha_creacion = currentDate.toISOString();
+      const now = new Date();
+      const fecha_solicitud = now.toISOString().split('T')[0];
+      const fecha_creacion = now.toISOString();
 
-      let fechaVencimiento = new Date(currentDate);
-      if (tipo_plazo === 'mensual') {
-        fechaVencimiento.setMonth(currentDate.getMonth() + periods);
-      } else if (tipo_plazo === 'semanal') {
-        fechaVencimiento.setDate(currentDate.getDate() + periods * 7);
-      } else {
-        fechaVencimiento.setDate(currentDate.getDate() + periods * 14);
-      }
+      let fechaVencimiento = new Date(now);
+      if (tipo_plazo === 'mensual') fechaVencimiento.setMonth(now.getMonth() + periods);
+      else if (tipo_plazo === 'semanal') fechaVencimiento.setDate(now.getDate() + periods * 7);
+      else fechaVencimiento.setDate(now.getDate() + periods * 14);
       const fecha_vencimiento_str = fechaVencimiento.toISOString().split('T')[0];
 
-      const pagoPorPeriodo = pagoMensual;
-      const montoAPagar = pagoPorPeriodo * periods;
+      const pagoPorPeriodo = pagoPeriodo; // calculado
+      const montoAPagarTotal = pagoPorPeriodo * periods;
 
-      const plazo_meses_compat =
-        tipo_plazo === 'mensual'
-          ? periods
-          : (tipo_plazo === 'semanal' ? Math.ceil(periods / 4) : Math.ceil(periods / 2));
-
-      const prestamoDataBase = {
+      // Si ya renombraste:
+      const prestamoDataPreferida = {
         id_socio,
         monto_solicitado: parseFloat(monto_solicitado),
-        plazo_meses: plazo_meses_compat,
         interes: parseFloat(tasaSeleccionada),
-        pago_mensual: pagoPorPeriodo,     // realmente "por periodo"
-        monto_a_pagar: montoAPagar,
+        tipo_plazo,
+        numero_plazos: periods,          // ← nuevo nombre
+        pago_requerido: pagoPorPeriodo,  // ← nuevo nombre
+        monto_a_pagar: montoAPagarTotal,
         fecha_solicitud,
         fecha_creacion,
         fecha_vencimiento: fecha_vencimiento_str,
         estatus: 'activo'
       };
-      const prestamoDataConTipo = { ...prestamoDataBase, tipo_plazo };
 
+      // Fallback (si aún existen columnas viejas)
+      const prestamoDataFallback = {
+        id_socio,
+        monto_solicitado: parseFloat(monto_solicitado),
+        interes: parseFloat(tasaSeleccionada),
+        tipo_plazo,
+        plazo_meses: tipo_plazo === 'mensual' ? periods : (tipo_plazo === 'semanal' ? Math.ceil(periods / 4) : Math.ceil(periods / 2)),
+        pago_mensual: pagoPorPeriodo,
+        monto_a_pagar: montoAPagarTotal,
+        fecha_solicitud,
+        fecha_creacion,
+        fecha_vencimiento: fecha_vencimiento_str,
+        estatus: 'activo'
+      };
+
+      // Intento con campos nuevos
       let prestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos`, {
         method: 'POST',
         headers: {
@@ -398,13 +337,14 @@ const PrestamosModule = ({ idSocio }) => {
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           'Prefer': 'return=representation'
         },
-        body: JSON.stringify(prestamoDataConTipo)
+        body: JSON.stringify(prestamoDataPreferida)
       });
 
-      // fallback si no existe la columna tipo_plazo
+      // Si falla por columnas, usar fallback
       if (!prestamoResponse.ok) {
         const errJson = await prestamoResponse.json().catch(() => ({}));
-        if ((errJson?.message || '').toLowerCase().includes('column') && (errJson?.message || '').toLowerCase().includes('tipo_plazo')) {
+        const msg = (errJson?.message || '').toLowerCase();
+        if (msg.includes('column') && (msg.includes('numero_plazos') || msg.includes('pago_requerido'))) {
           prestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos`, {
             method: 'POST',
             headers: {
@@ -413,7 +353,7 @@ const PrestamosModule = ({ idSocio }) => {
               'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
               'Prefer': 'return=representation'
             },
-            body: JSON.stringify(prestamoDataBase)
+            body: JSON.stringify(prestamoDataFallback)
           });
         } else {
           throw new Error(`Error al registrar préstamo: ${prestamoResponse.statusText} - ${errJson.message || 'Error desconocido'}`);
@@ -427,23 +367,19 @@ const PrestamosModule = ({ idSocio }) => {
       const addedPrestamo = await prestamoResponse.json();
       const newPrestamoId = addedPrestamo[0].id_prestamo;
 
-      // Programar pagos
+      // Programación de pagos
       for (let i = 1; i <= periods; i++) {
-        let fechaProgramada = new Date(fecha_solicitud);
-        if (tipo_plazo === 'mensual') {
-          fechaProgramada.setMonth(fechaProgramada.getMonth() + i);
-        } else if (tipo_plazo === 'semanal') {
-          fechaProgramada.setDate(fechaProgramada.getDate() + i * 7);
-        } else {
-          fechaProgramada.setDate(fechaProgramada.getDate() + i * 14);
-        }
+        let fp = new Date(fecha_solicitud);
+        if (tipo_plazo === 'mensual') fp.setMonth(fp.getMonth() + i);
+        else if (tipo_plazo === 'semanal') fp.setDate(fp.getDate() + i * 7);
+        else fp.setDate(fp.getDate() + i * 14);
 
         const pagoBase = {
           id_socio,
           id_prestamo: newPrestamoId,
           numero_pago: i,
           monto_pago: pagoPorPeriodo,
-          fecha_programada: fechaProgramada.toISOString().split('T')[0],
+          fecha_programada: fp.toISOString().split('T')[0],
           estatus: 'pendiente',
           fecha_pago: null,
           monto_pagado: null,
@@ -452,7 +388,7 @@ const PrestamosModule = ({ idSocio }) => {
           estado_pago: null
         };
 
-        // guardar frecuencia en 'frecuencia' si existe
+        // Insert con "frecuencia"
         let pagoResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos`, {
           method: 'POST',
           headers: {
@@ -461,10 +397,10 @@ const PrestamosModule = ({ idSocio }) => {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'Prefer': 'return=representation'
           },
-          body: JSON.stringify({ ...pagoBase, frecuencia: newPrestamo.tipo_plazo })
+          body: JSON.stringify({ ...pagoBase, frecuencia: tipo_plazo })
         });
 
-        // fallback si no existiera columna frecuencia
+        // Fallback si no existe columna frecuencia
         if (!pagoResponse.ok) {
           const errJson = await pagoResponse.json().catch(() => ({}));
           if ((errJson?.message || '').toLowerCase().includes('column') && (errJson?.message || '').toLowerCase().includes('frecuencia')) {
@@ -504,11 +440,8 @@ const PrestamosModule = ({ idSocio }) => {
       });
 
       fetchGlobalPrestamoStats();
-      if (!idSocio) {
-        fetchAllSociosConPrestamoActivo();
-      } else {
-        fetchPrestamosForUser(idSocio);
-      }
+      if (!idSocio) fetchAllSociosConPrestamoActivo();
+      else fetchPrestamosForUser(idSocio);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -517,7 +450,7 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // =================== HISTORIAL Y DETALLES ===================
+  // ======= HISTORIAL / DETALLES
   const handleVerHistorialPrestamosSocio = async (socio) => {
     setSelectedSocioForHistorial(socio);
     setLoading(true);
@@ -525,13 +458,8 @@ const PrestamosModule = ({ idSocio }) => {
     setShowPrestamoHistorial(true);
 
     try {
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,plazo_meses,tipo_plazo`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,numero_plazos,plazo_meses,tipo_plazo,interes,pago_requerido`, {
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -539,37 +467,19 @@ const PrestamosModule = ({ idSocio }) => {
       }
       const data = await response.json();
 
+      // marcar si pagado
       const prestamosConEstado = await Promise.all(data.map(async (prestamo) => {
-        const totalPagosProgramadosResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&select=count`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Prefer': 'count=exact',
-            'Range': '0-0',
-            'Range-Unit': 'items'
-          }
+        const totalProg = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&select=count`, {
+          headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'Prefer': 'count=exact', 'Range': '0-0', 'Range-Unit': 'items' }
         });
-        const totalPagosProgramados = parseInt(totalPagosProgramadosResponse.headers.get('content-range').split('/')[1], 10) || 0;
+        const total = parseInt(totalProg.headers.get('content-range').split('/')[1], 10) || 0;
 
-        const pagosPagadosResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&estatus=eq.pagado&select=count`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Prefer': 'count=exact',
-            'Range': '0-0',
-            'Range-Unit': 'items'
-          }
+        const pagosHechos = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&estatus=eq.pagado&select=count`, {
+          headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'Prefer': 'count=exact', 'Range': '0-0', 'Range-Unit': 'items' }
         });
-        const pagosPagados = parseInt(pagosPagadosResponse.headers.get('content-range').split('/')[1], 10) || 0;
+        const hechos = parseInt(pagosHechos.headers.get('content-range').split('/')[1], 10) || 0;
 
-        return {
-          ...prestamo,
-          isPaid: totalPagosProgramados > 0 && pagosPagados === totalPagosProgramados
-        };
+        return { ...prestamo, isPaid: total > 0 && hechos === total };
       }));
       setSocioPrestamos(prestamosConEstado);
     } catch (err) {
@@ -586,13 +496,8 @@ const PrestamosModule = ({ idSocio }) => {
     setShowEditPrestamosModal(true);
 
     try {
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,plazo_meses`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,numero_plazos,plazo_meses`, {
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -602,29 +507,16 @@ const PrestamosModule = ({ idSocio }) => {
 
       const prestamosConEstadoYHabilitacion = await Promise.all(data.map(async (prestamo) => {
         const pagosRealizadosResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&monto_pagado=gt.0&select=count`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Prefer': 'count=exact',
-            'Range': '0-0',
-            'Range-Unit': 'items'
-          }
+          headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'Prefer': 'count=exact', 'Range': '0-0', 'Range-Unit': 'items' }
         });
         const pagosRealizadosCount = parseInt(pagosRealizadosResponse.headers.get('content-range').split('/')[1], 10) || 0;
 
         const fechaSolicitud = new Date(prestamo.fecha_solicitud);
         const now = new Date();
-        const diffTime = Math.abs(now.getTime() - fechaSolicitud.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
+        const diffDays = Math.ceil(Math.abs(now - fechaSolicitud) / (1000 * 60 * 60 * 24));
         const canDelete = pagosRealizadosCount === 0 && diffDays <= 1;
 
-        return {
-          ...prestamo,
-          canDelete: canDelete
-        };
+        return { ...prestamo, canDelete };
       }));
       setSocioPrestamos(prestamosConEstadoYHabilitacion);
     } catch (err) {
@@ -635,43 +527,34 @@ const PrestamosModule = ({ idSocio }) => {
   };
 
   const handleDeletePrestamo = async (prestamoId) => {
-    if (window.confirm("¿Estás seguro de eliminar este préstamo? Al hacerlo, todo lo relacionado con este préstamo será eliminado y no hay manera de revertirlo.")) {
+    if (window.confirm("¿Estás seguro de eliminar este préstamo? Esta acción no se puede deshacer.")) {
       setLoading(true);
       setError(null);
       setToastMessage('');
       try {
-        const deletePagosResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamoId}`, {
+        const delPagos = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamoId}`, {
           method: 'DELETE',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          }
+          headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
         });
-        if (!deletePagosResponse.ok) {
-          const errorData = await deletePagosResponse.json();
-          throw new Error(`Error al eliminar pagos relacionados: ${deletePagosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
+        if (!delPagos.ok) {
+          const errorData = await delPagos.json();
+          throw new Error(`Error al eliminar pagos relacionados: ${delPagos.statusText} - ${errorData.message || 'Error desconocido'}`);
         }
 
-        const deletePrestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_prestamo=eq.${prestamoId}`, {
+        const delPrest = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_prestamo=eq.${prestamoId}`, {
           method: 'DELETE',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          }
+          headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
         });
-        if (!deletePrestamoResponse.ok) {
-          const errorData = await deletePrestamoResponse.json();
-          throw new Error(`Error al eliminar el préstamo: ${deletePrestamoResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
+        if (!delPrest.ok) {
+          const errorData = await delPrest.json();
+          throw new Error(`Error al eliminar el préstamo: ${delPrest.statusText} - ${errorData.message || 'Error desconocido'}`);
         }
 
         setToastMessage('Préstamo eliminado exitosamente.');
         handleEditarPrestamosSocio(selectedSocioForHistorial);
         fetchGlobalPrestamoStats();
-        if (!idSocio) {
-          fetchAllSociosConPrestamoActivo();
-        } else {
-          fetchPrestamosForUser(idSocio);
-        }
+        if (!idSocio) fetchAllSociosConPrestamoActivo();
+        else fetchPrestamosForUser(idSocio);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -681,36 +564,20 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // 🔧 Trae TODOS los pagos programados y calcula etiqueta de tipo de pago
   const handleVerDetallesPrestamo = async (prestamo) => {
     setSelectedPrestamo(prestamo);
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&order=numero_pago.asc&select=id_pago,numero_pago,fecha_programada,fecha_pago,fecha_hora_pago,monto_pago,monto_pagado,estatus,nota,frecuencia`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          }
-        }
-      );
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&order=numero_pago.asc&select=numero_pago,fecha_programada,estatus,monto_pago,monto_pagado,fecha_pago,fecha_hora_pago,interes_pagado,capital_pagado,nota`, {
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
+      });
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`Error al cargar pagos del préstamo: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
+        throw new Error(`Error al cargar historial de pagos del préstamo: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
       }
       const data = await response.json();
       setHistorialPagosPrestamo(data);
-
-      // Determinar tipo de pago visible
-      const tipo =
-        prestamo.tipo_plazo ||           // columna en prestamos (si existe)
-        (data[0]?.frecuencia || '');     // o la frecuencia del primer pago
-      setTipoPagoLabel(labelizarTipo(tipo));
-
       setShowDetailsModal(true);
     } catch (err) {
       setError(err.message);
@@ -723,7 +590,6 @@ const PrestamosModule = ({ idSocio }) => {
     setShowDetailsModal(false);
     setSelectedPrestamo(null);
     setHistorialPagosPrestamo([]);
-    setTipoPagoLabel('');
   };
 
   const handleBackToMainView = () => {
@@ -750,7 +616,7 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // =================== RENDER ===================
+  // ======= RENDER
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -773,7 +639,7 @@ const PrestamosModule = ({ idSocio }) => {
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </div>
             <div>
@@ -826,7 +692,7 @@ const PrestamosModule = ({ idSocio }) => {
         )}
       </div>
 
-      {/* Socios con préstamos activos (admin) */}
+      {/* Socios con préstamos activos */}
       {currentUserRole === 'admin' && sociosConPrestamosActivos.length > 0 && !showPrestamoHistorial && !showEditPrestamosModal && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h3 className="text-xl font-semibold text-slate-900 mb-4">Socios con Préstamos Activos</h3>
@@ -899,7 +765,7 @@ const PrestamosModule = ({ idSocio }) => {
                         {prestamo.interes}%
                       </td>
                       <td className="py-4 px-4 font-medium text-slate-900">
-                        {formatCurrency(parseFloat(prestamo.pago_mensual) || 0)}
+                        {formatCurrency(parseFloat(prestamo.pago_requerido ?? prestamo.pago_mensual) || 0)}
                       </td>
                       <td className="py-4 px-4 text-slate-700">
                         {prestamo.fecha_vencimiento}
@@ -915,13 +781,13 @@ const PrestamosModule = ({ idSocio }) => {
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex space-x-2">
-                          <button onClick={() => handleVerDetallesPrestamo(prestamo)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Ver detalles">
+                          <button onClick={() => handleVerDetallesPrestamo(prestamo)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>
                           </button>
-                          <button className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Acción">
+                          <button className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                             </svg>
@@ -951,7 +817,9 @@ const PrestamosModule = ({ idSocio }) => {
               {socioPrestamos.map(prestamo => (
                 <div key={prestamo.id_prestamo} className="p-4 border border-slate-200 rounded-lg flex justify-between items-center">
                   <div>
-                    <p className="font-medium text-slate-900">Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el {convertirFechaHoraLocal(prestamo.fecha_solicitud).fecha}</p>
+                    <p className="font-medium text-slate-900">
+                      Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el {convertirFechaHoraLocal(prestamo.fecha_solicitud).fecha}
+                    </p>
                     {prestamo.isPaid && <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">Préstamo Pagado</span>}
                   </div>
                   <button onClick={() => handleVerDetallesPrestamo(prestamo)} className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600">Ver detalles</button>
@@ -982,7 +850,7 @@ const PrestamosModule = ({ idSocio }) => {
                   </div>
                   <button
                     onClick={() => handleDeletePrestamo(prestamo.id_prestamo)}
-                    className={`px-3 py-1 bg-red-500 text-white rounded-lg text-sm transition-colors ${prestamo.canDelete ? 'hover:bg-red-600' : 'opacity-50 cursor-not-allowed'}`}
+                    className={`px-3 py-1 bg-red-500 text-white rounded-lg text-sm ${prestamo.canDelete ? 'hover:bg-red-600' : 'opacity-50 cursor-not-allowed'}`}
                     disabled={!prestamo.canDelete}
                   >
                     Eliminar
@@ -1167,15 +1035,15 @@ const PrestamosModule = ({ idSocio }) => {
                 <label className="block text-sm font-medium text-slate-700 mb-1">Pago por periodo</label>
                 <input
                   type="text"
-                  value={formatCurrency(pagoMensual)}
+                  value={formatCurrency(pagoPeriodo)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-slate-100 font-bold text-lg"
                   readOnly
                 />
                 <p className="text-sm text-slate-600 mt-2">
-                  Abono a capital por periodo: <span className="font-semibold text-blue-600">{formatCurrency(abonoCapitalMensual)}</span>
+                  Abono a capital por periodo: <span className="font-semibold text-blue-600">{formatCurrency(abonoCapitalPeriodo)}</span>
                 </p>
                 <p className="text-sm text-slate-600">
-                  Interés por periodo estimado: <span className="font-semibold text-red-600">{formatCurrency(interesMensualEstimado)}</span>
+                  Interés por periodo estimado: <span className="font-semibold text-red-600">{formatCurrency(interesPeriodoEstimado)}</span>
                 </p>
               </div>
 
@@ -1227,23 +1095,13 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* Modal de Detalles: ahora con encabezado de Tipo de Pago */}
+      {/* Modal de Detalles */}
       {showDetailsModal && selectedPrestamo && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-3xl w-full">
-            <div className="flex items-start justify-between mb-4">
-              <h3 className="text-xl font-bold text-slate-900">
-                Calendario / Historial del Préstamo {selectedPrestamo.id_prestamo}
-              </h3>
-              {/* Etiqueta de tipo */}
-              {tipoPagoLabel && (
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-                  Tipo de pago: {tipoPagoLabel}
-                </span>
-              )}
-            </div>
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-2xl w-full">
+            <h3 className="text-xl font-bold text-slate-900 mb-4">Historial del Préstamo {selectedPrestamo.id_prestamo}</h3>
 
-            {loading && <p className="text-center text-slate-600">Cargando pagos...</p>}
+            {loading && <p className="text-center text-slate-600">Cargando historial...</p>}
             {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
 
             {!loading && !error && (
@@ -1251,46 +1109,38 @@ const PrestamosModule = ({ idSocio }) => {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-slate-200">
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700"># Pago</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Fecha Programada</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Monto Programado</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Estado</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Fecha/Hora de Pago</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Monto Pagado</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Nota</th>
+                      <th className="text-left py-3 px-4">#</th>
+                      <th className="text-left py-3 px-4">Fecha programada</th>
+                      <th className="text-left py-3 px-4">Monto programado</th>
+                      <th className="text-left py-3 px-4">Estatus</th>
+                      <th className="text-left py-3 px-4">Pago</th>
+                      <th className="text-left py-3 px-4">Interés</th>
+                      <th className="text-left py-3 px-4">Capital</th>
+                      <th className="text-left py-3 px-4">Fecha/Hora pago</th>
+                      <th className="text-left py-3 px-4">Nota</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {historialPagosPrestamo.map((pago) => {
-                      // fecha programada
-                      const fp = convertirFechaHoraLocal(pago.fecha_programada || '').fecha;
-
-                      // fecha/hora de pago si existe
-                      const dtPago = pago.fecha_hora_pago || pago.fecha_pago || null;
-                      const fpagoFmt = dtPago ? convertirFechaHoraLocal(dtPago) : null;
-                      const fechaPagoFmt = fpagoFmt ? `${fpagoFmt.fecha} ${fpagoFmt.hora}` : '-';
+                    {historialPagosPrestamo.map((p, idx) => {
+                      const fechaProg = p.fecha_programada ? convertirFechaHoraLocal(`${p.fecha_programada}T00:00:00`).fecha : '—';
+                      const pagoTxt = p.monto_pagado != null ? formatCurrency(p.monto_pagado) : '—';
+                      const interesTxt = p.interes_pagado != null ? formatCurrency(p.interes_pagado) : '—';
+                      const capitalTxt = p.capital_pagado != null ? formatCurrency(p.capital_pagado) : '—';
+                      const fechaHoraPago = p.fecha_hora_pago
+                        ? `${convertirFechaHoraLocal(p.fecha_hora_pago).fecha} ${convertirFechaHoraLocal(p.fecha_hora_pago).hora}`
+                        : (p.fecha_pago ? convertirFechaHoraLocal(`${p.fecha_pago}T00:00:00`).fecha : '—');
 
                       return (
-                        <tr key={pago.id_pago} className="border-b border-slate-100 hover:bg-slate-50">
-                          <td className="py-3 px-4 text-slate-700">{pago.numero_pago}</td>
-                          <td className="py-3 px-4 text-slate-700">{fp}</td>
-                          <td className="py-3 px-4 font-medium text-slate-900">{formatCurrency(pago.monto_pago)}</td>
-                          <td className="py-3 px-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              pago.estatus === 'pagado'
-                                ? 'bg-green-100 text-green-700'
-                                : pago.estatus === 'pendiente'
-                                ? 'bg-yellow-100 text-yellow-700'
-                                : 'bg-red-100 text-red-700'
-                            }`}>
-                              {pago.estatus || 'pendiente'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-slate-700">{fechaPagoFmt}</td>
-                          <td className="py-3 px-4 font-semibold text-slate-900">
-                            {pago.monto_pagado ? formatCurrency(pago.monto_pagado) : '-'}
-                          </td>
-                          <td className="py-3 px-4 text-slate-600">{pago.nota || ''}</td>
+                        <tr key={`${p.numero_pago}-${idx}`} className="border-b border-slate-100">
+                          <td className="py-3 px-4">{p.numero_pago}</td>
+                          <td className="py-3 px-4">{fechaProg}</td>
+                          <td className="py-3 px-4">{formatCurrency(p.monto_pago)}</td>
+                          <td className="py-3 px-4">{p.estatus || '—'}</td>
+                          <td className="py-3 px-4">{pagoTxt}</td>
+                          <td className="py-3 px-4">{interesTxt}</td>
+                          <td className="py-3 px-4">{capitalTxt}</td>
+                          <td className="py-3 px-4">{fechaHoraPago}</td>
+                          <td className="py-3 px-4">{p.nota || '—'}</td>
                         </tr>
                       );
                     })}
