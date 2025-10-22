@@ -29,10 +29,10 @@ const PrestamosModule = ({ idSocio }) => {
   const [socioPrestamos, setSocioPrestamos] = useState([]);
   const [showEditPrestamosModal, setShowEditPrestamosModal] = useState(false);
 
-  // === NUEVO: control de envío para que el botón funcione bien
+  // Control de envío
   const [submitting, setSubmitting] = useState(false);
 
-  // === NUEVO: soporte de plazos semanal / quincenal
+  // Opciones de tasas y plazos para semanal / quincenal
   const weeklyRateOptions = Array.from({ length: 12 }, (_, i) => (0.5 * (i + 1))); // 0.5 .. 6.0
   const biweeklyRateOptions = Array.from({ length: 13 }, (_, i) => 2 + 0.5 * i);   // 2.0 .. 8.0
 
@@ -44,7 +44,7 @@ const PrestamosModule = ({ idSocio }) => {
     plazo_meses: '',
     tasa_interes_mensual: '',
 
-    // NUEVO: tipo de plazo
+    // tipo de plazo
     tipo_plazo: 'mensual', // 'mensual' | 'semanal' | 'quincenal'
 
     // semanal
@@ -56,14 +56,14 @@ const PrestamosModule = ({ idSocio }) => {
     tasa_interes_quincenal: ''
   });
 
-  // tus estados “mensual” ahora representan “por periodo” según tipo de plazo
+  // Cálculos por periodo
   const [pagoMensual, setPagoMensual] = useState(0);
   const [abonoCapitalMensual, setAbonoCapitalMensual] = useState(0);
   const [interesMensualEstimado, setInteresMensualEstimado] = useState(0);
 
   const currentUserRole = localStorage.getItem('currentUser') ? JSON.parse(localStorage.getItem('currentUser')).role : '';
 
-  const plazoOpciones = Array.from({ length: 48 }, (_, i) => i + 1); // meses 1..48
+  const plazoOpciones = Array.from({ length: 48 }, (_, i) => i + 1); // 1..48 meses
   const tasaOpciones = Array.from({ length: 7 }, (_, i) => i + 2);   // 2..8 %
 
   useEffect(() => {
@@ -219,7 +219,6 @@ const PrestamosModule = ({ idSocio }) => {
     setNewPrestamo(prev => ({ ...prev, [name]: value }));
   };
 
-  // Habilita el botón solo cuando el formulario está completo según el tipo de plazo
   const isFormReady = () => {
     const montoOK = parseFloat(newPrestamo.monto_solicitado) > 0;
     const socioOK = !!newPrestamo.id_socio;
@@ -248,7 +247,7 @@ const PrestamosModule = ({ idSocio }) => {
     return false;
   };
 
-  // Cálculo de pagos por periodo (interés simple por periodo como tenías)
+  // Cálculo de cuota/interés simple por periodo
   const calculatePrestamoDetails = useCallback(() => {
     const monto = parseFloat(newPrestamo.monto_solicitado);
     let periods = 0;
@@ -365,7 +364,7 @@ const PrestamosModule = ({ idSocio }) => {
           ? periods
           : (tipo_plazo === 'semanal' ? Math.ceil(periods / 4) : Math.ceil(periods / 2));
 
-      // Intento con tipo_plazo (si la columna no existe, hago fallback)
+      // Intento con tipo_plazo (si la columna no existe, fallback)
       const prestamoDataBase = {
         id_socio,
         monto_solicitado: parseFloat(monto_solicitado),
@@ -417,7 +416,7 @@ const PrestamosModule = ({ idSocio }) => {
       const addedPrestamo = await prestamoResponse.json();
       const newPrestamoId = addedPrestamo[0].id_prestamo;
 
-      // Programación de pagos
+      // Programación de pagos (con tipo_pago)
       for (let i = 1; i <= periods; i++) {
         let fechaProgramada = new Date(fecha_solicitud);
         if (tipo_plazo === 'mensual') {
@@ -442,23 +441,20 @@ const PrestamosModule = ({ idSocio }) => {
           estado_pago: null
         };
 
-        // intentar con frecuencia
-        let pagoResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Prefer': 'return=representation'
-          },
-          body: JSON.stringify({ ...pagoBase, frecuencia: tipo_plazo })
-        });
+        // Intentos de inserción en orden: (tipo_pago + frecuencia) → (solo tipo_pago) → (solo frecuencia) → (base)
+        const payloads = [
+          { ...pagoBase, tipo_pago: tipo_plazo, frecuencia: tipo_plazo },
+          { ...pagoBase, tipo_pago: tipo_plazo },
+          { ...pagoBase, frecuencia: tipo_plazo },
+          { ...pagoBase }
+        ];
 
-        if (!pagoResponse.ok) {
-          const errJson = await pagoResponse.json().catch(() => ({}));
-          if ((errJson?.message || '').toLowerCase().includes('column') && (errJson?.message || '').toLowerCase().includes('frecuencia')) {
-            // fallback sin columna frecuencia
-            pagoResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos`, {
+        let inserted = false;
+        let lastError = null;
+
+        for (const body of payloads) {
+          try {
+            const resp = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -466,16 +462,23 @@ const PrestamosModule = ({ idSocio }) => {
                 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
                 'Prefer': 'return=representation'
               },
-              body: JSON.stringify(pagoBase)
+              body: JSON.stringify(body)
             });
-          } else {
-            throw new Error(`Error al registrar pago ${i}: ${pagoResponse.statusText} - ${errJson.message || 'Error desconocido'}`);
+            if (resp.ok) {
+              inserted = true;
+              break;
+            } else {
+              const errJson = await resp.json().catch(() => ({}));
+              lastError = `Status ${resp.status}: ${errJson?.message || resp.statusText}`;
+              // si hubo error por columna desconocida, se intentará el siguiente payload
+            }
+          } catch (e) {
+            lastError = e.message;
           }
         }
 
-        if (!pagoResponse.ok) {
-          const errorData = await pagoResponse.json();
-          throw new Error(`Error al registrar pago ${i}: ${pagoResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
+        if (!inserted) {
+          throw new Error(`Error al registrar pago ${i}: ${lastError || 'Error desconocido'}`);
         }
       }
 
@@ -751,7 +754,7 @@ const PrestamosModule = ({ idSocio }) => {
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0z" />
               </svg>
             </div>
             <div>
@@ -1016,7 +1019,7 @@ const PrestamosModule = ({ idSocio }) => {
                 />
               </div>
 
-              {/* Tipo de plazo: solo uno activo */}
+              {/* Tipo de plazo */}
               <div>
                 <p className="block text-sm font-medium text-slate-700 mb-2">Tipo de plazo</p>
                 <div className="flex gap-3">
@@ -1167,7 +1170,6 @@ const PrestamosModule = ({ idSocio }) => {
                   Cancelar
                 </button>
 
-                {/* Botón corregido: ya no depende de loading */}
                 <button
                   type="submit"
                   className={`px-5 py-2 rounded-xl text-white ${
@@ -1263,4 +1265,3 @@ const PrestamosModule = ({ idSocio }) => {
 };
 
 export default PrestamosModule;
-
