@@ -32,6 +32,9 @@ const PrestamosModule = ({ idSocio }) => {
   // evitar doble submit
   const [submitting, setSubmitting] = useState(false);
 
+  // NUEVO: etiqueta visible en el modal de detalles
+  const [tipoPagoLabel, setTipoPagoLabel] = useState('');
+
   // tasas y plazos
   const weeklyRateOptions = Array.from({ length: 12 }, (_, i) => (0.5 * (i + 1))); // 0.5..6
   const biweeklyRateOptions = Array.from({ length: 13 }, (_, i) => 2 + 0.5 * i);   // 2..8
@@ -292,6 +295,16 @@ const PrestamosModule = ({ idSocio }) => {
     calculatePrestamoDetails();
   }, [calculatePrestamoDetails]);
 
+  // helper para mostrar "Mensual / Semanal / Quincenal"
+  const labelizarTipo = (tipo) => {
+    if (!tipo) return '';
+    const t = String(tipo).toLowerCase();
+    if (t.includes('mensual')) return 'Mensual';
+    if (t.includes('semanal')) return 'Semanal';
+    if (t.includes('quincenal')) return 'Quincenal';
+    return tipo.charAt(0).toUpperCase() + tipo.slice(1);
+  };
+
   // =================== CONFIRMAR PRÉSTAMO ===================
   const handleConfirmPrestamo = async () => {
     if (submitting) return;
@@ -439,7 +452,7 @@ const PrestamosModule = ({ idSocio }) => {
           estado_pago: null
         };
 
-        // guardar frecuencia (semanal/quincenal/mensual) en la columna 'frecuencia'
+        // guardar frecuencia en 'frecuencia' si existe
         let pagoResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos`, {
           method: 'POST',
           headers: {
@@ -448,7 +461,7 @@ const PrestamosModule = ({ idSocio }) => {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'Prefer': 'return=representation'
           },
-          body: JSON.stringify({ ...pagoBase, frecuencia: tipo_plazo })
+          body: JSON.stringify({ ...pagoBase, frecuencia: newPrestamo.tipo_plazo })
         });
 
         // fallback si no existiera columna frecuencia
@@ -512,7 +525,7 @@ const PrestamosModule = ({ idSocio }) => {
     setShowPrestamoHistorial(true);
 
     try {
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,plazo_meses`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,plazo_meses,tipo_plazo`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -668,14 +681,14 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // 🔧 FIX: ahora trae TODOS los pagos programados del préstamo (pagados y pendientes)
+  // 🔧 Trae TODOS los pagos programados y calcula etiqueta de tipo de pago
   const handleVerDetallesPrestamo = async (prestamo) => {
     setSelectedPrestamo(prestamo);
     setLoading(true);
     setError(null);
     try {
       const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&order=numero_pago.asc&select=id_pago,numero_pago,fecha_programada,fecha_pago,fecha_hora_pago,monto_pago,monto_pagado,estatus,nota`,
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&order=numero_pago.asc&select=id_pago,numero_pago,fecha_programada,fecha_pago,fecha_hora_pago,monto_pago,monto_pagado,estatus,nota,frecuencia`,
         {
           method: 'GET',
           headers: {
@@ -691,6 +704,13 @@ const PrestamosModule = ({ idSocio }) => {
       }
       const data = await response.json();
       setHistorialPagosPrestamo(data);
+
+      // Determinar tipo de pago visible
+      const tipo =
+        prestamo.tipo_plazo ||           // columna en prestamos (si existe)
+        (data[0]?.frecuencia || '');     // o la frecuencia del primer pago
+      setTipoPagoLabel(labelizarTipo(tipo));
+
       setShowDetailsModal(true);
     } catch (err) {
       setError(err.message);
@@ -703,6 +723,7 @@ const PrestamosModule = ({ idSocio }) => {
     setShowDetailsModal(false);
     setSelectedPrestamo(null);
     setHistorialPagosPrestamo([]);
+    setTipoPagoLabel('');
   };
 
   const handleBackToMainView = () => {
@@ -1206,13 +1227,21 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* Modal de Detalles: muestra TODO el calendario + pagos realizados */}
+      {/* Modal de Detalles: ahora con encabezado de Tipo de Pago */}
       {showDetailsModal && selectedPrestamo && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-3xl w-full">
-            <h3 className="text-xl font-bold text-slate-900 mb-4">
-              Calendario / Historial del Préstamo {selectedPrestamo.id_prestamo}
-            </h3>
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="text-xl font-bold text-slate-900">
+                Calendario / Historial del Préstamo {selectedPrestamo.id_prestamo}
+              </h3>
+              {/* Etiqueta de tipo */}
+              {tipoPagoLabel && (
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                  Tipo de pago: {tipoPagoLabel}
+                </span>
+              )}
+            </div>
 
             {loading && <p className="text-center text-slate-600">Cargando pagos...</p>}
             {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
