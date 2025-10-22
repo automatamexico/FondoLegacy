@@ -15,9 +15,16 @@ function toDateInput(d) {
   const day = String(dt.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
-function toLocalISO(now = new Date()) {
-  const tz = now.getTimezoneOffset() * 60000;
-  return new Date(now.getTime() - tz).toISOString();
+// Genera 'YYYY-MM-DDTHH:MM:SS' en HORA LOCAL (sin 'Z' ni zona) para evitar desfases
+function localPlainDateTime() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const M = String(d.getMonth() + 1).padStart(2, '0');
+  const D = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  const s = String(d.getSeconds()).padStart(2, '0');
+  return `${y}-${M}-${D}T${h}:${m}:${s}`;
 }
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 function fmtLongDate(s) {
@@ -30,9 +37,10 @@ function fmtLongDate(s) {
   const yyyy = d.getFullYear();
   return `${dd}/${mname}/${yyyy}`;
 }
-function fmt12h(iso) {
-  if (!iso) return '';
-  const dt = new Date(iso);
+function fmt12h(isoOrLocal) {
+  if (!isoOrLocal) return '';
+  // Si viene sin 'Z', el constructor lo trata como local (perfecto para nuestro guardado local)
+  const dt = new Date(isoOrLocal);
   return dt.toLocaleString('es-MX', {
     hour: 'numeric', minute: '2-digit', hour12: true,
     year: 'numeric', month: '2-digit', day: '2-digit'
@@ -97,12 +105,11 @@ const PagosModule = ({ idSocio }) => {
     })();
   }, []);
 
-  // ---------- BUSCAR SOCIO (SECCIÓN SIMPLIFICADA) ----------
+  // ---------- BUSCAR SOCIO (solo input) + flujo ver préstamos / pago ----------
   const [buscarSocioTerm, setBuscarSocioTerm] = useState('');
   const [sugSocios, setSugSocios] = useState([]);
   const [socioSel, setSocioSel] = useState(null);
 
-  // Ver Préstamos / selección de préstamo
   const [prestamosSocio, setPrestamosSocio] = useState([]);
   const [prestamoSel, setPrestamoSel] = useState(null);
 
@@ -120,7 +127,7 @@ const PagosModule = ({ idSocio }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Sugerencias de socios por texto
+  // Sugerencias de socios
   useEffect(() => {
     const run = async () => {
       const t = buscarSocioTerm.trim().toLowerCase();
@@ -150,7 +157,6 @@ const PagosModule = ({ idSocio }) => {
 
   const abrirRealizarPago = async () => {
     if (!prestamoSel) return;
-    // Cargar pagos programados y meta del préstamo
     const [rp, rmeta] = await Promise.all([
       fetch(
         `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamoSel.id_prestamo}&select=id_pago,numero_pago,fecha_programada,monto_pago,fecha_pago,fecha_hora_pago,monto_pagado,interes_pagado,capital_pagado,estatus&order=numero_pago.asc`,
@@ -170,14 +176,12 @@ const PagosModule = ({ idSocio }) => {
     setShowPagoModal(true);
   };
 
-  // Abrir sub-modal para capturar monto manual del pago seleccionado
   const onClickRealizarPagoFila = (p) => {
     setPagoTarget(p);
     setMontoIngresado(p.monto_pago || '');
     setShowMontoModal(true);
   };
 
-  // Aplicar pago -> abre confirmación final
   const aplicarPago = () => {
     if (!montoIngresado || Number(montoIngresado) <= 0) {
       alert('Indique un monto válido.');
@@ -186,26 +190,27 @@ const PagosModule = ({ idSocio }) => {
     setShowConfirm(true);
   };
 
-  // Confirmar y guardar en BD
+  // Guardar pago (sin parciales: siempre estatus = "pagado")
   const confirmarAplicacionPago = async () => {
     if (!pagoTarget || !prestamoMeta) return;
     setSaving(true);
     try {
       const monto = Number(montoIngresado);
+
+      // Calcula interés/capital para guardar en BD (siempre llenamos ambos)
       const capitalEstimado = Number(prestamoMeta.monto_solicitado) / Number(prestamoMeta.numero_plazos || 1);
       const interesEstimado = Number(prestamoMeta.monto_solicitado) * (Number(prestamoMeta.interes) / 100);
-      const totalPeriodo = capitalEstimado + interesEstimado;
-
       const interes_pagado = Math.min(monto, interesEstimado);
-      const capital_pagado = Math.min(Math.max(monto - interes_pagado, 0), capitalEstimado);
+      const capital_pagado = Math.max(monto - interes_pagado, 0);
 
-      const nowLocalISO = toLocalISO(new Date());
-      const soloFecha = nowLocalISO.slice(0, 10);
+      // Fecha/hora local sin 'Z'
+      const nowLocalPlain = localPlainDateTime();
+      const soloFecha = nowLocalPlain.slice(0, 10);
 
       const body = {
         fecha_pago: soloFecha,
-        fecha_hora_pago: nowLocalISO,
-        estatus: monto >= totalPeriodo ? 'pagado' : 'parcial',
+        fecha_hora_pago: nowLocalPlain, // local, sin 'Z' — corrige desfase
+        estatus: 'pagado',              // sin parciales
         monto_pagado: monto,
         interes_pagado,
         capital_pagado
@@ -249,9 +254,8 @@ const PagosModule = ({ idSocio }) => {
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Pagos</h2>
           <p className="text-slate-600">Consulta el detalle de pago de los socios</p>
         </div>
-        {/* Botón global original (se deja) */}
         <button
-          onClick={() => { /* se conserva sin acción adicional */ }}
+          onClick={() => {}}
           className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
         >
           Realizar pago
@@ -307,7 +311,6 @@ const PagosModule = ({ idSocio }) => {
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-3">Buscar Socio</h3>
 
-        {/* Campo único de búsqueda */}
         <div className="grid grid-cols-1 md:grid-cols-1 gap-3 items-center">
           <input
             type="text"
@@ -318,7 +321,6 @@ const PagosModule = ({ idSocio }) => {
           />
         </div>
 
-        {/* Sugerencias */}
         {sugSocios.length > 0 && (
           <div className="mt-3 space-y-2">
             {sugSocios.map(s => (
@@ -341,7 +343,6 @@ const PagosModule = ({ idSocio }) => {
           </div>
         )}
 
-        {/* Botón Ver Préstamos */}
         <div className="mt-4">
           <button
             className={`px-4 py-2 rounded-xl text-white ${socioSel ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-400 cursor-not-allowed'}`}
@@ -352,7 +353,6 @@ const PagosModule = ({ idSocio }) => {
           </button>
         </div>
 
-        {/* Lista de préstamos del socio */}
         {prestamosSocio.length > 0 && (
           <div className="mt-4">
             <h4 className="font-semibold text-slate-900 mb-2">Préstamos de {socioSel?.nombre} {socioSel?.apellido_paterno}</h4>
@@ -374,7 +374,6 @@ const PagosModule = ({ idSocio }) => {
               ))}
             </div>
 
-            {/* Botón Realizar pago (habilita modal) */}
             <div className="mt-4">
               <button
                 className={`px-4 py-2 rounded-xl text-white ${prestamoSel ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-400 cursor-not-allowed'}`}
@@ -410,8 +409,8 @@ const PagosModule = ({ idSocio }) => {
                         <th className="text-left py-2 px-3">No</th>
                         <th className="text-left py-2 px-3">Fecha programada</th>
                         <th className="text-left py-2 px-3">Monto a pagar</th>
-                        <th className="text-left py-2 px-3">Interés (est.)</th>
-                        <th className="text-left py-2 px-3">Capital (est.)</th>
+                        <th className="text-left py-2 px-3">Interés</th>
+                        <th className="text-left py-2 px-3">Capital</th>
                         <th className="text-left py-2 px-3">Fecha/Hora pago</th>
                         <th className="text-left py-2 px-3">Estatus</th>
                         <th className="text-left py-2 px-3">Acción</th>
@@ -419,25 +418,27 @@ const PagosModule = ({ idSocio }) => {
                     </thead>
                     <tbody>
                       {pagosProgramados.map(row => {
-                        const capEst = prestamoMeta ? (Number(prestamoMeta.monto_solicitado) / Number(prestamoMeta.numero_plazos || 1)) : 0;
-                        const intEst = prestamoMeta ? (Number(prestamoMeta.monto_solicitado) * (Number(prestamoMeta.interes) / 100)) : 0;
                         const fechaTxt = row.fecha_hora_pago ? fmt12h(row.fecha_hora_pago) : (row.fecha_pago || '—');
+                        const isPagado = (row.estatus || '').toLowerCase() === 'pagado';
                         return (
                           <tr key={row.id_pago} className="border-b border-slate-100">
                             <td className="py-2 px-3">{row.numero_pago}</td>
                             <td className="py-2 px-3">{fmtLongDate(row.fecha_programada)}</td>
                             <td className="py-2 px-3">{fmtMoney(row.monto_pago)}</td>
-                            <td className="py-2 px-3">{fmtMoney(intEst)}</td>
-                            <td className="py-2 px-3">{fmtMoney(capEst)}</td>
+                            {/* Interés / Capital: TOMADOS DE BD */}
+                            <td className="py-2 px-3">{row.interes_pagado != null ? fmtMoney(row.interes_pagado) : '—'}</td>
+                            <td className="py-2 px-3">{row.capital_pagado != null ? fmtMoney(row.capital_pagado) : '—'}</td>
                             <td className="py-2 px-3">{fechaTxt}</td>
-                            <td className="py-2 px-3">{row.estatus || 'pendiente'}</td>
+                            <td className="py-2 px-3">{isPagado ? 'pagado' : 'pendiente'}</td>
                             <td className="py-2 px-3">
-                              <button
-                                className="px-3 py-1 bg-blue-600 text-white rounded-lg"
-                                onClick={() => onClickRealizarPagoFila(row)}
-                              >
-                                Realizar pago
-                              </button>
+                              {!isPagado && (
+                                <button
+                                  className="px-3 py-1 bg-blue-600 text-white rounded-lg"
+                                  onClick={() => onClickRealizarPagoFila(row)}
+                                >
+                                  Realizar pago
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
