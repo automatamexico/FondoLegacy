@@ -30,29 +30,19 @@ const PrestamosModule = ({ idSocio }) => {
   const [socioPrestamos, setSocioPrestamos] = useState([]);
   const [showEditPrestamosModal, setShowEditPrestamosModal] = useState(false);
 
-  // Control envío
   const [submitting, setSubmitting] = useState(false);
 
-  // Soporte plazos
-  const weeklyRateOptions = Array.from({ length: 12 }, (_, i) => (0.5 * (i + 1))); // 0.5..6.0
-  const biweeklyRateOptions = Array.from({ length: 13 }, (_, i) => 2 + 0.5 * i);   // 2..8.0
+  const weeklyRateOptions = Array.from({ length: 12 }, (_, i) => (0.5 * (i + 1)));
+  const biweeklyRateOptions = Array.from({ length: 13 }, (_, i) => 2 + 0.5 * i);
 
   const [newPrestamo, setNewPrestamo] = useState({
     id_socio: '',
     monto_solicitado: '',
-
-    // mensual (UI)
-    numero_plazos: '',                 // ← reemplaza a plazo_meses en UI
+    numero_plazos: '',
     tasa_interes_mensual: '',
-
-    // tipo de plazo
-    tipo_plazo: 'mensual', // 'mensual' | 'semanal' | 'quincenal'
-
-    // semanal
+    tipo_plazo: 'mensual',
     plazo_semanas: '',
     tasa_interes_semanal: '',
-
-    // quincenal
     plazo_quincenas: '',
     tasa_interes_quincenal: ''
   });
@@ -63,8 +53,8 @@ const PrestamosModule = ({ idSocio }) => {
 
   const currentUserRole = localStorage.getItem('currentUser') ? JSON.parse(localStorage.getItem('currentUser')).role : '';
 
-  const plazoOpciones = Array.from({ length: 48 }, (_, i) => i + 1); // 1..48
-  const tasaOpciones = Array.from({ length: 7 }, (_, i) => i + 2);   // 2..8 %
+  const plazoOpciones = Array.from({ length: 48 }, (_, i) => i + 1);
+  const tasaOpciones = Array.from({ length: 7 }, (_, i) => i + 2);
 
   useEffect(() => {
     fetchGlobalPrestamoStats();
@@ -77,7 +67,6 @@ const PrestamosModule = ({ idSocio }) => {
     }
   }, [idSocio]);
 
-  // ======= FETCHERS
   const fetchGlobalPrestamoStats = async () => {
     try {
       const sociosConPrestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=id_socio`, {
@@ -178,7 +167,6 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // ======= UTILS
   const formatCurrency = (value) =>
     new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
 
@@ -218,7 +206,7 @@ const PrestamosModule = ({ idSocio }) => {
   const calculatePrestamoDetails = useCallback(() => {
     const monto = parseFloat(newPrestamo.monto_solicitado);
     let periods = 0;
-    let rate = 0; // % por periodo
+    let rate = 0;
 
     if (newPrestamo.tipo_plazo === 'mensual') {
       periods = parseInt(newPrestamo.numero_plazos);
@@ -260,7 +248,6 @@ const PrestamosModule = ({ idSocio }) => {
     calculatePrestamoDetails();
   }, [calculatePrestamoDetails]);
 
-  // ======= CONFIRMAR PRÉSTAMO (respeta numero_plazos + pago_requerido)
   const handleConfirmPrestamo = async () => {
     if (submitting) return;
     setSubmitting(true);
@@ -329,9 +316,9 @@ const PrestamosModule = ({ idSocio }) => {
       const prestamoData = {
         id_socio,
         monto_solicitado: parseFloat(monto_solicitado),
-        numero_plazos: periods,          // ← NUEVO campo
+        numero_plazos: periods,
         interes: parseFloat(tasaSeleccionada),
-        pago_requerido: pagoPorPeriodo,  // ← NUEVO nombre de columna
+        pago_requerido: pagoPorPeriodo,
         monto_a_pagar: montoAPagar,
         fecha_solicitud,
         fecha_creacion,
@@ -358,7 +345,6 @@ const PrestamosModule = ({ idSocio }) => {
       const addedPrestamo = await prestamoResponse.json();
       const newPrestamoId = addedPrestamo[0].id_prestamo;
 
-      // Programar pagos
       for (let i = 1; i <= periods; i++) {
         let fechaProgramada = new Date(fecha_solicitud);
         if (tipo_plazo === 'mensual') fechaProgramada.setMonth(fechaProgramada.getMonth() + i);
@@ -377,7 +363,7 @@ const PrestamosModule = ({ idSocio }) => {
           interes_pagado: null,
           capital_pagado: null,
           estado_pago: null,
-          frecuencia: tipo_plazo // si aún conservas esta columna
+          frecuencia: tipo_plazo
         };
 
         const pagoResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos`, {
@@ -422,7 +408,6 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // ======= OTRAS ACCIONES
   const handleVerHistorialPrestamosSocio = async (socio) => {
     setSelectedSocioForHistorial(socio);
     setLoading(true);
@@ -430,12 +415,9 @@ const PrestamosModule = ({ idSocio }) => {
     setShowPrestamoHistorial(true);
 
     try {
-      // ← Cambiado plazo_meses → numero_plazos
       const response = await fetch(
         `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,numero_plazos,tipo_plazo,interes`,
-        {
-          headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-        }
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!response.ok) {
         const errorData = await response.json();
@@ -473,12 +455,9 @@ const PrestamosModule = ({ idSocio }) => {
     setShowEditPrestamosModal(true);
 
     try {
-      // ← Cambiado plazo_meses → numero_plazos
       const response = await fetch(
         `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,numero_plazos`,
-        {
-          headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-        }
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!response.ok) {
         const errorData = await response.json();
@@ -554,9 +533,7 @@ const PrestamosModule = ({ idSocio }) => {
     try {
       const response = await fetch(
         `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&order=fecha_programada.asc&select=numero_pago,fecha_programada,monto_pago,fecha_pago,fecha_hora_pago,monto_pagado,interes_pagado,capital_pagado,estatus`,
-        {
-          headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-        }
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!response.ok) {
         const errorData = await response.json();
@@ -602,7 +579,6 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // ======= RENDER
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -751,7 +727,7 @@ const PrestamosModule = ({ idSocio }) => {
                         {prestamo.interes}%
                       </td>
                       <td className="py-4 px-4 font-medium text-slate-900">
-                        {formatCurrency(parseFloat(prestamo.pago_requerido) || 0)} {/* ← pago_requerido */}
+                        {formatCurrency(parseFloat(prestamo.pago_requerido) || 0)}
                       </td>
                       <td className="py-4 px-4 text-slate-700">
                         {prestamo.fecha_vencimiento}
@@ -852,247 +828,24 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       ) : null}
 
-      {/* Modal: Registrar Nuevo Préstamo */}
-      {showAddPrestamoModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
-            <h3 className="text-xl font-bold text-slate-900 mb-4">Registrar Nuevo Préstamo</h3>
-            <form onSubmit={(e) => { e.preventDefault(); setShowConfirmPrestamoModal(true); }} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Seleccionar Socio</label>
-                <select
-                  name="id_socio"
-                  value={newPrestamo.id_socio}
-                  onChange={handleNewPrestamoInputChange}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Seleccione un socio</option>
-                  {sociosList && sociosList.map(socio => (
-                    <option key={socio.id_socio} value={socio.id_socio}>
-                      {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Monto Solicitado</label>
-                <input
-                  type="number"
-                  name="monto_solicitado"
-                  value={newPrestamo.monto_solicitado}
-                  onChange={handleNewPrestamoInputChange}
-                  placeholder="Ej: 1000.00"
-                  step="0.01"
-                  min="0.01"
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              {/* Tipo de plazo */}
-              <div>
-                <p className="block text-sm font-medium text-slate-700 mb-2">Tipo de plazo</p>
-                <div className="flex gap-3">
-                  {['mensual','semanal','quincenal'].map(tp => (
-                    <label key={tp} className={`px-3 py-1.5 rounded-lg border cursor-pointer ${newPrestamo.tipo_plazo === tp ? 'bg-slate-100 font-semibold' : 'hover:bg-slate-50'}`}>
-                      <input
-                        type="radio"
-                        name="tipo_plazo"
-                        value={tp}
-                        checked={newPrestamo.tipo_plazo === tp}
-                        onChange={handleNewPrestamoInputChange}
-                        className="mr-2"
-                      />
-                      {tp === 'mensual' ? 'Mensual' : tp === 'semanal' ? 'Semanal' : 'Quincenal'}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Campos según tipo */}
-              {newPrestamo.tipo_plazo === 'mensual' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Número de plazos (meses)</label>
-                    <select
-                      name="numero_plazos"
-                      value={newPrestamo.numero_plazos}
-                      onChange={handleNewPrestamoInputChange}
-                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="">Seleccione plazo</option>
-                      {plazoOpciones.map(plazo => (
-                        <option key={plazo} value={plazo}>{plazo}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Tasa de interés mensual (%)</label>
-                    <select
-                      name="tasa_interes_mensual"
-                      value={newPrestamo.tasa_interes_mensual}
-                      onChange={handleNewPrestamoInputChange}
-                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="">Seleccione tasa</option>
-                      {tasaOpciones.map(tasa => (
-                        <option key={tasa} value={tasa}>{tasa}%</option>
-                      ))}
-                    </select>
-                  </div>
-                </>
-              )}
-
-              {newPrestamo.tipo_plazo === 'semanal' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Tasa semanal (%)</label>
-                    <select
-                      name="tasa_interes_semanal"
-                      value={newPrestamo.tasa_interes_semanal}
-                      onChange={handleNewPrestamoInputChange}
-                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="">Seleccione tasa</option>
-                      {weeklyRateOptions.map(r => (
-                        <option key={r} value={r}>{r}%</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Plazo en semanas</label>
-                    <input
-                      type="number"
-                      name="plazo_semanas"
-                      value={newPrestamo.plazo_semanas}
-                      onChange={handleNewPrestamoInputChange}
-                      placeholder="Ej: 12"
-                      step="1"
-                      min="1"
-                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                </>
-              )}
-
-              {newPrestamo.tipo_plazo === 'quincenal' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Tasa quincenal (%)</label>
-                    <select
-                      name="tasa_interes_quincenal"
-                      value={newPrestamo.tasa_interes_quincenal}
-                      onChange={handleNewPrestamoInputChange}
-                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="">Seleccione tasa</option>
-                      {biweeklyRateOptions.map(r => (
-                        <option key={r} value={r}>{r}%</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Plazo en quincenas</label>
-                    <input
-                      type="number"
-                      name="plazo_quincenas"
-                      value={newPrestamo.plazo_quincenas}
-                      onChange={handleNewPrestamoInputChange}
-                      placeholder="Ej: 10"
-                      step="1"
-                      min="1"
-                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Cálculos automáticos */}
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Pago por periodo</label>
-                <input
-                  type="text"
-                  value={formatCurrency(pagoPeriodo)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-slate-100 font-bold text-lg"
-                  readOnly
-                />
-                <p className="text-sm text-slate-600 mt-2">
-                  Abono a capital por periodo: <span className="font-semibold text-blue-600">{formatCurrency(abonoCapitalPeriodo)}</span>
-                </p>
-                <p className="text-sm text-slate-600">
-                  Interés por periodo estimado: <span className="font-semibold text-red-600">{formatCurrency(interesPeriodoEstimado)}</span>
-                </p>
-              </div>
-
-              {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-              <div className="flex justify-end space-x-4 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowAddPrestamoModal(false)}
-                  className="px-5 py-2 bg-slate-200 text-slate-800 rounded-xl hover:bg-slate-300 transition-colors font-medium"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className={`px-5 py-2 rounded-xl text-white ${
-                    !isFormReady() ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
-                  }`}
-                  disabled={!isFormReady()}
-                >
-                  Aceptar Préstamo
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Confirmación */}
-      {showConfirmPrestamoModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center">
-            <h3 className="text-xl font-bold text-slate-900 mb-4">Confirmar Préstamo</h3>
-            <p className="text-slate-700 mb-6">¿Estás seguro de registrar este préstamo?</p>
-            <div className="flex justify-center space-x-4">
-              <button
-                onClick={() => setShowConfirmPrestamoModal(false)}
-                className="px-5 py-2 bg-slate-200 text-slate-800 rounded-xl hover:bg-slate-300 transition-colors font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleConfirmPrestamo}
-                className={`px-5 py-2 rounded-xl text-white ${submitting ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
-                disabled={submitting}
-              >
-                {submitting ? 'Registrando…' : 'Aceptar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Detalles */}
+      {/* 🔷 Modal de Detalles — AHORA MÁS ANCHO y sin scroll horizontal */}
       {showDetailsModal && selectedPrestamo && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
-            <h3 className="text-xl font-bold text-slate-900 mb-4">Historial de Pagos del Préstamo {selectedPrestamo.id_prestamo}</h3>
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-6xl w-full">
+            <h3 className="text-xl font-bold text-slate-900 mb-4">
+              Historial de Pagos del Préstamo {selectedPrestamo.id_prestamo}
+            </h3>
+
             {loading && <p className="text-center text-slate-600">Cargando historial de pagos...</p>}
             {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
+
             {!loading && !error && historialPagosPrestamo.length === 0 && (
               <p className="text-center text-slate-600">Aún no hay pagos registrados para este préstamo.</p>
             )}
+
             {!loading && !error && historialPagosPrestamo.length > 0 && (
-              <div className="overflow-x-auto">
+              // Solo scroll vertical si hay muchos renglones
+              <div className="max-h-[60vh] overflow-y-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-slate-200">
@@ -1112,7 +865,7 @@ const PrestamosModule = ({ idSocio }) => {
                         ? `${convertirFechaHoraLocal(pago.fecha_hora_pago).fecha} ${convertirFechaHoraLocal(pago.fecha_hora_pago).hora}`
                         : programada;
                       return (
-                        <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
+                        <tr key={idx} className="border-b border-slate-100">
                           <td className="py-3 px-4">{pago.numero_pago}</td>
                           <td className="py-3 px-4">{fechaShow}</td>
                           <td className="py-3 px-4">{formatCurrency(pago.monto_pago)}</td>
@@ -1127,6 +880,7 @@ const PrestamosModule = ({ idSocio }) => {
                 </table>
               </div>
             )}
+
             <div className="flex justify-end mt-6">
               <button
                 onClick={handleBackToListadoPrestamos}
