@@ -25,7 +25,7 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
   const [totalAhorroAcumulado, setTotalAhorroAcumulado] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredAhorrosBySocio, setFilteredAhorrosBySocio] = useState([]);
-  const [showRetiroModal, setShowRetiroModal] = useState(false); // Nuevo estado para el modal de retiro
+  const [showRetiroModal, setShowRetiroModal] = useState(false); // se mantiene (sin botón para abrir)
   const [retiroMonto, setRetiroMonto] = useState('');
   const [socioParaRetiro, setSocioParaRetiro] = useState(null);
 
@@ -68,15 +68,14 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
     setFilteredAhorrosBySocio(filtered);
   }, [searchTerm, sociosList, ahorrosList]);
 
-
   const fetchGlobalAhorroStats = async () => {
     try {
       const sociosConAhorroResponse = await fetch(`${SUPABASE_URL}/rest/v1/ahorros?select=id_socio`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`
         }
       });
       if (!sociosConAhorroResponse.ok) {
@@ -91,8 +90,8 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`
         }
       });
       if (!sumResponse.ok) {
@@ -117,8 +116,8 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`
         }
       });
       if (!response.ok) {
@@ -143,8 +142,8 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`
         }
       });
       if (!response.ok) {
@@ -166,8 +165,8 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`
         }
       });
       if (!response.ok) {
@@ -221,9 +220,9 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Prefer': 'return=representation'
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=representation'
         },
         body: JSON.stringify(ahorroData)
       });
@@ -247,9 +246,9 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Prefer': 'return=representation'
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Prefer: 'return=representation'
           },
           body: JSON.stringify(multaData)
         });
@@ -274,9 +273,9 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Prefer': 'return=representation'
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Prefer: 'return=representation'
           },
           body: JSON.stringify(afiliacionData)
         });
@@ -339,9 +338,9 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Prefer': 'return=representation'
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=representation'
         },
         body: JSON.stringify(updatedData)
       });
@@ -386,15 +385,13 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
     setShowEditModal(true);
   };
 
+  // --- Flujos de retiro se mantienen (sin botón que los dispare) ---
   const handleRetirarAhorroClick = (socioAhorro) => {
     setSocioParaRetiro(socioAhorro);
     setRetiroMonto('');
     setShowRetiroModal(true);
   };
-
-  const handleRetiroMontoChange = (e) => {
-    setRetiroMonto(e.target.value);
-  };
+  const handleRetiroMontoChange = (e) => setRetiroMonto(e.target.value);
 
   const handleAplicarRetiro = async () => {
     const monto = parseFloat(retiroMonto);
@@ -402,12 +399,10 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
       alert('Por favor, ingrese un monto válido para retirar.');
       return;
     }
-
     if (monto > socioParaRetiro.ahorro_acumulado) {
       alert('El monto a retirar no puede ser mayor al ahorro acumulado.');
       return;
     }
-
     if (window.confirm(`¿Estás seguro que deseas retirar ${formatCurrency(monto)} del ahorro de ${socioParaRetiro.nombre_completo}?`)) {
       setLoading(true);
       setError(null);
@@ -416,7 +411,6 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
         const currentDate = new Date();
         const fechaRetiro = currentDate.toISOString();
 
-        // 1. Insertar en la tabla retiros
         const retiroData = {
           id_socio: socioParaRetiro.id_socio,
           monto_retirado: monto,
@@ -426,9 +420,9 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Prefer': 'return=representation'
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Prefer: 'return=representation'
           },
           body: JSON.stringify(retiroData)
         });
@@ -437,23 +431,21 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
           throw new Error(`Error al registrar retiro: ${retiroResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
         }
 
-        // 2. Actualizar el campo ahorro_aportado en la tabla ahorros para ese id_socio, restando el monto_retirado.
-        // Se crea un nuevo registro de ahorro con el monto negativo para representar el retiro
         const nuevoAhorroRegistro = {
           id_socio: socioParaRetiro.id_socio,
-          ahorro_aportado: -monto, // Monto negativo para representar el retiro
+          ahorro_aportado: -monto,
           fecha: currentDate.toISOString().split('T')[0],
           fecha_hora: currentDate.toISOString(),
-          es_retiro: true // Marcar como retiro
+          es_retiro: true
         };
 
         const nuevoAhorroResponse = await fetch(`${SUPABASE_URL}/rest/v1/ahorros`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Prefer': 'return=representation'
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Prefer: 'return=representation'
           },
           body: JSON.stringify(nuevoAhorroRegistro)
         });
@@ -470,7 +462,6 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
         } else if (currentUserRole === 'admin') {
           fetchAhorrosForAllSocios();
         }
-
       } catch (err) {
         setError(err.message);
       } finally {
@@ -520,7 +511,7 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2m0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
             <div>
@@ -585,7 +576,7 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
                             Editar
                           </button>
                         )}
-                        {/* Botón "Retirar ahorro" eliminado a solicitud */}
+                        {/* Botón "Retirar ahorro" eliminado */}
                       </div>
                     </td>
                   </tr>
@@ -693,7 +684,7 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
                     <th className="text-left py-2 px-3 font-semibold text-slate-700">ID Ahorro</th>
                     <th className="text-left py-2 px-3 font-semibold text-slate-700">Monto</th>
                     <th className="text-left py-2 px-3 font-semibold text-slate-700">Fecha</th>
-                    <th className="text-left py-2 px-3 font-semibold text-slate-700">Hora</th> {/* Agregado el encabezado de Hora */}
+                    <th className="text-left py-2 px-3 font-semibold text-slate-700">Hora</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -706,7 +697,7 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
                         <td className="py-2 px-3 text-slate-700">{ahorro.id_ahorro}</td>
                         <td className={`py-2 px-3 font-bold ${montoColorClass}`}>{montoDisplay}</td>
                         <td className="py-2 px-3 text-slate-700">{fecha}</td>
-                        <td className="py-2 px-3 text-slate-700">{hora}</td> {/* Agregado el campo de Hora */}
+                        <td className="py-2 px-3 text-slate-700">{hora}</td>
                       </tr>
                     );
                   })}
@@ -732,7 +723,7 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
             <h3 className="text-xl font-bold text-slate-900 mb-4">Editar Ahorro</h3>
             <form onSubmit={handleUpdateAhorro} className="space-y-4">
               <div>
-                <label className="block text.sm font-medium text-slate-700 mb-1">ID Ahorro</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">ID Ahorro</label>
                 <input
                   type="text"
                   value={editingAhorro.id_ahorro}
@@ -786,7 +777,7 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
         </div>
       )}
 
-      {/* Modal para Retirar Ahorro (permanece, pero ya no hay botón que lo abra) */}
+      {/* Modal para Retirar Ahorro (sigue presente pero sin botón para abrirlo) */}
       {showRetiroModal && socioParaRetiro && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
