@@ -21,10 +21,6 @@ const PrestamosModule = ({ idSocio }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [sociosConPrestamosActivos, setSociosConPrestamosActivos] = useState([]);
 
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedPrestamo, setSelectedPrestamo] = useState(null);
-  const [historialPagosPrestamo, setHistorialPagosPrestamo] = useState([]);
-
   const [showPrestamoHistorial, setShowPrestamoHistorial] = useState(false);
   const [selectedSocioForHistorial, setSelectedSocioForHistorial] = useState(null);
   const [socioPrestamos, setSocioPrestamos] = useState([]);
@@ -120,7 +116,7 @@ const PrestamosModule = ({ idSocio }) => {
       const response = await fetch(`${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno`, {
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
       });
-      if (!response.ok) {
+    if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Error al cargar socios: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
       }
@@ -765,6 +761,225 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
+      {/* ====================== MODAL: Registrar nuevo préstamo ====================== */}
+      {showAddPrestamoModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">Registrar nuevo préstamo</h3>
+              <button className="px-3 py-1 rounded-lg bg-slate-100" onClick={() => setShowAddPrestamoModal(false)}>Cerrar</button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-slate-700 mb-1">Socio</label>
+                  <select
+                    name="id_socio"
+                    value={newPrestamo.id_socio}
+                    onChange={handleNewPrestamoInputChange}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  >
+                    <option value="">Seleccione…</option>
+                    {Array.isArray(sociosList) && sociosList.map(s => (
+                      <option key={s.id_socio} value={s.id_socio}>
+                        {s.id_socio} — {s.nombre} {s.apellido_paterno} {s.apellido_materno}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-slate-700 mb-1">Monto solicitado</label>
+                  <input
+                    type="number"
+                    name="monto_solicitado"
+                    value={newPrestamo.monto_solicitado}
+                    onChange={handleNewPrestamoInputChange}
+                    placeholder="0.00"
+                    min="0.01"
+                    step="0.01"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm text-slate-700 mb-1">Tipo de plazo</label>
+                  <select
+                    name="tipo_plazo"
+                    value={newPrestamo.tipo_plazo}
+                    onChange={handleNewPrestamoInputChange}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  >
+                    <option value="mensual">Mensual</option>
+                    <option value="semanal">Semanal</option>
+                    <option value="quincenal">Quincenal</option>
+                  </select>
+                </div>
+
+                {/* Campos dinámicos por tipo */}
+                {newPrestamo.tipo_plazo === 'mensual' && (
+                  <>
+                    <div>
+                      <label className="block text-sm text-slate-700 mb-1"># de meses</label>
+                      <select
+                        name="numero_plazos"
+                        value={newPrestamo.numero_plazos}
+                        onChange={handleNewPrestamoInputChange}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                      >
+                        <option value="">Seleccione…</option>
+                        {plazoOpciones.map(n => <option key={`m-${n}`} value={n}>{n}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-slate-700 mb-1">Tasa mensual (%)</label>
+                      <select
+                        name="tasa_interes_mensual"
+                        value={newPrestamo.tasa_interes_mensual}
+                        onChange={handleNewPrestamoInputChange}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                      >
+                        <option value="">Seleccione…</option>
+                        {tasaOpciones.map(t => <option key={`tm-${t}`} value={t}>{t}%</option>)}
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {newPrestamo.tipo_plazo === 'semanal' && (
+                  <>
+                    <div>
+                      <label className="block text-sm text-slate-700 mb-1"># de semanas</label>
+                      <select
+                        name="plazo_semanas"
+                        value={newPrestamo.plazo_semanas}
+                        onChange={handleNewPrestamoInputChange}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                      >
+                        <option value="">Seleccione…</option>
+                        {plazoOpciones.map(n => <option key={`s-${n}`} value={n}>{n}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-slate-700 mb-1">Tasa semanal (%)</label>
+                      <select
+                        name="tasa_interes_semanal"
+                        value={newPrestamo.tasa_interes_semanal}
+                        onChange={handleNewPrestamoInputChange}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                      >
+                        <option value="">Seleccione…</option>
+                        {weeklyRateOptions.map(t => <option key={`ts-${t}`} value={t}>{t}%</option>)}
+                      </select>
+                    </div>
+                    <div className="md:col-span-1" />
+                  </>
+                )}
+
+                {newPrestamo.tipo_plazo === 'quincenal' && (
+                  <>
+                    <div>
+                      <label className="block text-sm text-slate-700 mb-1"># de quincenas</label>
+                      <select
+                        name="plazo_quincenas"
+                        value={newPrestamo.plazo_quincenas}
+                        onChange={handleNewPrestamoInputChange}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                      >
+                        <option value="">Seleccione…</option>
+                        {plazoOpciones.map(n => <option key={`q-${n}`} value={n}>{n}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-slate-700 mb-1">Tasa quincenal (%)</label>
+                      <select
+                        name="tasa_interes_quincenal"
+                        value={newPrestamo.tasa_interes_quincenal}
+                        onChange={handleNewPrestamoInputChange}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                      >
+                        <option value="">Seleccione…</option>
+                        {biweeklyRateOptions.map(t => <option key={`tq-${t}`} value={t}>{t}%</option>)}
+                      </select>
+                    </div>
+                    <div className="md:col-span-1" />
+                  </>
+                )}
+              </div>
+
+              {/* Resumen de cálculo */}
+              <div className="grid md:grid-cols-3 gap-4 bg-slate-50 rounded-xl border border-slate-200 p-4">
+                <div>
+                  <p className="text-slate-600 text-sm">Pago por periodo</p>
+                  <p className="text-lg font-semibold">{formatCurrency(pagoPeriodo)}</p>
+                </div>
+                <div>
+                  <p className="text-slate-600 text-sm">Abono a capital</p>
+                  <p className="text-lg font-semibold">{formatCurrency(abonoCapitalPeriodo)}</p>
+                </div>
+                <div>
+                  <p className="text-slate-600 text-sm">Interés estimado</p>
+                  <p className="text-lg font-semibold">{formatCurrency(interesPeriodoEstimado)}</p>
+                </div>
+              </div>
+
+              {error && <p className="text-red-600 text-sm">{error}</p>}
+
+              <div className="flex justify-end gap-3">
+                <button
+                  className="px-4 py-2 bg-slate-200 rounded-xl"
+                  onClick={() => setShowAddPrestamoModal(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className={`px-4 py-2 rounded-xl text-white ${isFormReady() ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-400 cursor-not-allowed'}`}
+                  disabled={!isFormReady()}
+                  onClick={() => setShowConfirmPrestamoModal(true)}
+                >
+                  Continuar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====================== MODAL: Confirmación ====================== */}
+      {showConfirmPrestamoModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
+            <div className="p-6 text-center">
+              <h3 className="text-lg font-bold text-slate-900 mb-3">Confirmar registro</h3>
+              <div className="space-y-1 text-slate-700 mb-4">
+                <p>Monto: <span className="font-semibold">{formatCurrency(parseFloat(newPrestamo.monto_solicitado || 0))}</span></p>
+                <p>Tipo de plazo: <span className="font-semibold">{newPrestamo.tipo_plazo}</span></p>
+                <p>Pago por periodo: <span className="font-semibold">{formatCurrency(pagoPeriodo)}</span></p>
+              </div>
+              <div className="flex justify-center gap-3">
+                <button
+                  className="px-5 py-2 bg-slate-200 rounded-xl"
+                  onClick={() => setShowConfirmPrestamoModal(false)}
+                  disabled={submitting}
+                >
+                  Volver
+                </button>
+                <button
+                  className={`px-5 py-2 rounded-xl text-white ${submitting ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                  onClick={handleConfirmPrestamo}
+                  disabled={submitting}
+                >
+                  {submitting ? 'Guardando…' : 'Confirmar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Historial / Edición */}
       {showPrestamoHistorial && selectedSocioForHistorial && !showEditPrestamosModal ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
@@ -828,7 +1043,7 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       ) : null}
 
-      {/* 🔷 Modal de Detalles — AHORA MÁS ANCHO y sin scroll horizontal */}
+      {/* Modal de Detalles */}
       {showDetailsModal && selectedPrestamo && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-6xl w-full">
@@ -844,7 +1059,6 @@ const PrestamosModule = ({ idSocio }) => {
             )}
 
             {!loading && !error && historialPagosPrestamo.length > 0 && (
-              // Solo scroll vertical si hay muchos renglones
               <div className="max-h-[60vh] overflow-y-auto">
                 <table className="w-full">
                   <thead>
