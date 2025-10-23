@@ -15,11 +15,39 @@ function toDateInput(d) {
   const day = String(dt.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
-// ISO con hora local (corrige el desfase que produce toISOString en UTC)
-function toLocalISO(now = new Date()) {
-  const tz = now.getTimezoneOffset() * 60000; // minutos → ms
-  return new Date(now.getTime() - tz).toISOString();
+
+/** ISO local con offset: 2025-10-22T14:35:10-06:00 (NO hay desfase) */
+function nowLocalISOWithTZ(now = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const yyyy = now.getFullYear();
+  const MM = pad(now.getMonth() + 1);
+  const dd = pad(now.getDate());
+  const hh = pad(now.getHours());
+  const mm = pad(now.getMinutes());
+  const ss = pad(now.getSeconds());
+
+  const offsetMin = -now.getTimezoneOffset(); // ej. -360 → -06:00
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMin);
+  const oh = pad(Math.floor(abs / 60));
+  const om = pad(abs % 60);
+
+  return `${yyyy}-${MM}-${dd}T${hh}:${mm}:${ss}${sign}${oh}:${om}`;
 }
+
+/**
+ * Convierte lo que venga de la BD a Date local:
+ * - Si trae 'Z' o ±HH:MM, se respeta.
+ * - Si NO trae zona (ej. '2025-10-22T14:35:10'), lo tratamos como UTC (añadimos 'Z')
+ *   para que al renderizar se vea correcto en local.
+ */
+function parseDBDateToLocal(s) {
+  if (!s) return null;
+  const hasTZ = /([zZ]|[+\-]\d{2}:\d{2})$/.test(s);
+  const str = hasTZ ? s : `${s}Z`;
+  return new Date(str);
+}
+
 function warn(msg) {
   window.alert(msg);
 }
@@ -52,7 +80,7 @@ const RetirosModule = () => {
 
   const [montoRetiro, setMontoRetiro] = useState('');
   const [nota, setNota] = useState('');
-  const [formaRetiro, setFormaRetiro] = useState(''); // 'Efectivo' | 'Transferencia'
+  the const [formaRetiro, setFormaRetiro] = useState(''); // 'Efectivo' | 'Transferencia'
   const [aplicando, setAplicando] = useState(false);
 
   // =================== cargar tarjetas “Retiros del día” ===================
@@ -106,7 +134,7 @@ const RetirosModule = () => {
   const cargarFinanzas = async (id_socio) => {
     setCargandoFinanzas(true);
     try {
-      // AHORRO ACUMULADO = sumatoria de movimientos (ahorro_aportado), positivos y negativos
+      // AHORRO ACUMULADO (sumatoria de movimientos positivos/negativos)
       const ra = await fetch(
         `${SUPABASE_URL}/rest/v1/ahorros?id_socio=eq.${id_socio}&select=ahorro_aportado`,
         { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
@@ -115,7 +143,7 @@ const RetirosModule = () => {
       const totalAhorro = ah.reduce((s, x) => s + Number(x.ahorro_aportado || 0), 0);
       setAhorroTotal(totalAhorro);
 
-      // DEUDA PENDIENTE = suma de pagos programados pendientes
+      // DEUDA PENDIENTE (pagos pendientes)
       const rd = await fetch(
         `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_socio=eq.${id_socio}&estatus=eq.pendiente&select=monto_pago`,
         { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
@@ -189,11 +217,11 @@ const RetirosModule = () => {
     }
     setAplicando(true);
     try {
-      // Guardamos hora LOCAL (no UTC) para evitar desfase
-      const nowISO = toLocalISO(new Date());
+      // >>>>>>> GUARDA HORA LOCAL CON OFFSET
+      const nowISO = nowLocalISOWithTZ(new Date());
       const soloFecha = nowISO.slice(0, 10);
 
-      // 1) INSERT en retiros (con forma_retiro y nota)
+      // 1) INSERT en retiros
       let ret = await fetch(`${SUPABASE_URL}/rest/v1/retiros`, {
         method: 'POST',
         headers: {
@@ -205,8 +233,8 @@ const RetirosModule = () => {
         body: JSON.stringify({
           id_socio: socioSel.id_socio,
           monto_retirado: m,
-          fecha_retiro: soloFecha,   // solo fecha (local)
-          fecha_hora: nowISO,        // timestamp local en ISO
+          fecha_retiro: soloFecha,   // solo fecha local
+          fecha_hora: nowISO,        // timestamp con zona local
           forma_retiro: formaRetiro,
           nota: (nota || '').trim() || null
         })
@@ -217,7 +245,7 @@ const RetirosModule = () => {
         throw new Error(`Error al registrar retiro: ${j?.message || ret.statusText}`);
       }
 
-      // 2) Registrar movimiento negativo en AHORROS (criterio único de acumulación)
+      // 2) Movimiento negativo en AHORROS
       const ra = await fetch(`${SUPABASE_URL}/rest/v1/ahorros`, {
         method: 'POST',
         headers: {
@@ -230,7 +258,7 @@ const RetirosModule = () => {
           id_socio: socioSel.id_socio,
           ahorro_aportado: -m,
           fecha: soloFecha,
-          fecha_hora: nowISO,
+          fecha_hora: nowISO, // también con zona local
           es_retiro: true
         })
       });
@@ -239,10 +267,8 @@ const RetirosModule = () => {
         throw new Error(`No se pudo registrar el movimiento en ahorros: ${j?.message || ra.statusText}`);
       }
 
-      // 3) Refrescar datos
       await Promise.all([cargarFinanzas(socioSel.id_socio), cargarRetirosSocio(socioSel.id_socio)]);
 
-      // 4) Cerrar
       setShowConfirmModal(false);
       setShowMontoModal(false);
       setShowResumenModal(false);
@@ -375,7 +401,7 @@ const RetirosModule = () => {
                   </thead>
                   <tbody>
                     {retirosSocio.map(r => {
-                      const dt = new Date(r.fecha_hora || `${r.fecha_retiro}T00:00:00`);
+                      const dt = parseDBDateToLocal(r.fecha_hora) || parseDBDateToLocal(`${r.fecha_retiro}T00:00:00`);
                       const fecha = toDateInput(dt);
                       const hora = dt.toLocaleString('es-MX', { hour: 'numeric', minute: '2-digit', hour12: true });
                       return (
