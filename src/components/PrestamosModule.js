@@ -28,7 +28,12 @@ const PrestamosModule = ({ idSocio }) => {
 
   const [submitting, setSubmitting] = useState(false);
 
-  const weeklyRateOptions = Array.from({ length: 12 }, (_, i) => (0.5 * (i + 1)));
+  // 🔧 ✨ ESTOS TRES ESTADOS ERAN LOS QUE FALTABAN:
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedPrestamo, setSelectedPrestamo] = useState(null);
+  const [historialPagosPrestamo, setHistorialPagosPrestamo] = useState([]);
+
+  const weeklyRateOptions = Array.from({ length: 12 }, (_, i) => 0.5 * (i + 1));
   const biweeklyRateOptions = Array.from({ length: 13 }, (_, i) => 2 + 0.5 * i);
 
   const [newPrestamo, setNewPrestamo] = useState({
@@ -116,7 +121,7 @@ const PrestamosModule = ({ idSocio }) => {
       const response = await fetch(`${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno`, {
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
       });
-    if (!response.ok) {
+      if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Error al cargar socios: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
       }
@@ -819,7 +824,6 @@ const PrestamosModule = ({ idSocio }) => {
                   </select>
                 </div>
 
-                {/* Campos dinámicos por tipo */}
                 {newPrestamo.tipo_plazo === 'mensual' && (
                   <>
                     <div>
@@ -910,7 +914,6 @@ const PrestamosModule = ({ idSocio }) => {
                 )}
               </div>
 
-              {/* Resumen de cálculo */}
               <div className="grid md:grid-cols-3 gap-4 bg-slate-50 rounded-xl border border-slate-200 p-4">
                 <div>
                   <p className="text-slate-600 text-sm">Pago por periodo</p>
