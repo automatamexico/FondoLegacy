@@ -11,8 +11,6 @@ const PrestamosModule = ({ idSocio }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalSociosConPrestamo, setTotalSociosConPrestamo] = useState(0);
-
-  // 🔁 Este valor ahora es “saldo pendiente real”
   const [totalDineroPrestado, setTotalDineroPrestado] = useState(0);
 
   const [showAddPrestamoModal, setShowAddPrestamoModal] = useState(false);
@@ -30,7 +28,6 @@ const PrestamosModule = ({ idSocio }) => {
 
   const [submitting, setSubmitting] = useState(false);
 
-  // Estos tres estados son usados por el modal de detalles
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedPrestamo, setSelectedPrestamo] = useState(null);
   const [historialPagosPrestamo, setHistorialPagosPrestamo] = useState([]);
@@ -70,10 +67,10 @@ const PrestamosModule = ({ idSocio }) => {
     }
   }, [idSocio]);
 
-  // =================== TARJETAS SUPERIORES (ajustada a SALDO PENDIENTE) ===================
+  // ===== Tarjetas superiores (Total de socios y Total pendiente de capital) =====
   const fetchGlobalPrestamoStats = async () => {
     try {
-      // 1) Conteo de socios con préstamo (igual que antes)
+      // 1) Total de socios con préstamo (igual que antes)
       const sociosConPrestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=id_socio`, {
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
       });
@@ -85,29 +82,27 @@ const PrestamosModule = ({ idSocio }) => {
       const uniqueSociosIds = new Set(sociosConPrestamoData.map(item => item.id_socio));
       setTotalSociosConPrestamo(uniqueSociosIds.size);
 
-      // 2) Traer préstamos con posible campo monto_restante
-      const prestamosResp = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=id_prestamo,monto_solicitado,monto_restante`, {
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-      });
+      // 2) Traer todos los préstamos con campos necesarios
+      const prestamosResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/prestamos?select=id_prestamo,monto_solicitado,monto_restante,estatus`,
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+      );
       if (!prestamosResp.ok) {
         const errorData = await prestamosResp.json();
         throw new Error(`Error al cargar préstamos: ${prestamosResp.statusText} - ${errorData.message || 'Error desconocido'}`);
       }
       const prestamos = await prestamosResp.json();
 
-      // Si tu tabla ya guarda monto_restante, úsalo
-      const hayMontoRestante = prestamos.some(p => p.monto_restante !== null && p.monto_restante !== undefined);
-      if (hayMontoRestante) {
-        const sumaPendiente = prestamos.reduce((acc, p) => acc + (parseFloat(p.monto_restante) || 0), 0);
-        setTotalDineroPrestado(sumaPendiente);
+      if (!Array.isArray(prestamos) || prestamos.length === 0) {
+        setTotalDineroPrestado(0);
         return;
       }
 
-      // 3) Si NO existe monto_restante, calculamos con pagos_prestamos:
-      // saldo = monto_solicitado - suma(capital_pagado) por préstamo (mínimo 0)
-      const pagosResp = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?select=id_prestamo,capital_pagado`, {
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-      });
+      // 3) Traer pagos (capital_pagado) para poder calcular cuando no haya monto_restante
+      const pagosResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?select=id_prestamo,capital_pagado`,
+        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+      );
       if (!pagosResp.ok) {
         const errorData = await pagosResp.json();
         throw new Error(`Error al cargar pagos de préstamos: ${pagosResp.statusText} - ${errorData.message || 'Error desconocido'}`);
@@ -115,24 +110,33 @@ const PrestamosModule = ({ idSocio }) => {
       const pagos = await pagosResp.json();
 
       // Sumar capital_pagado por préstamo
-      const capitalPorPrestamo = pagos.reduce((mapa, p) => {
+      const capitalPorPrestamo = pagos.reduce((acc, p) => {
         const id = p.id_prestamo;
-        const capital = parseFloat(p.capital_pagado) || 0;
-        mapa[id] = (mapa[id] || 0) + capital;
-        return mapa;
+        const cap = parseFloat(p.capital_pagado);
+        const valor = isNaN(cap) ? 0 : cap;
+        acc[id] = (acc[id] || 0) + valor;
+        return acc;
       }, {});
 
-      const sumaPendiente = prestamos.reduce((acc, p) => {
+      // 4) Calcular "pendiente de capital" por préstamo:
+      //    - Si monto_restante es no-nulo y numérico, usarlo
+      //    - Si no, usar: max(0, monto_solicitado - sum(capital_pagado))
+      //    (No se consideran intereses)
+      const totalPendiente = prestamos.reduce((sum, p) => {
         const solicitado = parseFloat(p.monto_solicitado) || 0;
+        const restanteNum = parseFloat(p.monto_restante);
+        const tieneRestanteValido = p.monto_restante !== null && !isNaN(restanteNum);
+
         const capitalPagado = capitalPorPrestamo[p.id_prestamo] || 0;
-        const pendiente = Math.max(0, solicitado - capitalPagado);
-        return acc + pendiente;
+        const calculado = Math.max(0, solicitado - capitalPagado);
+
+        const pendiente = tieneRestanteValido ? restanteNum : calculado;
+        return sum + pendiente;
       }, 0);
 
-      setTotalDineroPrestado(sumaPendiente);
+      setTotalDineroPrestado(totalPendiente);
     } catch (err) {
       console.error("Error al cargar estadísticas globales de préstamo:", err);
-      // En caso de fallo, deja el valor anterior o 0
       setTotalDineroPrestado(prev => prev || 0);
     }
   };
@@ -807,7 +811,7 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* ====================== MODAL: Registrar nuevo préstamo ====================== */}
+      {/* Modal: Registrar nuevo préstamo */}
       {showAddPrestamoModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl">
@@ -992,7 +996,7 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* ====================== MODAL: Confirmación ====================== */}
+      {/* Modal de Confirmación */}
       {showConfirmPrestamoModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
