@@ -15,8 +15,9 @@ function toDateInput(d) {
   const day = String(dt.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+// ISO con hora local (corrige el desfase que produce toISOString en UTC)
 function toLocalISO(now = new Date()) {
-  const tz = now.getTimezoneOffset() * 60000;
+  const tz = now.getTimezoneOffset() * 60000; // minutos → ms
   return new Date(now.getTime() - tz).toISOString();
 }
 function warn(msg) {
@@ -188,6 +189,7 @@ const RetirosModule = () => {
     }
     setAplicando(true);
     try {
+      // Guardamos hora LOCAL (no UTC) para evitar desfase
       const nowISO = toLocalISO(new Date());
       const soloFecha = nowISO.slice(0, 10);
 
@@ -203,8 +205,8 @@ const RetirosModule = () => {
         body: JSON.stringify({
           id_socio: socioSel.id_socio,
           monto_retirado: m,
-          fecha_retiro: soloFecha,
-          fecha_hora: nowISO,
+          fecha_retiro: soloFecha,   // solo fecha (local)
+          fecha_hora: nowISO,        // timestamp local en ISO
           forma_retiro: formaRetiro,
           nota: (nota || '').trim() || null
         })
