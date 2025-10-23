@@ -31,7 +31,6 @@ const RetirosModule = () => {
 
   // --------- búsqueda de socio ----------
   const [term, setTerm] = useState('');
-  thead
   const [sugs, setSugs] = useState([]);
   const [socioSel, setSocioSel] = useState(null);
 
@@ -299,7 +298,7 @@ const RetirosModule = () => {
           />
         </div>
 
-      {sugs.length > 0 && (
+        {sugs.length > 0 && (
           <div className="mt-3 space-y-2">
             {sugs.map(s => (
               <div key={s.id_socio} className="p-2 bg-slate-50 rounded-lg flex justify-between items-center">
