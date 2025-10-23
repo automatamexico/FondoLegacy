@@ -80,10 +80,10 @@ const RetirosModule = () => {
 
   const [montoRetiro, setMontoRetiro] = useState('');
   const [nota, setNota] = useState('');
-  the const [formaRetiro, setFormaRetiro] = useState(''); // 'Efectivo' | 'Transferencia'
+  const [formaRetiro, setFormaRetiro] = useState(''); // 'Efectivo' | 'Transferencia'
   const [aplicando, setAplicando] = useState(false);
 
-  // =================== cargar tarjetas “Retiros del día” ===================
+  // =================== cargar tarjetas "Retiros del día" ===================
   useEffect(() => {
     (async () => {
       try {
