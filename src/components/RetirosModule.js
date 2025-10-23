@@ -31,11 +31,11 @@ const RetirosModule = () => {
 
   // --------- búsqueda de socio ----------
   const [term, setTerm] = useState('');
+  thead
   const [sugs, setSugs] = useState([]);
   const [socioSel, setSocioSel] = useState(null);
 
   // --------- info financiera del socio ----------
-  const [ahorrosRows, setAhorrosRows] = useState([]); // [{id_ahorro, ahorro_acumulado}]
   const [ahorroTotal, setAhorroTotal] = useState(0);
   const [deudaPendiente, setDeudaPendiente] = useState(0);
   const [cargandoFinanzas, setCargandoFinanzas] = useState(false);
@@ -106,17 +106,16 @@ const RetirosModule = () => {
   const cargarFinanzas = async (id_socio) => {
     setCargandoFinanzas(true);
     try {
-      // 1) ahorros (sumatoria)
+      // AHORRO ACUMULADO = sumatoria de movimientos (ahorro_aportado), positivos y negativos
       const ra = await fetch(
-        `${SUPABASE_URL}/rest/v1/ahorros?id_socio=eq.${id_socio}&select=id_ahorro,ahorro_acumulado`,
+        `${SUPABASE_URL}/rest/v1/ahorros?id_socio=eq.${id_socio}&select=ahorro_aportado`,
         { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       const ah = await ra.json();
-      setAhorrosRows(ah);
-      const totalAhorro = ah.reduce((s, x) => s + Number(x.ahorro_acumulado || 0), 0);
+      const totalAhorro = ah.reduce((s, x) => s + Number(x.ahorro_aportado || 0), 0);
       setAhorroTotal(totalAhorro);
 
-      // 2) deuda pendiente por pagos_prestamos (estatus=pendiente)
+      // DEUDA PENDIENTE = suma de pagos programados pendientes
       const rd = await fetch(
         `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_socio=eq.${id_socio}&estatus=eq.pendiente&select=monto_pago`,
         { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
@@ -127,7 +126,6 @@ const RetirosModule = () => {
     } catch {
       setAhorroTotal(0);
       setDeudaPendiente(0);
-      setAhorrosRows([]);
     } finally {
       setCargandoFinanzas(false);
     }
@@ -191,17 +189,10 @@ const RetirosModule = () => {
     }
     setAplicando(true);
     try {
-      // 1) INSERT en retiros con forma_retiro (y nota si aplica). Fallback por si 'nota' no existe.
       const nowISO = toLocalISO(new Date());
       const soloFecha = nowISO.slice(0, 10);
 
-      const baseBody = {
-        id_socio: socioSel.id_socio,
-        monto_retirado: m,
-        fecha_retiro: soloFecha,
-        fecha_hora: nowISO,
-        forma_retiro: formaRetiro
-      };
+      // 1) INSERT en retiros (con forma_retiro y nota)
       let ret = await fetch(`${SUPABASE_URL}/rest/v1/retiros`, {
         method: 'POST',
         headers: {
@@ -210,66 +201,47 @@ const RetirosModule = () => {
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           Prefer: 'return=representation'
         },
-        body: JSON.stringify({ ...baseBody, nota: (nota || '').trim() || null })
+        body: JSON.stringify({
+          id_socio: socioSel.id_socio,
+          monto_retirado: m,
+          fecha_retiro: soloFecha,
+          fecha_hora: nowISO,
+          forma_retiro: formaRetiro,
+          nota: (nota || '').trim() || null
+        })
       });
 
       if (!ret.ok) {
-        const errJson = await ret.json().catch(() => ({}));
-        const msg = (errJson?.message || '').toLowerCase();
-        if (msg.includes('column') && msg.includes('nota')) {
-          // reintenta sin nota
-          ret = await fetch(`${SUPABASE_URL}/rest/v1/retiros`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-              Prefer: 'return=representation'
-            },
-            body: JSON.stringify(baseBody)
-          });
-        } else {
-          throw new Error(`Error al registrar retiro: ${errJson?.message || 'desconocido'}`);
-        }
-      }
-      if (!ret.ok) {
-        const errJ = await ret.json().catch(() => ({}));
-        throw new Error(`Error al registrar retiro: ${errJ?.message || 'desconocido'}`);
+        const j = await ret.json().catch(() => ({}));
+        throw new Error(`Error al registrar retiro: ${j?.message || ret.statusText}`);
       }
 
-      // 2) Descontar de ahorros (puede haber múltiples filas)
-      let restante = m;
-      const filas = [...ahorrosRows].sort((a, b) => Number(b.ahorro_acumulado || 0) - Number(a.ahorro_acumulado || 0));
-      for (const fila of filas) {
-        if (restante <= 0) break;
-        const actual = Number(fila.ahorro_acumulado || 0);
-        if (actual <= 0) continue;
-        const quitar = Math.min(actual, restante);
-        const nuevo = actual - quitar;
-
-        const upd = await fetch(
-          `${SUPABASE_URL}/rest/v1/ahorros?id_ahorro=eq.${fila.id_ahorro}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`
-            },
-            body: JSON.stringify({ ahorro_acumulado: nuevo })
-          }
-        );
-        if (!upd.ok) {
-          const errJ = await upd.json().catch(() => ({}));
-          throw new Error(`No se pudo actualizar ahorros: ${errJ?.message || 'desconocido'}`);
-        }
-        restante -= quitar;
+      // 2) Registrar movimiento negativo en AHORROS (criterio único de acumulación)
+      const ra = await fetch(`${SUPABASE_URL}/rest/v1/ahorros`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=representation'
+        },
+        body: JSON.stringify({
+          id_socio: socioSel.id_socio,
+          ahorro_aportado: -m,
+          fecha: soloFecha,
+          fecha_hora: nowISO,
+          es_retiro: true
+        })
+      });
+      if (!ra.ok) {
+        const j = await ra.json().catch(() => ({}));
+        throw new Error(`No se pudo registrar el movimiento en ahorros: ${j?.message || ra.statusText}`);
       }
 
-      // 3) Refrescar datos en UI
+      // 3) Refrescar datos
       await Promise.all([cargarFinanzas(socioSel.id_socio), cargarRetirosSocio(socioSel.id_socio)]);
 
-      // 4) Cerrar modales
+      // 4) Cerrar
       setShowConfirmModal(false);
       setShowMontoModal(false);
       setShowResumenModal(false);
@@ -314,7 +286,7 @@ const RetirosModule = () => {
         </div>
       </div>
 
-      {/* Búsqueda y selección de socio */}
+      {/* Búsqueda de socio */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-3">Buscar socio</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
@@ -327,7 +299,7 @@ const RetirosModule = () => {
           />
         </div>
 
-        {sugs.length > 0 && (
+      {sugs.length > 0 && (
           <div className="mt-3 space-y-2">
             {sugs.map(s => (
               <div key={s.id_socio} className="p-2 bg-slate-50 rounded-lg flex justify-between items-center">
@@ -459,7 +431,7 @@ const RetirosModule = () => {
         </div>
       )}
 
-      {/* MODAL 2: Ingresar monto + forma de retiro + nota */}
+      {/* MODAL 2: Monto + forma + nota */}
       {showMontoModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
