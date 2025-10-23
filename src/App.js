@@ -10,6 +10,8 @@ import CentroDigitalModule from './components/CentroDigitalModule';
 import UsuariosModule from './components/UsuariosModule';
 import PagosModule from './components/PagosModule';
 import ReportesModule from './components/ReportesModule';
+import RetirosModule from './components/RetirosModule';
+
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -89,8 +91,10 @@ function App() {
         return <CentroDigitalModule />;
       case 'usuarios':
         return <UsuariosModule />;
-      case 'pagos':
+      case 'pagos':   
         return <PagosModule />;
+          case 'retiros':
+  return <RetirosModule />;
       case 'reportes':
         return <ReportesModule />;
       default:
