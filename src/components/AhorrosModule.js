@@ -339,7 +339,7 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
+          'apikey': SUPABASE_ANON_KEY',
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           'Prefer': 'return=representation'
         },
@@ -585,12 +585,7 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
                             Editar
                           </button>
                         )}
-                        <button onClick={() => handleRetirarAhorroClick(socioAhorro)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center">
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 13l-5 5m0 0l-5-5m5 5V6" />
-                          </svg>
-                          Retirar ahorro
-                        </button>
+                        {/* Botón "Retirar ahorro" eliminado a solicitud */}
                       </div>
                     </td>
                   </tr>
@@ -737,7 +732,7 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
             <h3 className="text-xl font-bold text-slate-900 mb-4">Editar Ahorro</h3>
             <form onSubmit={handleUpdateAhorro} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">ID Ahorro</label>
+                <label className="block text.sm font-medium text-slate-700 mb-1">ID Ahorro</label>
                 <input
                   type="text"
                   value={editingAhorro.id_ahorro}
@@ -791,7 +786,7 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
         </div>
       )}
 
-      {/* Modal para Retirar Ahorro */}
+      {/* Modal para Retirar Ahorro (permanece, pero ya no hay botón que lo abra) */}
       {showRetiroModal && socioParaRetiro && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
@@ -821,7 +816,7 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
                   type="number"
                   name="retiro_monto"
                   value={retiroMonto}
-                  onChange={handleRetiroMontoChange}
+                  onChange={(e) => setRetiroMonto(e.target.value)}
                   placeholder="Ej: 50.00"
                   step="0.01"
                   min="0.01"
