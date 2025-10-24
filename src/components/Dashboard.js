@@ -10,6 +10,7 @@ const Dashboard = ({ idSocio }) => {
   const [totalAhorroAcumulado, setTotalAhorroAcumulado] = useState(0);
   const [pagosPendientesHoy, setPagosPendientesHoy] = useState(0);
   const [proximosPagos, setProximosPagos] = useState(0); // Nuevo estado para próximos pagos
+  const [totalPrestadoNeto, setTotalPrestadoNeto] = useState(0); // 🔹 NUEVO: Total prestado (capital) menos capital pagado
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -31,7 +32,8 @@ const Dashboard = ({ idSocio }) => {
           'Prefer': 'count=exact'
         }
       });
-      const sociosCount = parseInt(sociosResponse.headers.get('content-range').split('/')[1], 10);
+      const sociosRange = sociosResponse.headers.get('content-range') || '0/0';
+      const sociosCount = parseInt(sociosRange.split('/')[1], 10) || 0;
       setTotalSocios(sociosCount);
 
       // Total Préstamos Activos
@@ -44,7 +46,8 @@ const Dashboard = ({ idSocio }) => {
           'Prefer': 'count=exact'
         }
       });
-      const prestamosActivosCount = parseInt(prestamosActivosResponse.headers.get('content-range').split('/')[1], 10);
+      const prestamosActivosRange = prestamosActivosResponse.headers.get('content-range') || '0/0';
+      const prestamosActivosCount = parseInt(prestamosActivosRange.split('/')[1], 10) || 0;
       setTotalPrestamosActivos(prestamosActivosCount);
 
       // Total Ahorro Acumulado
@@ -84,7 +87,8 @@ const Dashboard = ({ idSocio }) => {
           'Range-Unit': 'items'
         }
       });
-      const countPendientesHoy = parseInt(pendientesHoyResponse.headers.get('content-range').split('/')[1], 10) || 0;
+      const pendientesHoyRange = pendientesHoyResponse.headers.get('content-range') || '0/0';
+      const countPendientesHoy = parseInt(pendientesHoyRange.split('/')[1], 10) || 0;
       setPagosPendientesHoy(countPendientesHoy);
 
       // Próximos pagos (mañana y pasado mañana)
@@ -99,9 +103,36 @@ const Dashboard = ({ idSocio }) => {
           'Range-Unit': 'items'
         }
       });
-      const countProximosPagos = parseInt(proximosPagosResponse.headers.get('content-range').split('/')[1], 10) || 0;
+      const proximosRange = proximosPagosResponse.headers.get('content-range') || '0/0';
+      const countProximosPagos = parseInt(proximosRange.split('/')[1], 10) || 0;
       setProximosPagos(countProximosPagos);
 
+      // 🔹 NUEVO: Total prestado neto (solo capital)
+      // Σ(monto_solicitado) de prestamos
+      const sumPrestamosResp = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=monto_solicitado`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      });
+      const prestamosRows = await sumPrestamosResp.json();
+      const totalPrestado = prestamosRows.reduce((s, x) => s + (parseFloat(x.monto_solicitado) || 0), 0);
+
+      // Σ(capital_pagado) de pagos_prestamos (ignorar nulls)
+      const sumCapitalResp = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?select=capital_pagado&capital_pagado=not.is.null`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      });
+      const capitalRows = await sumCapitalResp.json();
+      const totalCapitalPagado = capitalRows.reduce((s, x) => s + (parseFloat(x.capital_pagado) || 0), 0);
+
+      setTotalPrestadoNeto(Math.max(0, totalPrestado - totalCapitalPagado));
     } catch (err) {
       console.error("Error al cargar estadísticas del dashboard:", err);
       setError(err.message);
@@ -132,7 +163,7 @@ const Dashboard = ({ idSocio }) => {
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             </div>
             <div>
@@ -201,6 +232,22 @@ const Dashboard = ({ idSocio }) => {
             </div>
           </div>
         </div>
+
+        {/* 🔹 NUEVA/ACTUALIZADA: Total prestado (capital neto) */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900">Total prestado</h3>
+              <p className="text-2xl font-bold text-purple-600">{formatCurrency(totalPrestadoNeto)}</p>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );
