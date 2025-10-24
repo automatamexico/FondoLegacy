@@ -37,7 +37,7 @@ const DashboardMain = () => {
       const sociosData = await sociosResponse.json();
       const totalSocios = sociosData.length;
 
-      // 2) Ahorros Acumulados
+      // 2) Ahorros Acumulados (positivos - |negativos|)
       const ahorrosResponse = await fetch(`${SUPABASE_URL}/rest/v1/ahorros?select=ahorro_aportado`, {
         method: 'GET',
         headers: {
@@ -51,7 +51,15 @@ const DashboardMain = () => {
         throw new Error(`Error al cargar ahorros: ${ahorrosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
       }
       const ahorrosData = await ahorrosResponse.json();
-      const ahorrosAcumulados = ahorrosData.reduce((sum, item) => sum + (parseFloat(item.ahorro_aportado) || 0), 0);
+      const positivos = ahorrosData.reduce((s, r) => {
+        const v = parseFloat(r.ahorro_aportado) || 0;
+        return s + (v > 0 ? v : 0);
+      }, 0);
+      const negativosAbs = ahorrosData.reduce((s, r) => {
+        const v = parseFloat(r.ahorro_aportado) || 0;
+        return s + (v < 0 ? Math.abs(v) : 0);
+      }, 0);
+      const ahorrosAcumulados = positivos - negativosAbs;
 
       // 3) Préstamos (para activos y total solicitado)
       const prestamosResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=estatus,monto_solicitado`, {
@@ -70,7 +78,7 @@ const DashboardMain = () => {
       const prestamosActivos = prestamosData.filter(p => p.estatus === 'activo').length;
       const totalSolicitado = prestamosData.reduce((sum, p) => sum + (parseFloat(p.monto_solicitado) || 0), 0);
 
-      // 4) Capital pagado acumulado (para calcular "Total prestado" neto)
+      // 4) Capital pagado acumulado (para "Total prestado" neto)
       const pagosResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?select=capital_pagado`, {
         method: 'GET',
         headers: {
@@ -143,7 +151,7 @@ const DashboardMain = () => {
     },
     {
       title: "Total prestado",
-      value: formatCurrency(stats.montoTotalPrestado), // ahora neto
+      value: formatCurrency(stats.montoTotalPrestado), // neto
       icon: (
         <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
