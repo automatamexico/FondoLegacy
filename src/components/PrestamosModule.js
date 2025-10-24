@@ -67,10 +67,10 @@ const PrestamosModule = ({ idSocio }) => {
     }
   }, [idSocio]);
 
-  // ===== Tarjetas superiores (Total de socios y Total pendiente de capital) =====
+  // ===== Tarjetas superiores =====
   const fetchGlobalPrestamoStats = async () => {
     try {
-      // 1) Total de socios con préstamo (igual que antes)
+      // 1) Total de socios con préstamo
       const sociosConPrestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=id_socio`, {
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
       });
@@ -82,9 +82,9 @@ const PrestamosModule = ({ idSocio }) => {
       const uniqueSociosIds = new Set(sociosConPrestamoData.map(item => item.id_socio));
       setTotalSociosConPrestamo(uniqueSociosIds.size);
 
-      // 2) Traer todos los préstamos con campos necesarios
+      // 2) Sumar TODO lo prestado (monto_solicitado)
       const prestamosResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/prestamos?select=id_prestamo,monto_solicitado,monto_restante,estatus`,
+        `${SUPABASE_URL}/rest/v1/prestamos?select=monto_solicitado`,
         { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!prestamosResp.ok) {
@@ -92,49 +92,29 @@ const PrestamosModule = ({ idSocio }) => {
         throw new Error(`Error al cargar préstamos: ${prestamosResp.statusText} - ${errorData.message || 'Error desconocido'}`);
       }
       const prestamos = await prestamosResp.json();
+      const totalPrestado = prestamos.reduce((sum, r) => {
+        const v = parseFloat(r.monto_solicitado);
+        return sum + (isNaN(v) ? 0 : v);
+      }, 0);
 
-      if (!Array.isArray(prestamos) || prestamos.length === 0) {
-        setTotalDineroPrestado(0);
-        return;
-      }
-
-      // 3) Traer pagos (capital_pagado) para poder calcular cuando no haya monto_restante
+      // 3) Sumar TODO lo pagado (monto_pagado) — suma bruta de pagos
       const pagosResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/pagos_prestamos?select=id_prestamo,capital_pagado`,
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?select=monto_pagado`,
         { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!pagosResp.ok) {
         const errorData = await pagosResp.json();
-        throw new Error(`Error al cargar pagos de préstamos: ${pagosResp.statusText} - ${errorData.message || 'Error desconocido'}`);
+        throw new Error(`Error al cargar pagos: ${pagosResp.statusText} - ${errorData.message || 'Error desconocido'}`);
       }
       const pagos = await pagosResp.json();
-
-      // Sumar capital_pagado por préstamo
-      const capitalPorPrestamo = pagos.reduce((acc, p) => {
-        const id = p.id_prestamo;
-        const cap = parseFloat(p.capital_pagado);
-        const valor = isNaN(cap) ? 0 : cap;
-        acc[id] = (acc[id] || 0) + valor;
-        return acc;
-      }, {});
-
-      // 4) Calcular "pendiente de capital" por préstamo:
-      //    - Si monto_restante es no-nulo y numérico, usarlo
-      //    - Si no, usar: max(0, monto_solicitado - sum(capital_pagado))
-      //    (No se consideran intereses)
-      const totalPendiente = prestamos.reduce((sum, p) => {
-        const solicitado = parseFloat(p.monto_solicitado) || 0;
-        const restanteNum = parseFloat(p.monto_restante);
-        const tieneRestanteValido = p.monto_restante !== null && !isNaN(restanteNum);
-
-        const capitalPagado = capitalPorPrestamo[p.id_prestamo] || 0;
-        const calculado = Math.max(0, solicitado - capitalPagado);
-
-        const pendiente = tieneRestanteValido ? restanteNum : calculado;
-        return sum + pendiente;
+      const totalPagado = pagos.reduce((sum, p) => {
+        const v = parseFloat(p.monto_pagado);
+        return sum + (isNaN(v) ? 0 : v);
       }, 0);
 
-      setTotalDineroPrestado(totalPendiente);
+      // 4) Pendiente = total prestado - total pagado (sin intereses)
+      const pendiente = Math.max(0, totalPrestado - totalPagado);
+      setTotalDineroPrestado(pendiente);
     } catch (err) {
       console.error("Error al cargar estadísticas globales de préstamo:", err);
       setTotalDineroPrestado(prev => prev || 0);
