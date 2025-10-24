@@ -8,7 +8,7 @@ const DashboardMain = () => {
     totalSocios: 0,
     ahorrosAcumulados: 0,
     prestamosActivos: 0,
-    montoTotalPrestado: 0,
+    montoTotalPrestado: 0, // neto = solicitado - capital_pagado
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -21,7 +21,7 @@ const DashboardMain = () => {
     setLoading(true);
     setError(null);
     try {
-      // 1. Total Socios
+      // 1) Total Socios
       const sociosResponse = await fetch(`${SUPABASE_URL}/rest/v1/socios?select=*`, {
         method: 'GET',
         headers: {
@@ -37,7 +37,7 @@ const DashboardMain = () => {
       const sociosData = await sociosResponse.json();
       const totalSocios = sociosData.length;
 
-      // 2. Ahorros Acumulados
+      // 2) Ahorros Acumulados
       const ahorrosResponse = await fetch(`${SUPABASE_URL}/rest/v1/ahorros?select=ahorro_aportado`, {
         method: 'GET',
         headers: {
@@ -53,7 +53,7 @@ const DashboardMain = () => {
       const ahorrosData = await ahorrosResponse.json();
       const ahorrosAcumulados = ahorrosData.reduce((sum, item) => sum + (parseFloat(item.ahorro_aportado) || 0), 0);
 
-      // 3. Préstamos Activos & 4. Monto Total Prestado
+      // 3) Préstamos (para activos y total solicitado)
       const prestamosResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=estatus,monto_solicitado`, {
         method: 'GET',
         headers: {
@@ -67,9 +67,27 @@ const DashboardMain = () => {
         throw new Error(`Error al cargar préstamos: ${prestamosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
       }
       const prestamosData = await prestamosResponse.json();
-      
       const prestamosActivos = prestamosData.filter(p => p.estatus === 'activo').length;
-      const montoTotalPrestado = prestamosData.reduce((sum, item) => sum + (parseFloat(item.monto_solicitado) || 0), 0);
+      const totalSolicitado = prestamosData.reduce((sum, p) => sum + (parseFloat(p.monto_solicitado) || 0), 0);
+
+      // 4) Capital pagado acumulado (para calcular "Total prestado" neto)
+      const pagosResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?select=capital_pagado`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      });
+      if (!pagosResponse.ok) {
+        const errorData = await pagosResponse.json();
+        throw new Error(`Error al cargar pagos de préstamos: ${pagosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
+      }
+      const pagosData = await pagosResponse.json();
+      const totalCapitalPagado = pagosData.reduce((sum, r) => sum + (parseFloat(r.capital_pagado) || 0), 0);
+
+      // Neto: solicitado - capital pagado (sin intereses)
+      const montoTotalPrestado = Math.max(0, totalSolicitado - totalCapitalPagado);
 
       setStats({
         totalSocios,
@@ -86,9 +104,8 @@ const DashboardMain = () => {
     }
   };
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
-  };
+  const formatCurrency = (value) =>
+    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
 
   const dashboardCards = [
     {
@@ -126,7 +143,7 @@ const DashboardMain = () => {
     },
     {
       title: "Total prestado",
-      value: formatCurrency(stats.montoTotalPrestado),
+      value: formatCurrency(stats.montoTotalPrestado), // ahora neto
       icon: (
         <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -161,7 +178,10 @@ const DashboardMain = () => {
       {!loading && !error && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {dashboardCards.map((card, index) => (
-            <div key={index} className={`relative ${card.bgColor} rounded-2xl shadow-lg p-6 transform transition-all duration-300 hover:scale-105 hover:shadow-xl`}>
+            <div
+              key={index}
+              className={`relative ${card.bgColor} rounded-2xl shadow-lg p-6 transform transition-all duration-300 hover:scale-105 hover:shadow-xl`}
+            >
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`text-lg font-semibold ${card.textColor}`}>{card.title}</h3>
                 <div className="p-2 rounded-full bg-white bg-opacity-30">
