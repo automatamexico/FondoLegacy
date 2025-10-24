@@ -10,8 +10,9 @@ const PrestamosModule = ({ idSocio }) => {
   const [sociosList, setSociosList] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
   const [totalSociosConPrestamo, setTotalSociosConPrestamo] = useState(0);
-  const [totalDineroPrestado, setTotalDineroPrestado] = useState(0);
+  const [totalDineroPrestado, setTotalDineroPrestado] = useState(0); // Neto = suma(monto_solicitado) - suma(capital_pagado)
 
   const [showAddPrestamoModal, setShowAddPrestamoModal] = useState(false);
   const [showConfirmPrestamoModal, setShowConfirmPrestamoModal] = useState(false);
@@ -21,6 +22,10 @@ const PrestamosModule = ({ idSocio }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [sociosConPrestamosActivos, setSociosConPrestamosActivos] = useState([]);
 
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedPrestamo, setSelectedPrestamo] = useState(null);
+  const [historialPagosPrestamo, setHistorialPagosPrestamo] = useState([]);
+
   const [showPrestamoHistorial, setShowPrestamoHistorial] = useState(false);
   const [selectedSocioForHistorial, setSelectedSocioForHistorial] = useState(null);
   const [socioPrestamos, setSocioPrestamos] = useState([]);
@@ -28,9 +33,10 @@ const PrestamosModule = ({ idSocio }) => {
 
   const [submitting, setSubmitting] = useState(false);
 
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedPrestamo, setSelectedPrestamo] = useState(null);
-  const [historialPagosPrestamo, setHistorialPagosPrestamo] = useState([]);
+  // ⚠️ Asegura que exista para no romper el render
+  const currentUserRole = localStorage.getItem('currentUser')
+    ? (JSON.parse(localStorage.getItem('currentUser')).role || 'admin')
+    : 'admin';
 
   const weeklyRateOptions = Array.from({ length: 12 }, (_, i) => 0.5 * (i + 1));
   const biweeklyRateOptions = Array.from({ length: 13 }, (_, i) => 2 + 0.5 * i);
@@ -51,15 +57,12 @@ const PrestamosModule = ({ idSocio }) => {
   const [abonoCapitalPeriodo, setAbonoCapitalPeriodo] = useState(0);
   const [interesPeriodoEstimado, setInteresPeriodoEstimado] = useState(0);
 
-  const currentUserRole = localStorage.getItem('currentUser') ? JSON.parse(localStorage.getItem('currentUser')).role : '';
-
   const plazoOpciones = Array.from({ length: 48 }, (_, i) => i + 1);
   const tasaOpciones = Array.from({ length: 7 }, (_, i) => i + 2);
 
   useEffect(() => {
     fetchGlobalPrestamoStats();
     fetchSocios();
-
     if (!idSocio) {
       fetchAllSociosConPrestamoActivo();
     } else {
@@ -67,70 +70,93 @@ const PrestamosModule = ({ idSocio }) => {
     }
   }, [idSocio]);
 
-  // ===== Tarjetas superiores =====
+  // ---------- KPIs (socios con préstamo y total neto adeudado) ----------
   const fetchGlobalPrestamoStats = async () => {
     try {
-      // 1) Total de socios con préstamo
-      const sociosConPrestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=id_socio`, {
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-      });
+      // Total de socios con préstamo (cualquier estatus)
+      const sociosConPrestamoResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/prestamos?select=id_socio`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        }
+      );
       if (!sociosConPrestamoResponse.ok) {
         const errorData = await sociosConPrestamoResponse.json();
-        throw new Error(`Error al cargar socios con préstamo: ${sociosConPrestamoResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
+        throw new Error(
+          `Error al cargar socios con préstamo: ${sociosConPrestamoResponse.statusText} - ${errorData.message || 'Error desconocido'}`
+        );
       }
       const sociosConPrestamoData = await sociosConPrestamoResponse.json();
-      const uniqueSociosIds = new Set(sociosConPrestamoData.map(item => item.id_socio));
+      const uniqueSociosIds = new Set(sociosConPrestamoData.map((item) => item.id_socio));
       setTotalSociosConPrestamo(uniqueSociosIds.size);
 
-      // 2) Sumar TODO lo prestado (monto_solicitado)
-      const prestamosResp = await fetch(
+      // Suma de montos solicitados (solo capital, sin intereses)
+      const sumPrestamosResp = await fetch(
         `${SUPABASE_URL}/rest/v1/prestamos?select=monto_solicitado`,
-        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        }
       );
-      if (!prestamosResp.ok) {
-        const errorData = await prestamosResp.json();
-        throw new Error(`Error al cargar préstamos: ${prestamosResp.statusText} - ${errorData.message || 'Error desconocido'}`);
-      }
-      const prestamos = await prestamosResp.json();
-      const totalPrestado = prestamos.reduce((sum, r) => {
-        const v = parseFloat(r.monto_solicitado);
-        return sum + (isNaN(v) ? 0 : v);
-      }, 0);
-
-      // 3) Sumar TODO el capital pagado (capital_pagado) — ignorando intereses
-      const pagosResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/pagos_prestamos?select=capital_pagado`,
-        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+      const prestamosRows = await sumPrestamosResp.json();
+      const totalPrestado = prestamosRows.reduce(
+        (s, x) => s + (parseFloat(x.monto_solicitado) || 0),
+        0
       );
-      if (!pagosResp.ok) {
-        const errorData = await pagosResp.json();
-        throw new Error(`Error al cargar pagos: ${pagosResp.statusText} - ${errorData.message || 'Error desconocido'}`);
-      }
-      const pagos = await pagosResp.json();
-      const totalCapitalPagado = pagos.reduce((sum, p) => {
-        const v = parseFloat(p.capital_pagado);
-        return sum + (isNaN(v) ? 0 : v);
-      }, 0);
 
-      // 4) Pendiente = total prestado - total capital pagado
-      const pendiente = Math.max(0, totalPrestado - totalCapitalPagado);
-      setTotalDineroPrestado(pendiente);
+      // Suma de capital pagado (solo capital_pagado, ignorar nulls)
+      const sumCapitalResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?select=capital_pagado&capital_pagado=not.is.null`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        }
+      );
+      const capitalRows = await sumCapitalResp.json();
+      const totalCapitalPagado = capitalRows.reduce(
+        (s, x) => s + (parseFloat(x.capital_pagado) || 0),
+        0
+      );
+
+      const netoAdeudado = Math.max(0, totalPrestado - totalCapitalPagado);
+      setTotalDineroPrestado(netoAdeudado);
     } catch (err) {
-      console.error("Error al cargar estadísticas globales de préstamo:", err);
-      setTotalDineroPrestado(prev => prev || 0);
+      console.error('Error KPIs préstamos:', err);
+      setTotalSociosConPrestamo(0);
+      setTotalDineroPrestado(0);
     }
   };
 
+  // ---------- Listado / búsquedas ----------
   const fetchPrestamosForUser = async (socioId) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioId}&select=*`, {
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-      });
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioId}&select=*`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        }
+      );
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`Error al cargar préstamos: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
+        throw new Error(
+          `Error al cargar préstamos: ${response.statusText} - ${errorData.message || 'Error desconocido'}`
+        );
       }
       const data = await response.json();
       setPrestamosList(data);
@@ -143,17 +169,26 @@ const PrestamosModule = ({ idSocio }) => {
 
   const fetchSocios = async () => {
     try {
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno`, {
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-      });
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        }
+      );
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`Error al cargar socios: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
+        throw new Error(
+          `Error al cargar socios: ${response.statusText} - ${errorData.message || 'Error desconocido'}`
+        );
       }
       const data = await response.json();
       setSociosList(data);
     } catch (err) {
-      console.error("Error al cargar socios para el modal:", err);
+      console.error('Error al cargar socios para el modal:', err);
     }
   };
 
@@ -161,15 +196,24 @@ const PrestamosModule = ({ idSocio }) => {
     setLoading(true);
     setError(null);
     try {
-      const prestamosActivosResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=id_socio&estatus=eq.activo`, {
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-      });
+      const prestamosActivosResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/prestamos?select=id_socio&estatus=eq.activo`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        }
+      );
       if (!prestamosActivosResponse.ok) {
         const errorData = await prestamosActivosResponse.json();
-        throw new Error(`Error al cargar préstamos activos: ${prestamosActivosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
+        throw new Error(
+          `Error al cargar préstamos activos: ${prestamosActivosResponse.statusText} - ${errorData.message || 'Error desconocido'}`
+        );
       }
       const prestamosActivosData = await prestamosActivosResponse.json();
-      const uniqueSocioIds = [...new Set(prestamosActivosData.map(item => item.id_socio))];
+      const uniqueSocioIds = [...new Set(prestamosActivosData.map((item) => item.id_socio))];
 
       if (uniqueSocioIds.length === 0) {
         setSociosConPrestamosActivos([]);
@@ -177,12 +221,23 @@ const PrestamosModule = ({ idSocio }) => {
         return;
       }
 
-      const sociosResponse = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=in.(${uniqueSocioIds.join(',')})&select=id_socio,nombre,apellido_paterno,apellido_materno`, {
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-      });
+      const sociosResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/socios?id_socio=in.(${uniqueSocioIds.join(
+          ','
+        )})&select=id_socio,nombre,apellido_paterno,apellido_materno`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        }
+      );
       if (!sociosResponse.ok) {
         const errorData = await sociosResponse.json();
-        throw new Error(`Error al cargar detalles de socios: ${sociosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
+        throw new Error(
+          `Error al cargar detalles de socios: ${sociosResponse.statusText} - ${errorData.message || 'Error desconocido'}`
+        );
       }
       const sociosData = await sociosResponse.json();
       setSociosConPrestamosActivos(sociosData);
@@ -198,7 +253,7 @@ const PrestamosModule = ({ idSocio }) => {
 
   const handleNewPrestamoInputChange = (e) => {
     const { name, value } = e.target;
-    setNewPrestamo(prev => ({ ...prev, [name]: value }));
+    setNewPrestamo((prev) => ({ ...prev, [name]: value }));
   };
 
   const isFormReady = () => {
@@ -207,21 +262,24 @@ const PrestamosModule = ({ idSocio }) => {
 
     if (newPrestamo.tipo_plazo === 'mensual') {
       return (
-        montoOK && socioOK &&
+        montoOK &&
+        socioOK &&
         parseInt(newPrestamo.numero_plazos) > 0 &&
         parseFloat(newPrestamo.tasa_interes_mensual) > 0
       );
     }
     if (newPrestamo.tipo_plazo === 'semanal') {
       return (
-        montoOK && socioOK &&
+        montoOK &&
+        socioOK &&
         parseInt(newPrestamo.plazo_semanas) > 0 &&
         parseFloat(newPrestamo.tasa_interes_semanal) > 0
       );
     }
     if (newPrestamo.tipo_plazo === 'quincenal') {
       return (
-        montoOK && socioOK &&
+        montoOK &&
+        socioOK &&
         parseInt(newPrestamo.plazo_quincenas) > 0 &&
         parseFloat(newPrestamo.tasa_interes_quincenal) > 0
       );
@@ -229,6 +287,7 @@ const PrestamosModule = ({ idSocio }) => {
     return false;
   };
 
+  // Cálculos de pago por periodo (interés simple por periodo + capital lineal)
   const calculatePrestamoDetails = useCallback(() => {
     const monto = parseFloat(newPrestamo.monto_solicitado);
     let periods = 0;
@@ -274,6 +333,7 @@ const PrestamosModule = ({ idSocio }) => {
     calculatePrestamoDetails();
   }, [calculatePrestamoDetails]);
 
+  // ---------- Crear préstamo ----------
   const handleConfirmPrestamo = async () => {
     if (submitting) return;
     setSubmitting(true);
@@ -302,15 +362,27 @@ const PrestamosModule = ({ idSocio }) => {
     let periods = 0;
     let tasaSeleccionada = 0;
     if (tipo_plazo === 'mensual') {
-      if (!numero_plazos || !tasa_interes_mensual) { setError('Completa plazos y tasa mensual.'); setSubmitting(false); return; }
+      if (!numero_plazos || !tasa_interes_mensual) {
+        setError('Completa plazos y tasa mensual.');
+        setSubmitting(false);
+        return;
+      }
       periods = parseInt(numero_plazos);
       tasaSeleccionada = parseFloat(tasa_interes_mensual);
     } else if (tipo_plazo === 'semanal') {
-      if (!plazo_semanas || !tasa_interes_semanal) { setError('Completa semanas y tasa semanal.'); setSubmitting(false); return; }
+      if (!plazo_semanas || !tasa_interes_semanal) {
+        setError('Completa semanas y tasa semanal.');
+        setSubmitting(false);
+        return;
+      }
       periods = parseInt(plazo_semanas);
       tasaSeleccionada = parseFloat(tasa_interes_semanal);
     } else if (tipo_plazo === 'quincenal') {
-      if (!plazo_quincenas || !tasa_interes_quincenal) { setError('Completa quincenas y tasa quincenal.'); setSubmitting(false); return; }
+      if (!plazo_quincenas || !tasa_interes_quincenal) {
+        setError('Completa quincenas y tasa quincenal.');
+        setSubmitting(false);
+        return;
+      }
       periods = parseInt(plazo_quincenas);
       tasaSeleccionada = parseFloat(tasa_interes_quincenal);
     }
@@ -353,7 +425,7 @@ const PrestamosModule = ({ idSocio }) => {
         tipo_plazo
       };
 
-      let prestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos`, {
+      const prestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -366,11 +438,14 @@ const PrestamosModule = ({ idSocio }) => {
 
       if (!prestamoResponse.ok) {
         const errorData = await prestamoResponse.json();
-        throw new Error(`Error al registrar préstamo: ${prestamoResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
+        throw new Error(
+          `Error al registrar préstamo: ${prestamoResponse.statusText} - ${errorData.message || 'Error desconocido'}`
+        );
       }
       const addedPrestamo = await prestamoResponse.json();
       const newPrestamoId = addedPrestamo[0].id_prestamo;
 
+      // Programar pagos
       for (let i = 1; i <= periods; i++) {
         let fechaProgramada = new Date(fecha_solicitud);
         if (tipo_plazo === 'mensual') fechaProgramada.setMonth(fechaProgramada.getMonth() + i);
@@ -385,6 +460,7 @@ const PrestamosModule = ({ idSocio }) => {
           fecha_programada: fechaProgramada.toISOString().split('T')[0],
           estatus: 'pendiente',
           fecha_pago: null,
+          fecha_hora_pago: null,
           monto_pagado: null,
           interes_pagado: null,
           capital_pagado: null,
@@ -404,7 +480,9 @@ const PrestamosModule = ({ idSocio }) => {
         });
         if (!pagoResponse.ok) {
           const errorData = await pagoResponse.json();
-          throw new Error(`Error al registrar pago ${i}: ${pagoResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
+          throw new Error(
+            `Error al registrar pago ${i}: ${pagoResponse.statusText} - ${errorData.message || 'Error desconocido'}`
+          );
         }
       }
 
@@ -422,10 +500,10 @@ const PrestamosModule = ({ idSocio }) => {
         tasa_interes_quincenal: ''
       });
 
+      // refrescar KPIs y listados
       fetchGlobalPrestamoStats();
       if (!idSocio) fetchAllSociosConPrestamoActivo();
       else fetchPrestamosForUser(idSocio);
-
     } catch (err) {
       setError(err.message);
     } finally {
@@ -434,6 +512,7 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
+  // ---------- Ver/editar ----------
   const handleVerHistorialPrestamosSocio = async (socio) => {
     setSelectedSocioForHistorial(socio);
     setLoading(true);
@@ -451,21 +530,43 @@ const PrestamosModule = ({ idSocio }) => {
       }
       const data = await response.json();
 
-      const prestamosConEstado = await Promise.all(data.map(async (prestamo) => {
-        const totalPagosProgramadosResponse = await fetch(
-          `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&select=count`,
-          { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', 'Range': '0-0', 'Range-Unit': 'items' } }
-        );
-        const totalPagosProgramados = parseInt(totalPagosProgramadosResponse.headers.get('content-range').split('/')[1], 10) || 0;
+      const prestamosConEstado = await Promise.all(
+        data.map(async (prestamo) => {
+          const totalPagosProgramadosResponse = await fetch(
+            `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&select=count`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                Prefer: 'count=exact',
+                Range: '0-0',
+                'Range-Unit': 'items'
+              }
+            }
+          );
+          const totalRange = totalPagosProgramadosResponse.headers.get('content-range') || '0/0';
+          const totalPagosProgramados = parseInt(totalRange.split('/')[1], 10) || 0;
 
-        const pagosPagadosResponse = await fetch(
-          `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&estatus=eq.pagado&select=count`,
-          { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', 'Range': '0-0', 'Range-Unit': 'items' } }
-        );
-        const pagosPagados = parseInt(pagosPagadosResponse.headers.get('content-range').split('/')[1], 10) || 0;
+          const pagosPagadosResponse = await fetch(
+            `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&estatus=eq.pagado&select=count`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                Prefer: 'count=exact',
+                Range: '0-0',
+                'Range-Unit': 'items'
+              }
+            }
+          );
+          const pagadosRange = pagosPagadosResponse.headers.get('content-range') || '0/0';
+          const pagosPagados = parseInt(pagadosRange.split('/')[1], 10) || 0;
 
-        return { ...prestamo, isPaid: totalPagosProgramados > 0 && pagosPagados === totalPagosProgramados };
-      }));
+          return { ...prestamo, isPaid: totalPagosProgramados > 0 && pagosPagados === totalPagosProgramados };
+        })
+      );
       setSocioPrestamos(prestamosConEstado);
     } catch (err) {
       setError(err.message);
@@ -491,21 +592,33 @@ const PrestamosModule = ({ idSocio }) => {
       }
       const data = await response.json();
 
-      const prestamosConEstadoYHabilitacion = await Promise.all(data.map(async (prestamo) => {
-        const pagosRealizadosResponse = await fetch(
-          `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&monto_pagado=gt.0&select=count`,
-          { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', 'Range': '0-0', 'Range-Unit': 'items' } }
-        );
-        const pagosRealizadosCount = parseInt(pagosRealizadosResponse.headers.get('content-range').split('/)[1], 10) || 0;
+      const prestamosConEstadoYHabilitacion = await Promise.all(
+        data.map(async (prestamo) => {
+          const pagosRealizadosResponse = await fetch(
+            `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&monto_pagado=gt.0&select=count`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                Prefer: 'count=exact',
+                Range: '0-0',
+                'Range-Unit': 'items'
+              }
+            }
+          );
+          const range = pagosRealizadosResponse.headers.get('content-range') || '0/0';
+          const pagosRealizadosCount = parseInt(range.split('/')[1], 10) || 0;
 
-        const fechaSolicitud = new Date(prestamo.fecha_solicitud);
-        const now = new Date();
-        const diffTime = Math.abs(now.getTime() - fechaSolicitud.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          const fechaSolicitud = new Date(prestamo.fecha_solicitud);
+          const now = new Date();
+          const diffTime = Math.abs(now.getTime() - fechaSolicitud.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-        const canDelete = pagosRealizadosCount === 0 && diffDays <= 1;
-        return { ...prestamo, canDelete };
-      }));
+          const canDelete = pagosRealizadosCount === 0 && diffDays <= 1;
+          return { ...prestamo, canDelete };
+        })
+      );
       setSocioPrestamos(prestamosConEstadoYHabilitacion);
     } catch (err) {
       setError(err.message);
@@ -515,27 +628,38 @@ const PrestamosModule = ({ idSocio }) => {
   };
 
   const handleDeletePrestamo = async (prestamoId) => {
-    if (window.confirm("¿Estás seguro de eliminar este préstamo? Al hacerlo, todo lo relacionado con este préstamo será eliminado y no hay manera de revertirlo.")) {
+    if (
+      window.confirm(
+        '¿Estás seguro de eliminar este préstamo? Al hacerlo, todo lo relacionado con este préstamo será eliminado y no hay manera de revertirlo.'
+      )
+    ) {
       setLoading(true);
       setError(null);
       setToastMessage('');
       try {
-        const deletePagosResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamoId}`, {
-          method: 'DELETE',
-          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-        });
+        const deletePagosResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamoId}`,
+          {
+            method: 'DELETE',
+            headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+          }
+        );
         if (!deletePagosResponse.ok) {
           const errorData = await deletePagosResponse.json();
-          throw new Error(`Error al eliminar pagos relacionados: ${deletePagosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
+          throw new Error(
+            `Error al eliminar pagos relacionados: ${deletePagosResponse.statusText} - ${errorData.message || 'Error desconocido'}`
+          );
         }
 
-        const deletePrestamoResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_prestamo=eq.${prestamoId}`, {
-          method: 'DELETE',
-          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-        });
+        const deletePrestamoResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/prestamos?id_prestamo=eq.${prestamoId}`,
+          { method: 'DELETE', headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+        );
         if (!deletePrestamoResponse.ok) {
           const errorData = await deletePrestamoResponse.json();
-          throw new Error(`Error al eliminar el préstamo: ${deletePrestamoResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
+          throw new Error(
+            `Error al eliminar el préstamo: ${deletePrestamoResponse.statusText} - ${errorData.message || 'Error desconocido'}`
+          );
         }
 
         setToastMessage('Préstamo eliminado exitosamente.');
@@ -563,7 +687,9 @@ const PrestamosModule = ({ idSocio }) => {
       );
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`Error al cargar historial de pagos del préstamo: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
+        throw new Error(
+          `Error al cargar historial de pagos del préstamo: ${response.statusText} - ${errorData.message || 'Error desconocido'}`
+        );
       }
       const data = await response.json();
       setHistorialPagosPrestamo(data);
@@ -595,9 +721,12 @@ const PrestamosModule = ({ idSocio }) => {
     const term = e.target.value.toLowerCase();
     setSearchTerm(term);
     if (sociosList) {
-      const results = sociosList.filter(socio =>
-        socio.id_socio.toString().includes(term) ||
-        `${socio.nombre} ${socio.apellido_paterno} ${socio.apellido_materno}`.toLowerCase().includes(term)
+      const results = sociosList.filter(
+        (socio) =>
+          socio.id_socio.toString().includes(term) ||
+          `${socio.nombre} ${socio.apellido_paterno} ${socio.apellido_materno}`
+            .toLowerCase()
+            .includes(term)
       );
       setSearchResults(results);
     } else {
@@ -645,7 +774,7 @@ const PrestamosModule = ({ idSocio }) => {
               </svg>
             </div>
             <div>
-              <h3 className="font-semibold text-slate-900">Total de Dinero Prestado (pendiente)</h3>
+              <h3 className="font-semibold text-slate-900">Total de Dinero Prestado</h3>
               <p className="text-2xl font-bold text-purple-600">{formatCurrency(totalDineroPrestado)}</p>
             </div>
           </div>
@@ -664,12 +793,24 @@ const PrestamosModule = ({ idSocio }) => {
         />
         {searchTerm && sociosList && searchResults.length > 0 && (
           <div className="mt-4 space-y-2">
-            {searchResults.map(socio => (
+            {searchResults.map((socio) => (
               <div key={socio.id_socio} className="flex justify-between items-center p-3 bg-slate-100 rounded-lg">
-                <span className="text-slate-800">ID: {socio.id_socio} - {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}</span>
+                <span className="text-slate-800">
+                  ID: {socio.id_socio} - {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}
+                </span>
                 <div className="flex space-x-2">
-                  <button onClick={() => handleVerHistorialPrestamosSocio(socio)} className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600">Ver Historial de Préstamos</button>
-                  <button onClick={() => handleEditarPrestamosSocio(socio)} className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600">Editar</button>
+                  <button
+                    onClick={() => handleVerHistorialPrestamosSocio(socio)}
+                    className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
+                  >
+                    Ver Historial de Préstamos
+                  </button>
+                  <button
+                    onClick={() => handleEditarPrestamosSocio(socio)}
+                    className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
+                  >
+                    Editar
+                  </button>
                 </div>
               </div>
             ))}
@@ -681,45 +822,60 @@ const PrestamosModule = ({ idSocio }) => {
       </div>
 
       {/* Socios con préstamos activos (admin) */}
-      {currentUserRole === 'admin' && sociosConPrestamosActivos.length > 0 && !showPrestamoHistorial && !showEditPrestamosModal && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h3 className="text-xl font-semibold text-slate-900 mb-4">Socios con Préstamos Activos</h3>
-          {loading && <p className="text-center text-slate-600">Cargando socios con préstamos...</p>}
-          {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
-          {!loading && !error && sociosConPrestamosActivos.length === 0 && (
-            <p className="text-center text-slate-600">No hay socios con préstamos activos.</p>
-          )}
-          {!loading && !error && sociosConPrestamosActivos.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-3 px-4 font-semibold text-slate-700">ID Socio</th>
-                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Nombre Completo</th>
-                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sociosConPrestamosActivos.map(socio => (
-                    <tr key={socio.id_socio} className="border-b border-slate-100 hover:bg-slate-50">
-                      <td className="py-4 px-4 text-slate-700">{socio.id_socio}</td>
-                      <td className="py-4 px-4 font-medium text-slate-900">{socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}</td>
-                      <td className="py-4 px-4">
-                        <div className="flex space-x-2">
-                          <button onClick={() => handleVerHistorialPrestamosSocio(socio)} className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600">Ver Historial de Préstamos</button>
-                          <button onClick={() => handleEditarPrestamosSocio(socio)} className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600">Editar</button>
-                        </div>
-                      </td>
+      {currentUserRole === 'admin' &&
+        sociosConPrestamosActivos.length > 0 &&
+        !showPrestamoHistorial &&
+        !showEditPrestamosModal && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-6">
+            <h3 className="text-xl font-semibold text-slate-900 mb-4">Socios con Préstamos Activos</h3>
+            {loading && <p className="text-center text-slate-600">Cargando socios con préstamos...</p>}
+            {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
+            {!loading && !error && sociosConPrestamosActivos.length === 0 && (
+              <p className="text-center text-slate-600">No hay socios con préstamos activos.</p>
+            )}
+            {!loading && !error && sociosConPrestamosActivos.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200">
+                      <th className="text-left py-3 px-4 font-semibold text-slate-700">ID Socio</th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Nombre Completo</th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Acciones</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+                  </thead>
+                  <tbody>
+                    {sociosConPrestamosActivos.map((socio) => (
+                      <tr key={socio.id_socio} className="border-b border-slate-100 hover:bg-slate-50">
+                        <td className="py-4 px-4 text-slate-700">{socio.id_socio}</td>
+                        <td className="py-4 px-4 font-medium text-slate-900">
+                          {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleVerHistorialPrestamosSocio(socio)}
+                              className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
+                            >
+                              Ver Historial de Préstamos
+                            </button>
+                            <button
+                              onClick={() => handleEditarPrestamosSocio(socio)}
+                              className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
+                            >
+                              Editar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
-      {/* Tabla de préstamos del socio */}
+      {/* Tabla de préstamos del socio (cuando idSocio viene) */}
       {!showPrestamoHistorial && !showEditPrestamosModal && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           {loading && <p className="text-center text-slate-600">Cargando préstamos...</p>}
@@ -731,9 +887,8 @@ const PrestamosModule = ({ idSocio }) => {
                   <tr className="border-b border-slate-200">
                     <th className="text-left py-3 px-4 font-semibold text-slate-700">ID Préstamo</th>
                     <th className="text-left py-3 px-4 font-semibold text-slate-700">Monto Original</th>
-                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Saldo Restante</th>
-                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Tasa</th>
                     <th className="text-left py-3 px-4 font-semibold text-slate-700">Pago por periodo</th>
+                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Tasa</th>
                     <th className="text-left py-3 px-4 font-semibold text-slate-700">Vencimiento</th>
                     <th className="text-left py-3 px-4 font-semibold text-slate-700">Estado</th>
                     <th className="text-left py-3 px-4 font-semibold text-slate-700">Acciones</th>
@@ -746,38 +901,34 @@ const PrestamosModule = ({ idSocio }) => {
                       <td className="py-4 px-4 font-bold text-slate-900">
                         {formatCurrency(parseFloat(prestamo.monto_solicitado) || 0)}
                       </td>
-                      <td className="py-4 px-4 font-bold text-red-600">
-                        {formatCurrency(parseFloat(prestamo.monto_restante) || 0)}
-                      </td>
-                      <td className="py-4 px-4 text-orange-600 font-medium">
-                        {prestamo.interes}%
-                      </td>
                       <td className="py-4 px-4 font-medium text-slate-900">
                         {formatCurrency(parseFloat(prestamo.pago_requerido) || 0)}
                       </td>
-                      <td className="py-4 px-4 text-slate-700">
-                        {prestamo.fecha_vencimiento}
-                      </td>
+                      <td className="py-4 px-4 text-orange-600 font-medium">{prestamo.interes}%</td>
+                      <td className="py-4 px-4 text-slate-700">{prestamo.fecha_vencimiento}</td>
                       <td className="py-4 px-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          prestamo.estatus === 'vigente'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
-                        }`}>
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            prestamo.estatus === 'activo' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          }`}
+                        >
                           {prestamo.estatus}
                         </span>
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex space-x-2">
-                          <button onClick={() => handleVerDetallesPrestamo(prestamo)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                          <button
+                            onClick={() => handleVerDetallesPrestamo(prestamo)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                          </button>
-                          <button className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
+                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                              />
                             </svg>
                           </button>
                         </div>
@@ -791,227 +942,12 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* Modal: Registrar nuevo préstamo */}
-      {showAddPrestamoModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold">Registrar nuevo préstamo</h3>
-              <button className="px-3 py-1 rounded-lg bg-slate-100" onClick={() => setShowAddPrestamoModal(false)}>Cerrar</button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-slate-700 mb-1">Socio</label>
-                  <select
-                    name="id_socio"
-                    value={newPrestamo.id_socio}
-                    onChange={handleNewPrestamoInputChange}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                  >
-                    <option value="">Seleccione…</option>
-                    {Array.isArray(sociosList) && sociosList.map(s => (
-                      <option key={s.id_socio} value={s.id_socio}>
-                        {s.id_socio} — {s.nombre} {s.apellido_paterno} {s.apellido_materno}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-700 mb-1">Monto solicitado</label>
-                  <input
-                    type="number"
-                    name="monto_solicitado"
-                    value={newPrestamo.monto_solicitado}
-                    onChange={handleNewPrestamoInputChange}
-                    placeholder="0.00"
-                    min="0.01"
-                    step="0.01"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                  />
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm text-slate-700 mb-1">Tipo de plazo</label>
-                  <select
-                    name="tipo_plazo"
-                    value={newPrestamo.tipo_plazo}
-                    onChange={handleNewPrestamoInputChange}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                  >
-                    <option value="mensual">Mensual</option>
-                    <option value="semanal">Semanal</option>
-                    <option value="quincenal">Quincenal</option>
-                  </select>
-                </div>
-
-                {newPrestamo.tipo_plazo === 'mensual' && (
-                  <>
-                    <div>
-                      <label className="block text-sm text-slate-700 mb-1"># de meses</label>
-                      <select
-                        name="numero_plazos"
-                        value={newPrestamo.numero_plazos}
-                        onChange={handleNewPrestamoInputChange}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                      >
-                        <option value="">Seleccione…</option>
-                        {plazoOpciones.map(n => <option key={`m-${n}`} value={n}>{n}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-slate-700 mb-1">Tasa mensual (%)</label>
-                      <select
-                        name="tasa_interes_mensual"
-                        value={newPrestamo.tasa_interes_mensual}
-                        onChange={handleNewPrestamoInputChange}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                      >
-                        <option value="">Seleccione…</option>
-                        {tasaOpciones.map(t => <option key={`tm-${t}`} value={t}>{t}%</option>)}
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                {newPrestamo.tipo_plazo === 'semanal' && (
-                  <>
-                    <div>
-                      <label className="block text-sm text-slate-700 mb-1"># de semanas</label>
-                      <select
-                        name="plazo_semanas"
-                        value={newPrestamo.plazo_semanas}
-                        onChange={handleNewPrestamoInputChange}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                      >
-                        <option value="">Seleccione…</option>
-                        {plazoOpciones.map(n => <option key={`s-${n}`} value={n}>{n}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-slate-700 mb-1">Tasa semanal (%)</label>
-                      <select
-                        name="tasa_interes_semanal"
-                        value={newPrestamo.tasa_interes_semanal}
-                        onChange={handleNewPrestamoInputChange}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                      >
-                        <option value="">Seleccione…</option>
-                        {weeklyRateOptions.map(t => <option key={`ts-${t}`} value={t}>{t}%</option>)}
-                      </select>
-                    </div>
-                    <div className="md:col-span-1" />
-                  </>
-                )}
-
-                {newPrestamo.tipo_plazo === 'quincenal' && (
-                  <>
-                    <div>
-                      <label className="block text-sm text-slate-700 mb-1"># de quincenas</label>
-                      <select
-                        name="plazo_quincenas"
-                        value={newPrestamo.plazo_quincenas}
-                        onChange={handleNewPrestamoInputChange}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                      >
-                        <option value="">Seleccione…</option>
-                        {plazoOpciones.map(n => <option key={`q-${n}`} value={n}>{n}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-slate-700 mb-1">Tasa quincenal (%)</label>
-                      <select
-                        name="tasa_interes_quincenal"
-                        value={newPrestamo.tasa_interes_quincenal}
-                        onChange={handleNewPrestamoInputChange}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                      >
-                        <option value="">Seleccione…</option>
-                        {biweeklyRateOptions.map(t => <option key={`tq-${t}`} value={t}>{t}%</option>)}
-                      </select>
-                    </div>
-                    <div className="md:col-span-1" />
-                  </>
-                )}
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-4 bg-slate-50 rounded-xl border border-slate-200 p-4">
-                <div>
-                  <p className="text-slate-600 text-sm">Pago por periodo</p>
-                  <p className="text-lg font-semibold">{formatCurrency(pagoPeriodo)}</p>
-                </div>
-                <div>
-                  <p className="text-slate-600 text-sm">Abono a capital</p>
-                  <p className="text-lg font-semibold">{formatCurrency(abonoCapitalPeriodo)}</p>
-                </div>
-                <div>
-                  <p className="text-slate-600 text-sm">Interés estimado</p>
-                  <p className="text-lg font-semibold">{formatCurrency(interesPeriodoEstimado)}</p>
-                </div>
-              </div>
-
-              {error && <p className="text-red-600 text-sm">{error}</p>}
-
-              <div className="flex justify-end gap-3">
-                <button
-                  className="px-4 py-2 bg-slate-200 rounded-xl"
-                  onClick={() => setShowAddPrestamoModal(false)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className={`px-4 py-2 rounded-xl text-white ${isFormReady() ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-400 cursor-not-allowed'}`}
-                  disabled={!isFormReady()}
-                  onClick={() => setShowConfirmPrestamoModal(true)}
-                >
-                  Continuar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Confirmación */}
-      {showConfirmPrestamoModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
-            <div className="p-6 text-center">
-              <h3 className="text-lg font-bold text-slate-900 mb-3">Confirmar registro</h3>
-              <div className="space-y-1 text-slate-700 mb-4">
-                <p>Monto: <span className="font-semibold">{formatCurrency(parseFloat(newPrestamo.monto_solicitado || 0))}</span></p>
-                <p>Tipo de plazo: <span className="font-semibold">{newPrestamo.tipo_plazo}</span></p>
-                <p>Pago por periodo: <span className="font-semibold">{formatCurrency(pagoPeriodo)}</span></p>
-              </div>
-              <div className="flex justify-center gap-3">
-                <button
-                  className="px-5 py-2 bg-slate-200 rounded-xl"
-                  onClick={() => setShowConfirmPrestamoModal(false)}
-                  disabled={submitting}
-                >
-                  Volver
-                </button>
-                <button
-                  className={`px-5 py-2 rounded-xl text-white ${submitting ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}
-                  onClick={handleConfirmPrestamo}
-                  disabled={submitting}
-                >
-                  {submitting ? 'Guardando…' : 'Confirmar'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Historial / Edición */}
       {showPrestamoHistorial && selectedSocioForHistorial && !showEditPrestamosModal ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h3 className="text-xl font-bold text-slate-900 mb-4">Historial de Préstamos de {selectedSocioForHistorial.nombre} {selectedSocioForHistorial.apellido_paterno}</h3>
+          <h3 className="text-xl font-bold text-slate-900 mb-4">
+            Historial de Préstamos de {selectedSocioForHistorial.nombre} {selectedSocioForHistorial.apellido_paterno}
+          </h3>
           {loading && <p className="text-center text-slate-600">Cargando préstamos...</p>}
           {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
           {!loading && !error && socioPrestamos.length === 0 && (
@@ -1019,18 +955,30 @@ const PrestamosModule = ({ idSocio }) => {
           )}
           {!loading && !error && socioPrestamos.length > 0 && (
             <div className="space-y-4">
-              {socioPrestamos.map(prestamo => (
-                <div key={prestamo.id_prestamo} className="p-4 border border-slate-200 rounded-lg flex justify-between items-center">
+              {socioPrestamos.map((prestamo) => (
+                <div
+                  key={prestamo.id_prestamo}
+                  className="p-4 border border-slate-200 rounded-lg flex justify-between items-center"
+                >
                   <div>
                     <p className="font-medium text-slate-900">
-                      Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el {convertirFechaHoraLocal(prestamo.fecha_solicitud).fecha}
+                      Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
+                      {convertirFechaHoraLocal(prestamo.fecha_solicitud).fecha}
                     </p>
                   </div>
-                  <button onClick={() => handleVerDetallesPrestamo(prestamo)} className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600">Ver detalles</button>
+                  <button
+                    onClick={() => handleVerDetallesPrestamo(prestamo)}
+                    className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
+                  >
+                    Ver detalles
+                  </button>
                 </div>
               ))}
               <div className="flex justify-center mt-6">
-                <button onClick={handleBackToMainView} className="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium">
+                <button
+                  onClick={handleBackToMainView}
+                  className="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+                >
                   Volver
                 </button>
               </div>
@@ -1039,7 +987,9 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       ) : showEditPrestamosModal && selectedSocioForHistorial ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h3 className="text-xl font-bold text-slate-900 mb-4">Editar Préstamos de {selectedSocioForHistorial.nombre} {selectedSocioForHistorial.apellido_paterno}</h3>
+          <h3 className="text-xl font-bold text-slate-900 mb-4">
+            Editar Préstamos de {selectedSocioForHistorial.nombre} {selectedSocioForHistorial.apellido_paterno}
+          </h3>
           {loading && <p className="text-center text-slate-600">Cargando préstamos para edición...</p>}
           {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
           {!loading && !error && socioPrestamos.length === 0 && (
@@ -1047,14 +997,22 @@ const PrestamosModule = ({ idSocio }) => {
           )}
           {!loading && !error && socioPrestamos.length > 0 && (
             <div className="space-y-4">
-              {socioPrestamos.map(prestamo => (
-                <div key={prestamo.id_prestamo} className="p-4 border border-slate-200 rounded-lg flex justify-between items-center">
+              {socioPrestamos.map((prestamo) => (
+                <div
+                  key={prestamo.id_prestamo}
+                  className="p-4 border border-slate-200 rounded-lg flex justify-between items-center"
+                >
                   <div>
-                    <p className="font-medium text-slate-900">Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el {convertirFechaHoraLocal(prestamo.fecha_solicitud).fecha}</p>
+                    <p className="font-medium text-slate-900">
+                      Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
+                      {convertirFechaHoraLocal(prestamo.fecha_solicitud).fecha}
+                    </p>
                   </div>
                   <button
                     onClick={() => handleDeletePrestamo(prestamo.id_prestamo)}
-                    className={`px-3 py-1 bg-red-500 text-white rounded-lg text-sm transition-colors ${prestamo.canDelete ? 'hover:bg-red-600' : 'opacity-50 cursor-not-allowed'}`}
+                    className={`px-3 py-1 bg-red-500 text-white rounded-lg text-sm transition-colors ${
+                      prestamo.canDelete ? 'hover:bg-red-600' : 'opacity-50 cursor-not-allowed'
+                    }`}
                     disabled={!prestamo.canDelete}
                   >
                     Eliminar
@@ -1062,7 +1020,10 @@ const PrestamosModule = ({ idSocio }) => {
                 </div>
               ))}
               <div className="flex justify-center mt-6">
-                <button onClick={handleBackToMainView} className="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium">
+                <button
+                  onClick={handleBackToMainView}
+                  className="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+                >
                   Volver
                 </button>
               </div>
@@ -1071,7 +1032,7 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       ) : null}
 
-      {/* Modal de Detalles */}
+      {/* Modal de Detalles (ancho) */}
       {showDetailsModal && selectedPrestamo && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-6xl w-full">
@@ -1104,16 +1065,24 @@ const PrestamosModule = ({ idSocio }) => {
                     {historialPagosPrestamo.map((pago, idx) => {
                       const programada = pago.fecha_programada || '';
                       const fechaShow = pago.fecha_hora_pago
-                        ? `${convertirFechaHoraLocal(pago.fecha_hora_pago).fecha} ${convertirFechaHoraLocal(pago.fecha_hora_pago).hora}`
+                        ? `${convertirFechaHoraLocal(pago.fecha_hora_pago).fecha} ${
+                            convertirFechaHoraLocal(pago.fecha_hora_pago).hora
+                          }`
                         : programada;
                       return (
                         <tr key={idx} className="border-b border-slate-100">
                           <td className="py-3 px-4">{pago.numero_pago}</td>
                           <td className="py-3 px-4">{fechaShow}</td>
                           <td className="py-3 px-4">{formatCurrency(pago.monto_pago)}</td>
-                          <td className="py-3 px-4">{pago.monto_pagado != null ? formatCurrency(pago.monto_pagado) : '—'}</td>
-                          <td className="py-3 px-4">{pago.interes_pagado != null ? formatCurrency(pago.interes_pagado) : '—'}</td>
-                          <td className="py-3 px-4">{pago.capital_pagado != null ? formatCurrency(pago.capital_pagado) : '—'}</td>
+                          <td className="py-3 px-4">
+                            {pago.monto_pagado != null ? formatCurrency(pago.monto_pagado) : '—'}
+                          </td>
+                          <td className="py-3 px-4">
+                            {pago.interes_pagado != null ? formatCurrency(pago.interes_pagado) : '—'}
+                          </td>
+                          <td className="py-3 px-4">
+                            {pago.capital_pagado != null ? formatCurrency(pago.capital_pagado) : '—'}
+                          </td>
                           <td className="py-3 px-4">{pago.estatus}</td>
                         </tr>
                       );
@@ -1130,6 +1099,265 @@ const PrestamosModule = ({ idSocio }) => {
               >
                 Volver
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Crear Préstamo */}
+      {showAddPrestamoModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">Registrar nuevo préstamo</h3>
+              <button
+                className="px-3 py-1 rounded-lg bg-slate-100"
+                onClick={() => setShowAddPrestamoModal(false)}
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-slate-700 mb-1">Socio</label>
+                  <select
+                    name="id_socio"
+                    value={newPrestamo.id_socio}
+                    onChange={handleNewPrestamoInputChange}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  >
+                    <option value="">Seleccione…</option>
+                    {Array.isArray(sociosList) &&
+                      sociosList.map((s) => (
+                        <option key={s.id_socio} value={s.id_socio}>
+                          {s.id_socio} — {s.nombre} {s.apellido_paterno} {s.apellido_materno}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-slate-700 mb-1">Monto solicitado</label>
+                  <input
+                    type="number"
+                    name="monto_solicitado"
+                    value={newPrestamo.monto_solicitado}
+                    onChange={handleNewPrestamoInputChange}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                    placeholder="0.00"
+                    min="0.01"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <p className="block text-sm text-slate-700 mb-2">Tipo de plazo</p>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tipo_plazo"
+                      value="mensual"
+                      checked={newPrestamo.tipo_plazo === 'mensual'}
+                      onChange={handleNewPrestamoInputChange}
+                    />
+                    <span>Mensual</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tipo_plazo"
+                      value="semanal"
+                      checked={newPrestamo.tipo_plazo === 'semanal'}
+                      onChange={handleNewPrestamoInputChange}
+                    />
+                    <span>Semanal</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tipo_plazo"
+                      value="quincenal"
+                      checked={newPrestamo.tipo_plazo === 'quincenal'}
+                      onChange={handleNewPrestamoInputChange}
+                    />
+                    <span>Quincenal</span>
+                  </label>
+                </div>
+              </div>
+
+              {newPrestamo.tipo_plazo === 'mensual' && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-1">Núm. de meses</label>
+                    <select
+                      name="numero_plazos"
+                      value={newPrestamo.numero_plazos}
+                      onChange={handleNewPrestamoInputChange}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                    >
+                      <option value="">Seleccione…</option>
+                      {plazoOpciones.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-1">Tasa mensual (%)</label>
+                    <select
+                      name="tasa_interes_mensual"
+                      value={newPrestamo.tasa_interes_mensual}
+                      onChange={handleNewPrestamoInputChange}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                    >
+                      <option value="">Seleccione…</option>
+                      {tasaOpciones.map((t) => (
+                        <option key={t} value={t}>
+                          {t}%
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {newPrestamo.tipo_plazo === 'semanal' && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-1">Núm. de semanas</label>
+                    <input
+                      type="number"
+                      name="plazo_semanas"
+                      value={newPrestamo.plazo_semanas}
+                      onChange={handleNewPrestamoInputChange}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                      min="1"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-1">Tasa semanal (%)</label>
+                    <select
+                      name="tasa_interes_semanal"
+                      value={newPrestamo.tasa_interes_semanal}
+                      onChange={handleNewPrestamoInputChange}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                    >
+                      <option value="">Seleccione…</option>
+                      {weeklyRateOptions.map((t) => (
+                        <option key={t} value={t}>
+                          {t}%
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {newPrestamo.tipo_plazo === 'quincenal' && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-1">Núm. de quincenas</label>
+                    <input
+                      type="number"
+                      name="plazo_quincenas"
+                      value={newPrestamo.plazo_quincenas}
+                      onChange={handleNewPrestamoInputChange}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                      min="1"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-700 mb-1">Tasa quincenal (%)</label>
+                    <select
+                      name="tasa_interes_quincenal"
+                      value={newPrestamo.tasa_interes_quincenal}
+                      onChange={handleNewPrestamoInputChange}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                    >
+                      <option value="">Seleccione…</option>
+                      {biweeklyRateOptions.map((t) => (
+                        <option key={t} value={t}>
+                          {t}%
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Resumen de cálculo */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid md:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-sm text-slate-600">Pago por periodo</p>
+                  <p className="text-lg font-semibold">{formatCurrency(pagoPeriodo)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600">Interés por periodo</p>
+                  <p className="text-lg font-semibold">{formatCurrency(interesPeriodoEstimado)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600">Abono a capital por periodo</p>
+                  <p className="text-lg font-semibold">{formatCurrency(abonoCapitalPeriodo)}</p>
+                </div>
+              </div>
+
+              {error && <p className="text-red-500 text-sm">{error}</p>}
+
+              <div className="flex justify-end gap-3">
+                <button
+                  className="px-4 py-2 bg-slate-200 rounded-xl"
+                  onClick={() => setShowAddPrestamoModal(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  disabled={!isFormReady()}
+                  className={`px-4 py-2 rounded-xl text-white ${
+                    isFormReady() ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-400 cursor-not-allowed'
+                  }`}
+                  onClick={() => setShowConfirmPrestamoModal(true)}
+                >
+                  Registrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmación de registro */}
+      {showConfirmPrestamoModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
+            <div className="p-6 text-center">
+              <h3 className="text-lg font-bold text-slate-900 mb-2">Confirmar registro</h3>
+              <p className="text-slate-700 mb-1">
+                ¿Desea registrar este préstamo por{' '}
+                <span className="font-semibold">{formatCurrency(newPrestamo.monto_solicitado)}</span>?
+              </p>
+              <div className="flex justify-center gap-3 mt-4">
+                <button
+                  className="px-5 py-2 bg-slate-200 rounded-xl"
+                  onClick={() => setShowConfirmPrestamoModal(false)}
+                  disabled={submitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className={`px-5 py-2 rounded-xl text-white ${
+                    submitting ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'
+                  }`}
+                  onClick={handleConfirmPrestamo}
+                  disabled={submitting}
+                >
+                  {submitting ? 'Guardando…' : 'Confirmar'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
