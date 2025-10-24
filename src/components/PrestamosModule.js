@@ -97,9 +97,9 @@ const PrestamosModule = ({ idSocio }) => {
         return sum + (isNaN(v) ? 0 : v);
       }, 0);
 
-      // 3) Sumar TODO lo pagado (monto_pagado) — suma bruta de pagos
+      // 3) Sumar TODO el capital pagado (capital_pagado) — ignorando intereses
       const pagosResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/pagos_prestamos?select=monto_pagado`,
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?select=capital_pagado`,
         { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!pagosResp.ok) {
@@ -107,13 +107,13 @@ const PrestamosModule = ({ idSocio }) => {
         throw new Error(`Error al cargar pagos: ${pagosResp.statusText} - ${errorData.message || 'Error desconocido'}`);
       }
       const pagos = await pagosResp.json();
-      const totalPagado = pagos.reduce((sum, p) => {
-        const v = parseFloat(p.monto_pagado);
+      const totalCapitalPagado = pagos.reduce((sum, p) => {
+        const v = parseFloat(p.capital_pagado);
         return sum + (isNaN(v) ? 0 : v);
       }, 0);
 
-      // 4) Pendiente = total prestado - total pagado (sin intereses)
-      const pendiente = Math.max(0, totalPrestado - totalPagado);
+      // 4) Pendiente = total prestado - total capital pagado
+      const pendiente = Math.max(0, totalPrestado - totalCapitalPagado);
       setTotalDineroPrestado(pendiente);
     } catch (err) {
       console.error("Error al cargar estadísticas globales de préstamo:", err);
@@ -496,7 +496,7 @@ const PrestamosModule = ({ idSocio }) => {
           `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&monto_pagado=gt.0&select=count`,
           { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', 'Range': '0-0', 'Range-Unit': 'items' } }
         );
-        const pagosRealizadosCount = parseInt(pagosRealizadosResponse.headers.get('content-range').split('/')[1], 10) || 0;
+        const pagosRealizadosCount = parseInt(pagosRealizadosResponse.headers.get('content-range').split('/)[1], 10) || 0;
 
         const fechaSolicitud = new Date(prestamo.fecha_solicitud);
         const now = new Date();
