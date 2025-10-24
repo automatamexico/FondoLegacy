@@ -9,8 +9,8 @@ const Dashboard = ({ idSocio }) => {
   const [totalPrestamosActivos, setTotalPrestamosActivos] = useState(0);
   const [totalAhorroAcumulado, setTotalAhorroAcumulado] = useState(0);
   const [pagosPendientesHoy, setPagosPendientesHoy] = useState(0);
-  const [proximosPagos, setProximosPagos] = useState(0); // Nuevo estado para próximos pagos
-  const [totalPrestadoNeto, setTotalPrestadoNeto] = useState(0); // 🔹 NUEVO: Total prestado (capital) menos capital pagado
+  const [proximosPagos, setProximosPagos] = useState(0);
+  const [totalPrestadoNeto, setTotalPrestadoNeto] = useState(0); // ⬅️ capital vivo (activo - capital pagado en esos préstamos)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -36,7 +36,7 @@ const Dashboard = ({ idSocio }) => {
       const sociosCount = parseInt(sociosRange.split('/')[1], 10) || 0;
       setTotalSocios(sociosCount);
 
-      // Total Préstamos Activos
+      // Total Préstamos Activos (conteo)
       const prestamosActivosResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?estatus=eq.activo&select=count`, {
         method: 'GET',
         headers: {
@@ -63,10 +63,10 @@ const Dashboard = ({ idSocio }) => {
       const totalAhorro = ahorroData.reduce((sum, item) => sum + (parseFloat(item.ahorro_aportado) || 0), 0);
       setTotalAhorroAcumulado(totalAhorro);
 
-      // Pagos Pendientes Hoy y Próximos Pagos
+      // Pagos pendientes hoy y próximos pagos
       const now = new Date();
       const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-      
+
       const tomorrow = new Date(now);
       tomorrow.setDate(now.getDate() + 1);
       const tomorrowStr = tomorrow.getFullYear() + '-' + String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + String(tomorrow.getDate()).padStart(2, '0');
@@ -75,7 +75,6 @@ const Dashboard = ({ idSocio }) => {
       dayAfterTomorrow.setDate(now.getDate() + 2);
       const dayAfterTomorrowStr = dayAfterTomorrow.getFullYear() + '-' + String(dayAfterTomorrow.getMonth() + 1).padStart(2, '0') + '-' + String(dayAfterTomorrow.getDate()).padStart(2, '0');
 
-      // Pagos pendientes del día
       const pendientesHoyResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_programada=eq.${today}&estatus=eq.pendiente&select=count`, {
         method: 'GET',
         headers: {
@@ -91,7 +90,6 @@ const Dashboard = ({ idSocio }) => {
       const countPendientesHoy = parseInt(pendientesHoyRange.split('/')[1], 10) || 0;
       setPagosPendientesHoy(countPendientesHoy);
 
-      // Próximos pagos (mañana y pasado mañana)
       const proximosPagosResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?or=(fecha_programada.eq.${tomorrowStr},fecha_programada.eq.${dayAfterTomorrowStr})&estatus=eq.pendiente&select=count`, {
         method: 'GET',
         headers: {
@@ -107,9 +105,9 @@ const Dashboard = ({ idSocio }) => {
       const countProximosPagos = parseInt(proximosRange.split('/')[1], 10) || 0;
       setProximosPagos(countProximosPagos);
 
-      // 🔹 NUEVO: Total prestado neto (solo capital)
-      // Σ(monto_solicitado) de prestamos
-      const sumPrestamosResp = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=monto_solicitado`, {
+      // ⬇️ TOTAL PRESTADO (CRITERIO DEL MÓDULO DE PRÉSTAMOS)
+      // 1) Traer préstamos activos (id y monto_solicitado)
+      const activosResp = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?estatus=eq.activo&select=id_prestamo,monto_solicitado`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -117,22 +115,36 @@ const Dashboard = ({ idSocio }) => {
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
         }
       });
-      const prestamosRows = await sumPrestamosResp.json();
-      const totalPrestado = prestamosRows.reduce((s, x) => s + (parseFloat(x.monto_solicitado) || 0), 0);
+      const activosRows = await activosResp.json();
+      const activosIds = activosRows.map(r => r.id_prestamo);
+      const sumaSolicitadaActivos = activosRows.reduce((s, r) => s + (parseFloat(r.monto_solicitado) || 0), 0);
 
-      // Σ(capital_pagado) de pagos_prestamos (ignorar nulls)
-      const sumCapitalResp = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?select=capital_pagado&capital_pagado=not.is.null`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      let sumaCapitalPagadoActivos = 0;
+      if (activosIds.length > 0) {
+        // 2) Sumar capital_pagado SOLO de esos préstamos activos
+        //    (en batches por si la lista es larga)
+        const chunkSize = 100;
+        for (let i = 0; i < activosIds.length; i += chunkSize) {
+          const chunk = activosIds.slice(i, i + chunkSize);
+          const idsList = chunk.join(',');
+          const pagosResp = await fetch(
+            `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=in.(${idsList})&capital_pagado=not.is.null&select=capital_pagado`,
+            {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+              }
+            }
+          );
+          const pagosRows = await pagosResp.json();
+          sumaCapitalPagadoActivos += pagosRows.reduce((s, r) => s + (parseFloat(r.capital_pagado) || 0), 0);
         }
-      });
-      const capitalRows = await sumCapitalResp.json();
-      const totalCapitalPagado = capitalRows.reduce((s, x) => s + (parseFloat(x.capital_pagado) || 0), 0);
+      }
 
-      setTotalPrestadoNeto(Math.max(0, totalPrestado - totalCapitalPagado));
+      // 3) Neto: monto solicitado (activos) - capital_pagado (de esos activos)
+      setTotalPrestadoNeto(Math.max(0, sumaSolicitadaActivos - sumaCapitalPagadoActivos));
     } catch (err) {
       console.error("Error al cargar estadísticas del dashboard:", err);
       setError(err.message);
@@ -142,7 +154,7 @@ const Dashboard = ({ idSocio }) => {
   };
 
   const formatCurrency = (value) => {
-    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
+    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
   };
 
   if (loading) {
@@ -158,12 +170,12 @@ const Dashboard = ({ idSocio }) => {
       <h2 className="text-2xl font-bold text-slate-900 mb-4">Tablero Principal</h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Tarjeta: Total de Socios */}
+        {/* Total de Socios */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             </div>
             <div>
@@ -173,7 +185,7 @@ const Dashboard = ({ idSocio }) => {
           </div>
         </div>
 
-        {/* Tarjeta: Préstamos Activos */}
+        {/* Préstamos Activos (conteo) */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
@@ -188,7 +200,7 @@ const Dashboard = ({ idSocio }) => {
           </div>
         </div>
 
-        {/* Tarjeta: Ahorro Acumulado */}
+        {/* Ahorro Acumulado */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
@@ -203,7 +215,7 @@ const Dashboard = ({ idSocio }) => {
           </div>
         </div>
 
-        {/* Tarjeta: Pagos Pendientes Hoy */}
+        {/* Pagos Pendientes Hoy */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
@@ -218,7 +230,7 @@ const Dashboard = ({ idSocio }) => {
           </div>
         </div>
 
-        {/* Nueva Tarjeta: Próximos Pagos */}
+        {/* Próximos Pagos */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
@@ -233,7 +245,7 @@ const Dashboard = ({ idSocio }) => {
           </div>
         </div>
 
-        {/* 🔹 NUEVA/ACTUALIZADA: Total prestado (capital neto) */}
+        {/* Total prestado (capital vivo) */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
