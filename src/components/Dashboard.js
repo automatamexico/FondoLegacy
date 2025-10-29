@@ -9,156 +9,120 @@ const Dashboard = ({ idSocio }) => {
   const [totalPrestamosActivos, setTotalPrestamosActivos] = useState(0);
   const [totalAhorroAcumulado, setTotalAhorroAcumulado] = useState(0);
   const [pagosPendientesHoy, setPagosPendientesHoy] = useState(0);
-  const [proximosPagos, setProximosPagos] = useState(0); // Nuevo estado para próximos pagos
-  const [totalPrestadoNeto, setTotalPrestadoNeto] = useState(0); // 🔹 NUEVO: Total prestado (capital) menos capital pagado
+  const [proximosPagos, setProximosPagos] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchDashboardStats();
-  }, []);
+  useEffect(() => { fetchDashboardStats(); }, []);
+
+  async function fetchJSON(url, extraHeaders = {}) {
+    const r = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Range: '0-999999',
+        ...extraHeaders
+      }
+    });
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    return r.json();
+  }
 
   const fetchDashboardStats = async () => {
     setLoading(true);
     setError(null);
     try {
       // Total Socios
-      const sociosResponse = await fetch(`${SUPABASE_URL}/rest/v1/socios?select=count`, {
-        method: 'GET',
+      const sociosRes = await fetch(`${SUPABASE_URL}/rest/v1/socios?select=count`, {
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Prefer': 'count=exact'
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'count=exact',
+          Range: '0-0',
+          'Range-Unit': 'items'
         }
       });
-      const sociosRange = sociosResponse.headers.get('content-range') || '0/0';
-      const sociosCount = parseInt(sociosRange.split('/')[1], 10) || 0;
+      const sociosCount = parseInt(sociosRes.headers.get('content-range').split('/')[1], 10);
       setTotalSocios(sociosCount);
 
-      // Total Préstamos Activos
-      const prestamosActivosResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?estatus=eq.activo&select=count`, {
-        method: 'GET',
+      // Préstamos Activos
+      const prestActRes = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?estatus=eq.activo&select=count`, {
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Prefer': 'count=exact'
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'count=exact',
+          Range: '0-0',
+          'Range-Unit': 'items'
         }
       });
-      const prestamosActivosRange = prestamosActivosResponse.headers.get('content-range') || '0/0';
-      const prestamosActivosCount = parseInt(prestamosActivosRange.split('/')[1], 10) || 0;
-      setTotalPrestamosActivos(prestamosActivosCount);
+      const prestAct = parseInt(prestActRes.headers.get('content-range').split('/')[1], 10);
+      setTotalPrestamosActivos(prestAct);
 
-      // Total Ahorro Acumulado
-      const ahorroResponse = await fetch(`${SUPABASE_URL}/rest/v1/ahorros?select=ahorro_aportado`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
-      });
-      const ahorroData = await ahorroResponse.json();
-      const totalAhorro = ahorroData.reduce((sum, item) => sum + (parseFloat(item.ahorro_aportado) || 0), 0);
-      setTotalAhorroAcumulado(totalAhorro);
+      // Ahorros acumulados = suma(>0) - suma(|<0|)
+      const pos = await fetchJSON(`${SUPABASE_URL}/rest/v1/ahorros?select=ahorro_aportado&ahorro_aportado=gt.0`);
+      const neg = await fetchJSON(`${SUPABASE_URL}/rest/v1/ahorros?select=ahorro_aportado&ahorro_aportado=lt.0`);
+      const sumaPos = pos.reduce((s, r) => s + (parseFloat(r.ahorro_aportado) || 0), 0);
+      const sumaNegAbs = neg.reduce((s, r) => {
+        const v = parseFloat(r.ahorro_aportado) || 0;
+        return s + (v < 0 ? Math.abs(v) : 0);
+      }, 0);
+      setTotalAhorroAcumulado(sumaPos - sumaNegAbs);
 
-      // Pagos Pendientes Hoy y Próximos Pagos
+      // Pagos pendientes hoy / próximos pagos (igual que antes)
       const now = new Date();
-      const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-      
-      const tomorrow = new Date(now);
-      tomorrow.setDate(now.getDate() + 1);
-      const tomorrowStr = tomorrow.getFullYear() + '-' + String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + String(tomorrow.getDate()).padStart(2, '0');
+      const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const t1 = new Date(now); t1.setDate(now.getDate()+1);
+      const t2 = new Date(now); t2.setDate(now.getDate()+2);
+      const d1 = `${t1.getFullYear()}-${String(t1.getMonth()+1).padStart(2,'0')}-${String(t1.getDate()).padStart(2,'0')}`;
+      const d2 = `${t2.getFullYear()}-${String(t2.getMonth()+1).padStart(2,'0')}-${String(t2.getDate()).padStart(2,'0')}`;
 
-      const dayAfterTomorrow = new Date(now);
-      dayAfterTomorrow.setDate(now.getDate() + 2);
-      const dayAfterTomorrowStr = dayAfterTomorrow.getFullYear() + '-' + String(dayAfterTomorrow.getMonth() + 1).padStart(2, '0') + '-' + String(dayAfterTomorrow.getDate()).padStart(2, '0');
-
-      // Pagos pendientes del día
-      const pendientesHoyResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_programada=eq.${today}&estatus=eq.pendiente&select=count`, {
-        method: 'GET',
+      const pendHoyRes = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_programada=eq.${today}&estatus=eq.pendiente&select=count`, {
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Prefer': 'count=exact',
-          'Range': '0-0',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'count=exact',
+          Range: '0-0',
           'Range-Unit': 'items'
         }
       });
-      const pendientesHoyRange = pendientesHoyResponse.headers.get('content-range') || '0/0';
-      const countPendientesHoy = parseInt(pendientesHoyRange.split('/')[1], 10) || 0;
-      setPagosPendientesHoy(countPendientesHoy);
+      const pendientesHoy = parseInt(pendHoyRes.headers.get('content-range').split('/')[1], 10) || 0;
+      setPagosPendientesHoy(pendientesHoy);
 
-      // Próximos pagos (mañana y pasado mañana)
-      const proximosPagosResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?or=(fecha_programada.eq.${tomorrowStr},fecha_programada.eq.${dayAfterTomorrowStr})&estatus=eq.pendiente&select=count`, {
-        method: 'GET',
+      const proxRes = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?or=(fecha_programada.eq.${d1},fecha_programada.eq.${d2})&estatus=eq.pendiente&select=count`, {
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Prefer': 'count=exact',
-          'Range': '0-0',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'count=exact',
+          Range: '0-0',
           'Range-Unit': 'items'
         }
       });
-      const proximosRange = proximosPagosResponse.headers.get('content-range') || '0/0';
-      const countProximosPagos = parseInt(proximosRange.split('/')[1], 10) || 0;
-      setProximosPagos(countProximosPagos);
+      const prox = parseInt(proxRes.headers.get('content-range').split('/')[1], 10) || 0;
+      setProximosPagos(prox);
 
-      // 🔹 NUEVO: Total prestado neto (solo capital)
-      // Σ(monto_solicitado) de prestamos
-      const sumPrestamosResp = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=monto_solicitado`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
-      });
-      const prestamosRows = await sumPrestamosResp.json();
-      const totalPrestado = prestamosRows.reduce((s, x) => s + (parseFloat(x.monto_solicitado) || 0), 0);
-
-      // Σ(capital_pagado) de pagos_prestamos (ignorar nulls)
-      const sumCapitalResp = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?select=capital_pagado&capital_pagado=not.is.null`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
-      });
-      const capitalRows = await sumCapitalResp.json();
-      const totalCapitalPagado = capitalRows.reduce((s, x) => s + (parseFloat(x.capital_pagado) || 0), 0);
-
-      setTotalPrestadoNeto(Math.max(0, totalPrestado - totalCapitalPagado));
     } catch (err) {
-      console.error("Error al cargar estadísticas del dashboard:", err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
-  };
+  const formatCurrency = (v) =>
+    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(v || 0);
 
-  if (loading) {
-    return <div className="p-6 text-center text-slate-600">Cargando tablero...</div>;
-  }
-
-  if (error) {
-    return <div className="p-6 text-center text-red-500">Error: {error}</div>;
-  }
+  if (loading) return <div className="p-6 text-center text-slate-600">Cargando tablero...</div>;
+  if (error) return <div className="p-6 text-center text-red-500">Error: {error}</div>;
 
   return (
     <div className="p-6 space-y-6">
       <h2 className="text-2xl font-bold text-slate-900 mb-4">Tablero Principal</h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Tarjeta: Total de Socios */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
@@ -173,22 +137,6 @@ const Dashboard = ({ idSocio }) => {
           </div>
         </div>
 
-        {/* Tarjeta: Préstamos Activos */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
-              <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-900">Préstamos Activos</h3>
-              <p className="text-2xl font-bold text-orange-600">{totalPrestamosActivos.toLocaleString()}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Tarjeta: Ahorro Acumulado */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
@@ -203,7 +151,20 @@ const Dashboard = ({ idSocio }) => {
           </div>
         </div>
 
-        {/* Tarjeta: Pagos Pendientes Hoy */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900">Préstamos Activos</h3>
+              <p className="text-2xl font-bold text-orange-600">{totalPrestamosActivos.toLocaleString()}</p>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
@@ -218,7 +179,6 @@ const Dashboard = ({ idSocio }) => {
           </div>
         </div>
 
-        {/* Nueva Tarjeta: Próximos Pagos */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
@@ -232,22 +192,6 @@ const Dashboard = ({ idSocio }) => {
             </div>
           </div>
         </div>
-
-        {/* 🔹 NUEVA/ACTUALIZADA: Total prestado (capital neto) */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-900">Total prestado</h3>
-              <p className="text-2xl font-bold text-purple-600">{formatCurrency(totalPrestadoNeto)}</p>
-            </div>
-          </div>
-        </div>
-
       </div>
     </div>
   );
