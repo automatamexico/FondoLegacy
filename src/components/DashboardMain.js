@@ -8,7 +8,7 @@ const DashboardMain = () => {
     totalSocios: 0,
     ahorrosAcumulados: 0,
     prestamosActivos: 0,
-    montoTotalPrestado: 0, // solicitado - capital_pagado
+    montoTotalPrestado: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,106 +17,45 @@ const DashboardMain = () => {
     fetchDashboardData();
   }, []);
 
+  async function fetchJSON(url, extraHeaders = {}) {
+    const r = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Range: '0-999999',
+        ...extraHeaders,
+      },
+    });
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    return r.json();
+  }
+
   const fetchDashboardData = async () => {
     setLoading(true);
     setError(null);
     try {
-      // 1) Total de socios
-      const sociosResponse = await fetch(`${SUPABASE_URL}/rest/v1/socios?select=*`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          Range: '0-999999',
-        },
-      });
-      if (!sociosResponse.ok) {
-        const errorData = await sociosResponse.json();
-        throw new Error(`Error al cargar socios: ${sociosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
-      }
-      const sociosData = await sociosResponse.json();
-      const totalSocios = sociosData.length;
+      // 1) Total socios
+      const socios = await fetchJSON(`${SUPABASE_URL}/rest/v1/socios?select=id_socio`);
+      const totalSocios = socios.length;
 
-      // 2) Ahorros acumulados = suma(positivos) - suma(|negativos|)
-      const ahorrosPosRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/ahorros?select=ahorro_aportado&ahorro_aportado=gt.0`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            Range: '0-999999',
-          },
-        }
-      );
-      if (!ahorrosPosRes.ok) {
-        const err = await ahorrosPosRes.json();
-        throw new Error(`Error al cargar ahorros positivos: ${ahorrosPosRes.statusText} - ${err.message || 'Error desconocido'}`);
-      }
-      const ahorrosPos = await ahorrosPosRes.json();
-      const sumaPositivos = ahorrosPos.reduce((s, r) => s + (parseFloat(r.ahorro_aportado) || 0), 0);
-
-      const ahorrosNegRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/ahorros?select=ahorro_aportado&ahorro_aportado=lt.0`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            Range: '0-999999',
-          },
-        }
-      );
-      if (!ahorrosNegRes.ok) {
-        const err = await ahorrosNegRes.json();
-        throw new Error(`Error al cargar ahorros negativos: ${ahorrosNegRes.statusText} - ${err.message || 'Error desconocido'}`);
-      }
-      const ahorrosNeg = await ahorrosNegRes.json();
-      const sumaNegativosAbs = ahorrosNeg.reduce((s, r) => {
+      // 2) Ahorros acumulados = suma(>0) - suma(|<0|)
+      const pos = await fetchJSON(`${SUPABASE_URL}/rest/v1/ahorros?select=ahorro_aportado&ahorro_aportado=gt.0`);
+      const neg = await fetchJSON(`${SUPABASE_URL}/rest/v1/ahorros?select=ahorro_aportado&ahorro_aportado=lt.0`);
+      const sumaPos = pos.reduce((s, r) => s + (parseFloat(r.ahorro_aportado) || 0), 0);
+      const sumaNegAbs = neg.reduce((s, r) => {
         const v = parseFloat(r.ahorro_aportado) || 0;
         return s + (v < 0 ? Math.abs(v) : 0);
       }, 0);
+      const ahorrosAcumulados = sumaPos - sumaNegAbs;
 
-      const ahorrosAcumulados = sumaPositivos - sumaNegativosAbs;
+      // 3) Préstamos activos y total prestado neto (solicitado - capital_pagado)
+      const prestamos = await fetchJSON(`${SUPABASE_URL}/rest/v1/prestamos?select=estatus,monto_solicitado`);
+      const prestamosActivos = prestamos.filter(p => p.estatus === 'activo').length;
+      const totalSolicitado = prestamos.reduce((s, p) => s + (parseFloat(p.monto_solicitado) || 0), 0);
 
-      // 3) Préstamos activos y total solicitado
-      const prestamosResponse = await fetch(`${SUPABASE_URL}/rest/v1/prestamos?select=estatus,monto_solicitado`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          Range: '0-999999',
-        },
-      });
-      if (!prestamosResponse.ok) {
-        const errorData = await prestamosResponse.json();
-        throw new Error(`Error al cargar préstamos: ${prestamosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
-      }
-      const prestamosData = await prestamosResponse.json();
-      const prestamosActivos = prestamosData.filter((p) => p.estatus === 'activo').length;
-      const totalSolicitado = prestamosData.reduce((sum, p) => sum + (parseFloat(p.monto_solicitado) || 0), 0);
-
-      // 4) Capital pagado (para "Total prestado" neto)
-      const pagosResponse = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos?select=capital_pagado`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          Range: '0-999999',
-        },
-      });
-      if (!pagosResponse.ok) {
-        const errorData = await pagosResponse.json();
-        throw new Error(`Error al cargar pagos de préstamos: ${pagosResponse.statusText} - ${errorData.message || 'Error desconocido'}`);
-      }
-      const pagosData = await pagosResponse.json();
-      const totalCapitalPagado = pagosData.reduce((sum, r) => sum + (parseFloat(r.capital_pagado) || 0), 0);
-
+      const pagos = await fetchJSON(`${SUPABASE_URL}/rest/v1/pagos_prestamos?select=capital_pagado`);
+      const totalCapitalPagado = pagos.reduce((s, r) => s + (parseFloat(r.capital_pagado) || 0), 0);
       const montoTotalPrestado = Math.max(0, totalSolicitado - totalCapitalPagado);
 
       setStats({
@@ -125,16 +64,15 @@ const DashboardMain = () => {
         prestamosActivos,
         montoTotalPrestado,
       });
-    } catch (err) {
-      console.error('Error en fetchDashboardData:', err);
-      setError(err.message);
+    } catch (e) {
+      setError(e.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const formatCurrency = (value) =>
-    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
+  const formatCurrency = (v) =>
+    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(v || 0);
 
   const dashboardCards = [
     {
@@ -187,6 +125,7 @@ const DashboardMain = () => {
     <div className="p-6 space-y-8 bg-slate-50 min-h-full">
       <div className="text-center">
         <h1 className="text-4xl font-extrabold text-slate-900 mb-2">Panel de Control Financiero</h1>
+        <p className="text-xl text-slate-600">Resumen ejecutivo de tus operaciones</p>
       </div>
 
       {loading && (
@@ -197,22 +136,18 @@ const DashboardMain = () => {
       )}
 
       {error && !loading && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl relative" role="alert">
-          <strong className="font-bold">¡Error al cargar!</strong>
-          <span className="block sm:inline"> {error}. Verifica conexión a Supabase y permisos.</span>
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl" role="alert">
+          <strong className="font-bold">¡Error!</strong> <span className="sm:inline"> {error}</span>
         </div>
       )}
 
       {!loading && !error && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {dashboardCards.map((card, index) => (
-            <div
-              key={index}
-              className={`relative ${card.bgColor} rounded-2xl shadow-lg p-6 transform transition-all duration-300 hover:scale-105 hover:shadow-xl`}
-            >
+          {dashboardCards.map((card, i) => (
+            <div key={i} className={`relative ${card.bgColor} rounded-2xl shadow-lg p-6 hover:scale-105 hover:shadow-xl transition`}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`text-lg font-semibold ${card.textColor}`}>{card.title}</h3>
-                <div className="p-2 rounded-full bg-white bg-opacity-30">{card.icon}</div>
+                <div className="p-2 rounded-full bg-white/30">{card.icon}</div>
               </div>
               <p className={`text-4xl font-bold ${card.textColor}`}>{card.value}</p>
             </div>
