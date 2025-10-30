@@ -1,561 +1,277 @@
-// src/components/PagosModule.js
+// src/components/MultasRenovacionesModule.js
 import React, { useEffect, useMemo, useState } from 'react';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
+// Utilidades
 function fmtMoney(n) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(n || 0));
 }
-function toDateInput(d) {
+function ymd(d) {
   if (!d) return '';
-  const dt = new Date(d);
-  const y = dt.getFullYear();
-  const m = String(dt.getMonth() + 1).padStart(2, '0');
-  const day = String(dt.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  const Y = d.getFullYear();
+  const M = String(d.getMonth()+1).padStart(2,'0');
+  const D = String(d.getDate()).padStart(2,'0');
+  return `${Y}-${M}-${D}`;
 }
-// Genera 'YYYY-MM-DDTHH:MM:SS' en HORA LOCAL (sin 'Z' ni zona)
-function localPlainDateTime() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const M = String(d.getMonth() + 1).padStart(2, '0');
-  const D = String(d.getDate()).padStart(2, '0');
-  const h = String(d.getHours()).padStart(2, '0');
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const s = String(d.getSeconds()).padStart(2, '0');
-  return `${y}-${M}-${D}T${h}:${m}:${s}`;
+function addYears(date, n) {
+  const d = new Date(date);
+  d.setFullYear(d.getFullYear() + n);
+  return d;
 }
-const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+function subDays(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() - n);
+  return d;
+}
 function fmtLongDate(s) {
   if (!s) return '';
-  let d;
-  if (typeof s === 'string' && s.length <= 10) d = new Date(`${s}T00:00:00`);
-  else d = new Date(s);
-  const dd = String(d.getDate()).padStart(2,'0');
-  const mname = MONTHS[d.getMonth()];
-  const yyyy = d.getFullYear();
-  return `${dd}/${mname}/${yyyy}`;
-}
-function fmt12h(isoOrLocal) {
-  if (!isoOrLocal) return '';
-  const dt = new Date(isoOrLocal);
-  return dt.toLocaleString('es-MX', {
-    hour: 'numeric', minute: '2-digit', hour12: true,
-    year: 'numeric', month: '2-digit', day: '2-digit'
-  });
+  const d = new Date(s);
+  return d.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: '2-digit' });
 }
 
-const PagosModule = ({ idSocio }) => {
-  // ---------- TARJETAS (SIN CAMBIOS) ----------
-  const [loading, setLoading] = useState(true);
-  const [dashError, setDashError] = useState(null);
+const MultasRenovacionesModule = () => {
+  // ---- Tarjetas
+  const [proximasRenovaciones, setProximasRenovaciones] = useState([]); // listado que se abre en modal
+  const [acumAfiliaciones, setAcumAfiliaciones] = useState(0);          // suma de pago_afiliaciones.monto_afiliacion_papeleria
+  const [acumMultasHoja, setAcumMultasHoja] = useState(0);              // NUEVO: suma de pago_multas.monto_multa_hoja
+  const [acumMoras, setAcumMoras] = useState(0);                        // placeholder si ya lo usas en otro lado
 
-  const [pendientesHoy, setPendientesHoy] = useState(0);
-  const [proximos, setProximos] = useState(0);
-  const [recibidosHoyCount, setRecibidosHoyCount] = useState(0);
-  const [recibidosHoyMonto, setRecibidosHoyMonto] = useState(0);
-  const [vencidos, setVencidos] = useState(0);
+  // ---- Modal de “Próximas Renovaciones”
+  const [showRenovacionesModal, setShowRenovacionesModal] = useState(false);
+  const [renovSel, setRenovSel] = useState(null); // socio seleccionado para renovar
+  const [showRenovarModal, setShowRenovarModal] = useState(false);
+  const [montoAfiliacion, setMontoAfiliacion] = useState('');
 
+  // Carga de tarjetas (sin tocar tu lógica previa, solo asegurando los 3 cálculos)
   useEffect(() => {
     (async () => {
       try {
-        const now = new Date();
-        const hoy = toDateInput(now);
-        const d1 = toDateInput(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
-        const d2 = toDateInput(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2));
-        const d3 = toDateInput(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3));
+        // 1) Próximas renovaciones (basado en socios.miembro_desde, mostrar 30 días antes del aniversario del siguiente año, y excluir si ya está pagada en pago_afiliaciones)
+        const rSoc = await fetch(`${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno,miembro_desde,estatus`, {
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+        });
+        const socios = await rSoc.json();
 
-        const r1 = await fetch(
-          `${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_programada=eq.${hoy}&estatus=eq.pendiente&select=id_pago`,
-          { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', 'Range-Unit': 'items', Range: '0-0' } }
-        );
-        const c1 = parseInt(r1.headers.get('content-range')?.split('/')?.[1] || '0', 10);
-        setPendientesHoy(c1);
+        const rAf = await fetch(`${SUPABASE_URL}/rest/v1/pago_afiliaciones?select=id_socio,fecha_hora,estatus`, {
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+        });
+        const pagosAf = await rAf.json();
 
-        const r2 = await fetch(
-          `${SUPABASE_URL}/rest/v1/pagos_prestamos?or=(fecha_programada.eq.${d1},fecha_programada.eq.${d2},fecha_programada.eq.${d3})&estatus=eq.pendiente&select=id_pago`,
-          { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', 'Range-Unit': 'items', Range: '0-0' } }
-        );
-        const c2 = parseInt(r2.headers.get('content-range')?.split('/')?.[1] || '0', 10);
-        setProximos(c2);
+        const hoy = new Date();
 
-        const r3 = await fetch(
-          `${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_pago=eq.${hoy}&select=monto_pagado`,
-          { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
-        );
-        const data3 = await r3.json();
-        setRecibidosHoyCount(data3.length);
-        setRecibidosHoyMonto(data3.reduce((s, x) => s + Number(x.monto_pagado || 0), 0));
+        const pendientes = (socios || [])
+          .filter(s => s.estatus !== false && s.miembro_desde) // activos y con fecha
+          .map(s => {
+            const base = new Date(s.miembro_desde);            // fecha de inicio
+            // siguiente aniversario (un año después del último aniversario que haya pasado o esté por venir)
+            let nextAnniv = addYears(base, hoy.getFullYear() - base.getFullYear());
+            if (nextAnniv < hoy) nextAnniv = addYears(nextAnniv, 1);
+            // fecha en la que aparece (30 días antes)
+            const apareceDesde = subDays(nextAnniv, 30);
 
-        const r4 = await fetch(
-          `${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_programada=lt.${hoy}&estatus=eq.pendiente&select=id_pago`,
-          { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', 'Range-Unit': 'items', Range: '0-0' } }
-        );
-        const c4 = parseInt(r4.headers.get('content-range')?.split('/')?.[1] || '0', 10);
-        setVencidos(c4);
+            // ¿ya hay afiliación pagada este ciclo? Consideramos pagado si existe un registro con estatus 'AFILIACION PAGADA'
+            const pagoHecho = (pagosAf || []).some(p => p.id_socio === s.id_socio && String(p.estatus || '').toUpperCase() === 'AFILIACION PAGADA');
 
-        setDashError(null);
+            return {
+              ...s,
+              nextAnniv,
+              apareceDesde,
+              pagoHecho
+            };
+          })
+          .filter(row => hoy >= row.apareceDesde && !row.pagoHecho) // visibles y sin pago
+          .sort((a,b) => a.nextAnniv - b.nextAnniv);
+
+        setProximasRenovaciones(pendientes);
+
+        // 2) Acumulado de Afiliaciones (suma monto_afiliacion_papeleria)
+        try {
+          const rSumAf = await fetch(`${SUPABASE_URL}/rest/v1/pago_afiliaciones?select=monto_afiliacion_papeleria`, {
+            headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+          });
+          const dataAf = await rSumAf.json();
+          const totalAf = (dataAf || []).reduce((acc, it) => acc + Number(it.monto_afiliacion_papeleria || 0), 0);
+          setAcumAfiliaciones(totalAf);
+        } catch {
+          setAcumAfiliaciones(0);
+        }
+
+        // 3) NUEVO: Acumulado de Multas por Hoja (suma pago_multas.monto_multa_hoja)
+        try {
+          const rMultas = await fetch(`${SUPABASE_URL}/rest/v1/pago_multas?select=monto_multa_hoja`, {
+            headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+          });
+          const dataMultas = await rMultas.json();
+          const totalMultas = (dataMultas || []).reduce((acc, it) => acc + Number(it.monto_multa_hoja || 0), 0);
+          setAcumMultasHoja(totalMultas);
+        } catch {
+          setAcumMultasHoja(0);
+        }
+
+        // 4) Acumulado de moras (si ya lo calculas en otro lado puedes reemplazar; aquí lo dejamos como está)
+        // setAcumMoras(0); // no modificado
       } catch (e) {
-        setDashError('No se pudieron cargar las métricas.');
-      } finally {
-        setLoading(false);
+        // manejo silencioso, no cambiamos nada más
       }
     })();
   }, []);
 
-  // ---------- BUSCAR SOCIO (solo input) + flujo ver préstamos / pago ----------
-  const [buscarSocioTerm, setBuscarSocioTerm] = useState('');
-  const [sugSocios, setSugSocios] = useState([]);
-  const [socioSel, setSocioSel] = useState(null);
+  // Abrir listado de próximas renovaciones (modal) al dar clic en la tarjeta
+  const abrirModalRenovaciones = () => setShowRenovacionesModal(true);
+  const cerrarModalRenovaciones = () => setShowRenovacionesModal(false);
 
-  const [prestamosSocio, setPrestamosSocio] = useState([]);
-  const [prestamoSel, setPrestamoSel] = useState(null);
+  // Abrir modal para renovar un socio seleccionado
+  const abrirRenovar = (socio) => {
+    setRenovSel(socio);
+    setMontoAfiliacion('');
+    setShowRenovarModal(true);
+  };
+  const cerrarRenovar = () => {
+    setShowRenovarModal(false);
+    setRenovSel(null);
+  };
 
-  // Modal de pagos programados del préstamo
-  const [showPagoModal, setShowPagoModal] = useState(false);
-  const [pagosProgramados, setPagosProgramados] = useState([]);
-  const [prestamoMeta, setPrestamoMeta] = useState(null); // {monto_solicitado, numero_plazos, interes}
-
-  // Sub-modal: ingresar monto / forma de pago / nota  (+ multa por hoja)
-  const [showMontoModal, setShowMontoModal] = useState(false);
-  const [pagoTarget, setPagoTarget] = useState(null);
-  const [montoIngresado, setMontoIngresado] = useState('');
-  const [formaPago, setFormaPago] = useState(''); // 'Efectivo' | 'Transferencia'
-  const [formaPagoError, setFormaPagoError] = useState('');
-
-  // NUEVO: Multa por hoja
-  const [multaHoja, setMultaHoja] = useState('no'); // 'si' | 'no'
-  const [montoMultaHoja, setMontoMultaHoja] = useState('');
-
-  // Nota
-  const [nota, setNota] = useState('');
-
-  // Confirmación final
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  // Modal ver nota
-  const [showNotaModal, setShowNotaModal] = useState(false);
-  const [notaTexto, setNotaTexto] = useState('');
-
-  // Sugerencias de socios
-  useEffect(() => {
-    const run = async () => {
-      const t = buscarSocioTerm.trim().toLowerCase();
-      if (!t) { setSugSocios([]); return; }
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno`,
-        { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } });
-      const data = await r.json();
-      const fil = data.filter(s =>
-        String(s.id_socio).includes(t) ||
-        `${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`.toLowerCase().includes(t)
-      ).slice(0, 20);
-      setSugSocios(fil);
-    };
-    run();
-  }, [buscarSocioTerm]);
-
-  // === NUEVO: cálculo de "Préstamo Liquidado" (misma lógica del módulo Préstamos) ===
-  const isPrestamoLiquidado = async (id_prestamo) => {
+  // Aplicar renovación → inserta en pago_afiliaciones con estatus AFILIACION PAGADA
+  const aplicarRenovacion = async () => {
+    if (!(Number(montoAfiliacion) > 0) || !renovSel?.id_socio) return;
     try {
-      const totalResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${id_prestamo}&select=count`,
-        { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', 'Range-Unit': 'items', Range: '0-0' } }
-      );
-      const totalRange = totalResp.headers.get('content-range') || '0/0';
-      const total = parseInt(totalRange.split('/')[1], 10) || 0;
-
-      const pagadosResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${id_prestamo}&estatus=eq.pagado&select=count`,
-        { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', 'Range-Unit': 'items', Range: '0-0' } }
-      );
-      const pagadosRange = pagadosResp.headers.get('content-range') || '0/0';
-      const pagados = parseInt(pagadosRange.split('/')[1], 10) || 0;
-
-      return total > 0 && pagados === total;
-    } catch {
-      return false;
-    }
-  };
-
-  const verPrestamos = async () => {
-    if (!socioSel) return;
-    const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioSel.id_socio}&select=id_prestamo,monto_solicitado,numero_plazos,interes,tipo_plazo,estatus`,
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
-    );
-    const data = await r.json();
-
-    const enriched = await Promise.all(
-      (data || []).map(async (p) => {
-        const liquid = await isPrestamoLiquidado(p.id_prestamo);
-        return { ...p, isLiquidado: liquid || (String(p.estatus || '').toUpperCase() === 'LIQUIDADO') };
-      })
-    );
-
-    setPrestamosSocio(enriched);
-    setPrestamoSel(null);
-  };
-
-  const abrirRealizarPago = async () => {
-    if (!prestamoSel) return;
-    const [rp, rmeta] = await Promise.all([
-      fetch(
-        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamoSel.id_prestamo}&select=id_pago,numero_pago,fecha_programada,monto_pago,fecha_pago,fecha_hora_pago,monto_pagado,interes_pagado,capital_pagado,estatus,forma_pago,nota&order=numero_pago.asc`,
-        { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
-      ),
-      fetch(
-        `${SUPABASE_URL}/rest/v1/prestamos?id_prestamo=eq.${prestamoSel.id_prestamo}&select=monto_solicitado,numero_plazos,interes`,
-        { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
-      )
-    ]);
-    const pagos = await rp.json();
-    const metaArr = await rmeta.json();
-    const meta = metaArr?.[0] || null;
-
-    setPrestamoMeta(meta);
-    setPagosProgramados(pagos);
-    setShowPagoModal(true);
-  };
-
-  const onClickRealizarPagoFila = (p) => {
-    setPagoTarget(p);
-    setMontoIngresado(p.monto_pago || '');
-    setFormaPago('');
-    setFormaPagoError('');
-    setNota('');
-    // Inicializar NUEVO estado de multa
-    setMultaHoja('no');
-    setMontoMultaHoja('');
-    setShowMontoModal(true);
-  };
-
-  const aplicarPago = () => {
-    if (!montoIngresado || Number(montoIngresado) <= 0) {
-      alert('Indique un monto válido.');
-      return;
-    }
-    if (!formaPago) {
-      setFormaPagoError('debe seleccionar su forma de pago');
-      return;
-    }
-    // Validación NUEVA: si multaHoja = 'si', se requiere monto de multa > 0
-    if (multaHoja === 'si' && !(Number(montoMultaHoja) > 0)) {
-      alert('Indique el monto de la multa por hoja.');
-      return;
-    }
-    setShowConfirm(true);
-  };
-
-  // Guardar pago (sin parciales: siempre estatus = "pagado")
-  const confirmarAplicacionPago = async () => {
-    if (!pagoTarget || !prestamoMeta) return;
-    setSaving(true);
-    try {
-      const monto = Number(montoIngresado);
-
-      // Calcula interés/capital
-      const capitalEstimado = Number(prestamoMeta.monto_solicitado) / Number(prestamoMeta.numero_plazos || 1);
-      const interesEstimado = Number(prestamoMeta.monto_solicitado) * (Number(prestamoMeta.interes) / 100);
-      const interes_pagado = Math.min(monto, interesEstimado);
-      const capital_pagado = Math.max(monto - interes_pagado, 0);
-
-      // Fecha/hora local sin 'Z'
-      const nowLocalPlain = localPlainDateTime();
-      const soloFecha = nowLocalPlain.slice(0, 10);
+      const now = new Date();
+      const fecha_hora = `${ymd(now)}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
 
       const body = {
-        fecha_pago: soloFecha,
-        fecha_hora_pago: nowLocalPlain,
-        estatus: 'pagado',
-        monto_pagado: monto,
-        interes_pagado,
-        capital_pagado,
-        forma_pago: formaPago,
-        nota: (nota || '').trim() || null
+        id_socio: renovSel.id_socio,
+        monto_afiliacion_papeleria: Number(montoAfiliacion),
+        fecha_hora,
+        estatus: 'AFILIACION PAGADA'
       };
 
-      const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_pago=eq.${pagoTarget.id_pago}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`
-          },
-          body: JSON.stringify(body)
-        }
-      );
-      if (!r.ok) throw new Error('No se pudo registrar el pago');
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/pago_afiliaciones`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=representation'
+        },
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) throw new Error('No se pudo registrar la afiliación');
 
-      // NUEVO: si seleccionó "Multa por hoja = Sí", registrar en pago_multas
-      if (multaHoja === 'si' && Number(montoMultaHoja) > 0 && socioSel?.id_socio) {
-        try {
-          const multaBody = {
-            id_socio: socioSel.id_socio,
-            multa_hoja: true,
-            monto_multa_hoja: Number(montoMultaHoja),
-            fecha_hora: nowLocalPlain
-          };
-          const rMulta = await fetch(`${SUPABASE_URL}/rest/v1/pago_multas`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-              Prefer: 'return=representation'
-            },
-            body: JSON.stringify(multaBody)
-          });
-          // Si falla, no bloquea el flujo de pago de préstamo
-          if (!rMulta.ok) {
-            console.warn('No se pudo registrar la multa por hoja.');
-          }
-        } catch (e) {
-          console.warn('Error registrando multa por hoja:', e?.message || e);
-        }
-      }
+      // Refrescar tarjetas mínimas relacionadas
+      setAcumAfiliaciones(prev => prev + Number(montoAfiliacion || 0));
+      // Sacar al socio del listado de pendientes
+      setProximasRenovaciones(prev => prev.filter(s => s.id_socio !== renovSel.id_socio));
 
-      // Refrescar lista del modal
-      await abrirRealizarPago();
-
-      // Cerrar sub-modales y limpiar
-      setShowConfirm(false);
-      setShowMontoModal(false);
-      setPagoTarget(null);
-      setMontoIngresado('');
-      setFormaPago('');
-      setNota('');
-      setMultaHoja('no');
-      setMontoMultaHoja('');
+      cerrarRenovar();
     } catch (e) {
-      alert('No se pudo registrar el pago.');
-    } finally {
-      setSaving(false);
+      alert('No se pudo renovar la afiliación.');
     }
   };
-
-  // ---------- RENDER ----------
-  const pagPend = useMemo(() => pagosProgramados, [pagosProgramados]); // (se renderiza completo aquí)
 
   return (
     <div className="p-6 space-y-6">
-      {/* Encabezado y tarjetas (SIN CAMBIOS) */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Pagos</h2>
-          <p className="text-slate-600">Consulta el detalle de pago de los socios</p>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Multas y Renovaciones</h2>
+          <p className="text-slate-600">Control de afiliaciones, multas y renovaciones</p>
         </div>
-        <button
-          onClick={() => {}}
-          className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
-        >
-          Realizar pago
-        </button>
       </div>
 
+      {/* Tarjetas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Próximas Renovaciones (abre modal con listado) */}
+        <button
+          onClick={abrirModalRenovaciones}
+          className="text-left bg-white rounded-2xl border border-slate-200 p-6 hover:shadow transition"
+        >
+          <div className="flex items-center space-x-3 mb-2">
+            <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+              <span className="text-blue-600">📆</span>
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900">Próximas Renovaciones</h3>
+              <p className="text-2xl font-bold text-blue-600">{proximasRenovaciones.length}</p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500">Click para ver el detalle</p>
+        </button>
+
+        {/* Acumulado de Afiliaciones */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-2">
-            <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center"><span className="text-red-600">⏲️</span></div>
+            <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+              <span className="text-emerald-600">💳</span>
+            </div>
             <div>
-              <h3 className="font-semibold text-slate-900">Pendientes del día</h3>
-              <p className="text-2xl font-bold text-red-600">{pendientesHoy}</p>
-              {dashError && <p className="text-xs text-red-500">{dashError}</p>}
+              <h3 className="font-semibold text-slate-900">Acumulado de Afiliaciones</h3>
+              <p className="text-2xl font-bold text-emerald-600">{fmtMoney(acumAfiliaciones)}</p>
             </div>
           </div>
         </div>
 
+        {/* Acumulado de multas por hoja (NUEVO cálculo mostrado) */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-2">
-            <div className="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center"><span className="text-yellow-600">📅</span></div>
+            <div className="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center">
+              <span className="text-rose-600">📄</span>
+            </div>
             <div>
-              <h3 className="font-semibold text-slate-900">Próximos pagos</h3>
-              <p className="text-2xl font-bold text-yellow-600">{proximos}</p>
+              <h3 className="font-semibold text-slate-900">Acumulado de multas por hoja</h3>
+              <p className="text-2xl font-bold text-rose-600">{fmtMoney(acumMultasHoja)}</p>
             </div>
           </div>
         </div>
 
+        {/* Acumulado de moras (sin cambios) */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-2">
-            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center"><span className="text-green-600">💵</span></div>
-            <div>
-              <h3 className="font-semibold text-slate-900">Total recibido hoy</h3>
-              <p className="text-2xl font-bold text-green-600">{fmtMoney(recibidosHoyMonto)}</p>
-              <p className="text-sm text-slate-600">{recibidosHoyCount} pagos</p>
+            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+              <span className="text-purple-600">⏰</span>
             </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <div className="flex items-center space-x-3 mb-2">
-            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center"><span className="text-purple-600">⏰</span></div>
             <div>
-              <h3 className="font-semibold text-slate-900">Pagos vencidos</h3>
-              <p className="text-2xl font-bold text-purple-600">{vencidos}</p>
+              <h3 className="font-semibold text-slate-900">Acumulado de moras</h3>
+              <p className="text-2xl font-bold text-purple-600">{fmtMoney(acumMoras)}</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* === BUSCAR SOCIO (solo input + flujo Prestamos/Pago) === */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-3">Buscar Socio</h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-1 gap-3 items-center">
-          <input
-            type="text"
-            className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl"
-            placeholder="ID o Nombre completo…"
-            value={buscarSocioTerm}
-            onChange={(e) => { setBuscarSocioTerm(e.target.value); setSocioSel(null); setPrestamosSocio([]); setPrestamoSel(null); }}
-          />
-        </div>
-
-        {sugSocios.length > 0 && (
-          <div className="mt-3 space-y-2">
-            {sugSocios.map(s => (
-              <div key={s.id_socio} className="p-2 bg-slate-50 rounded-lg flex justify-between">
-                <span>ID: {s.id_socio} — {s.nombre} {s.apellido_paterno} {s.apellido_materno}</span>
-                <button
-                  className="px-3 py-1 bg-emerald-600 text-white rounded-lg"
-                  onClick={() => {
-                    setSocioSel(s);
-                    setBuscarSocioTerm(`ID: ${s.id_socio} — ${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`);
-                    setSugSocios([]);
-                    setPrestamosSocio([]);
-                    setPrestamoSel(null);
-                  }}
-                >
-                  Seleccionar
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-4">
-          <button
-            className={`px-4 py-2 rounded-xl text-white ${socioSel ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-400 cursor-not-allowed'}`}
-            disabled={!socioSel}
-            onClick={verPrestamos}
-          >
-            Ver Préstamos
-          </button>
-        </div>
-
-        {prestamosSocio.length > 0 && (
-          <div className="mt-4">
-            <h4 className="font-semibold text-slate-900 mb-2">Préstamos de {socioSel?.nombre} {socioSel?.apellido_paterno}</h4>
-            <div className="space-y-2">
-              {prestamosSocio.map(p => (
-                <label key={p.id_prestamo} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      name="prestamoSel"
-                      checked={prestamoSel?.id_prestamo === p.id_prestamo}
-                      onChange={() => setPrestamoSel(p)}
-                    />
-                    <span className="font-medium">
-                      Préstamo #{p.id_prestamo} — {fmtMoney(p.monto_solicitado)} — {p.tipo_plazo} — {p.numero_plazos} plazos — Tasa {p.interes}%
-                    </span>
-                    {/* === NUEVO: Leyenda si está liquidado === */}
-                    {p.isLiquidado && (
-                      <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
-                        Préstamo Liquidado
-                      </span>
-                    )}
-                  </div>
-                </label>
-              ))}
-            </div>
-
-            <div className="mt-4">
-              <button
-                className={`px-4 py-2 rounded-xl text-white ${prestamoSel ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-400 cursor-not-allowed'}`}
-                disabled={!prestamoSel}
-                onClick={abrirRealizarPago}
-              >
-                Realizar pago
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* MODAL: pagos programados del préstamo */}
-      {showPagoModal && (
+      {/* MODAL: Listado de Próximas Renovaciones */}
+      {showRenovacionesModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-5xl shadow-xl">
+          <div className="bg-white rounded-2xl w-full max-w-4xl shadow-xl">
             <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold">
-                Pagos programados — Préstamo #{prestamoSel?.id_prestamo}
-              </h3>
-              <button className="px-3 py-1 rounded-lg bg-slate-100" onClick={() => setShowPagoModal(false)}>Cerrar</button>
+              <h3 className="text-lg font-semibold">Socios pendientes de renovación (30 días antes del aniversario)</h3>
+              <button className="px-3 py-1 rounded-lg bg-slate-100" onClick={cerrarModalRenovaciones}>Cerrar</button>
             </div>
 
             <div className="p-4 max-h-[70vh] overflow-y-auto">
-              {(!pagosProgramados || pagosProgramados.length === 0) ? (
-                <p className="text-slate-600">Sin pagos programados.</p>
+              {proximasRenovaciones.length === 0 ? (
+                <p className="text-slate-600">No hay socios pendientes.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-200">
-                        <th className="text-left py-2 px-3">No</th>
-                        <th className="text-left py-2 px-3">Fecha programada</th>
-                        <th className="text-left py-2 px-3">Monto a pagar</th>
-                        <th className="text-left py-2 px-3">Interés</th>
-                        <th className="text-left py-2 px-3">Capital</th>
-                        <th className="text-left py-2 px-3">Fecha/Hora pago</th>
-                        <th className="text-left py-2 px-3">Forma de pago</th>
-                        <th className="text-left py-2 px-3">Nota</th>
-                        <th className="text-left py-2 px-3">Estatus</th>
-                        <th className="text-left py-2 px-3">Acción</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pagosProgramados.map(row => {
-                        const fechaTxt = row.fecha_hora_pago ? fmt12h(row.fecha_hora_pago) : (row.fecha_pago || '—');
-                        const isPagado = (row.estatus || '').toLowerCase() === 'pagado';
-                        return (
-                          <tr key={row.id_pago} className="border-b border-slate-100">
-                            <td className="py-2 px-3">{row.numero_pago}</td>
-                            <td className="py-2 px-3">{fmtLongDate(row.fecha_programada)}</td>
-                            <td className="py-2 px-3">{fmtMoney(row.monto_pago)}</td>
-                            <td className="py-2 px-3">{row.interes_pagado != null ? fmtMoney(row.interes_pagado) : '—'}</td>
-                            <td className="py-2 px-3">{row.capital_pagado != null ? fmtMoney(row.capital_pagado) : '—'}</td>
-                            <td className="py-2 px-3">{fechaTxt}</td>
-                            <td className="py-2 px-3">{row.forma_pago || '—'}</td>
-                            <td className="py-2 px-3">
-                              {row.nota
-                                ? <button
-                                    className="px-3 py-1 bg-slate-200 rounded-lg hover:bg-slate-300"
-                                    onClick={() => { setNotaTexto(row.nota); setShowNotaModal(true); }}
-                                  >
-                                    Ver nota
-                                  </button>
-                                : '—'}
-                            </td>
-                            <td className="py-2 px-3">{isPagado ? 'pagado' : 'pendiente'}</td>
-                            <td className="py-2 px-3">
-                              {!isPagado && (
-                                <button
-                                  className="px-3 py-1 bg-blue-600 text-white rounded-lg"
-                                  onClick={() => onClickRealizarPagoFila(row)}
-                                >
-                                  Realizar pago
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                <div className="space-y-2">
+                  {proximasRenovaciones.map(s => (
+                    <div key={s.id_socio} className="p-3 bg-slate-50 rounded-lg border flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-slate-900">
+                          #{s.id_socio} — {s.nombre} {s.apellido_paterno} {s.apellido_materno}
+                        </div>
+                        <div className="text-sm text-slate-600">
+                          Miembro desde: <span className="font-medium">{fmtLongDate(s.miembro_desde)}</span>
+                          {' · '}Aniversario: <span className="font-medium">{fmtLongDate(s.nextAnniv)}</span>
+                          {' · '}Visible desde: <span className="font-medium">{fmtLongDate(s.apareceDesde)}</span>
+                        </div>
+                      </div>
+                      <button
+                        className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                        onClick={() => abrirRenovar(s)}
+                      >
+                        Renovar Afiliación
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -563,156 +279,44 @@ const PagosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* SUB-MODAL: ingresar monto + forma de pago + nota + (NUEVO) Multa por hoja */}
-      {showMontoModal && pagoTarget && (
+      {/* SUB-MODAL: Renovar afiliación (monto requerido) */}
+      {showRenovarModal && renovSel && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-5">
-            <h3 className="text-lg font-semibold mb-3">Realizar pago — # {pagoTarget.numero_pago}</h3>
+            <h3 className="text-lg font-semibold mb-3">
+              Renovar afiliación — Socio #{renovSel.id_socio}
+            </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-slate-700 mb-1">Monto a pagar</label>
+                <label className="block text-sm text-slate-700 mb-1">Monto de afiliación</label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   className="w-full px-3 py-2 border rounded-lg"
-                  value={montoIngresado}
-                  onChange={(e) => setMontoIngresado(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <p className="block text-sm text-slate-700 mb-2">Seleccione la forma de pago</p>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="forma_pago"
-                      value="Efectivo"
-                      checked={formaPago === 'Efectivo'}
-                      onChange={(e) => { setFormaPago(e.target.value); setFormaPagoError(''); }}
-                    />
-                    Efectivo
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="forma_pago"
-                      value="Transferencia"
-                      checked={formaPago === 'Transferencia'}
-                      onChange={(e) => { setFormaPago(e.target.value); setFormaPagoError(''); }}
-                    />
-                    Transferencia
-                  </label>
-                </div>
-                {formaPagoError && <p className="text-red-600 text-sm mt-1">{formaPagoError}</p>}
-              </div>
-
-              {/* NUEVO: Multa por hoja */}
-              <div>
-                <p className="block text-sm text-slate-700 mb-2">Multa por hoja</p>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="multa_hoja"
-                      value="no"
-                      checked={multaHoja === 'no'}
-                      onChange={(e) => { setMultaHoja(e.target.value); setMontoMultaHoja(''); }}
-                    />
-                    No
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="multa_hoja"
-                      value="si"
-                      checked={multaHoja === 'si'}
-                      onChange={(e) => setMultaHoja(e.target.value)}
-                    />
-                    Sí
-                  </label>
-                </div>
-
-                {multaHoja === 'si' && (
-                  <div className="mt-3">
-                    <label className="block text-sm text-slate-700 mb-1">Monto de la multa</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="w-full px-3 py-2 border rounded-lg"
-                      value={montoMultaHoja}
-                      onChange={(e) => setMontoMultaHoja(e.target.value)}
-                      placeholder="0.00"
-                    />
-                  </div>
-                )}
-              </div>
-              {/* FIN NUEVO */}
-
-              <div>
-                <label className="block text-sm text-slate-700 mb-1">Nota (opcional)</label>
-                <textarea
-                  className="w-full px-3 py-2 border rounded-lg"
-                  rows="3"
-                  placeholder="Ej: transferencia realizada el 10/Octubre/2025 con referencia 123456789"
-                  value={nota}
-                  onChange={(e) => setNota(e.target.value)}
+                  value={montoAfiliacion}
+                  onChange={(e) => setMontoAfiliacion(e.target.value)}
+                  placeholder="0.00"
                 />
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <button className="px-4 py-2 rounded-lg bg-slate-100" onClick={() => { setShowMontoModal(false); setPagoTarget(null); }}>Cancelar</button>
-                <button className="px-4 py-2 rounded-lg bg-emerald-600 text-white" onClick={aplicarPago}>Aplicar pago</button>
+                <button className="px-4 py-2 rounded-lg bg-slate-100" onClick={cerrarRenovar}>Cancelar</button>
+                <button
+                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white disabled:opacity-60"
+                  onClick={aplicarRenovacion}
+                  disabled={!(Number(montoAfiliacion) > 0)}
+                >
+                  Aceptar
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* CONFIRMACIÓN FINAL */}
-      {showConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-5 text-center">
-            <h3 className="text-lg font-semibold mb-3">¿Está seguro que desea aplicar el pago ahora?</h3>
-            <p className="text-slate-700 mb-5">Se registrará el pago con el monto indicado.</p>
-            <div className="flex justify-center gap-3">
-              <button
-                className="px-4 py-2 rounded-lg bg-slate-100"
-                onClick={() => setShowConfirm(false)}
-                disabled={saving}
-              >
-                Cancelar
-              </button>
-              <button
-                className={`px-4 py-2 rounded-lg text-white ${saving ? 'bg-emerald-400 cursor-wait' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-                onClick={confirmarAplicacionPago}
-                disabled={saving}
-              >
-                {saving ? 'Aplicando…' : 'Aceptar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: Ver nota */}
-      {showNotaModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl p-5">
-            <h3 className="text-lg font-semibold mb-3">Nota</h3>
-            <div className="whitespace-pre-wrap text-slate-800 border rounded-lg p-3 bg-slate-50">
-              {notaTexto}
-            </div>
-            <div className="flex justify-end mt-4">
-              <button className="px-4 py-2 rounded-lg bg-slate-100" onClick={() => setShowNotaModal(false)}>Cerrar</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export default PagosModule;
+export default MultasRenovacionesModule;
