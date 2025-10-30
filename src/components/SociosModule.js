@@ -10,13 +10,27 @@ const avatarFallback = (s) => {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bg}&color=fff&size=128`;
 };
 
-// 👉 Helper de formato de fecha para "miembro_desde"
+// 👉 Helper de formato de fecha para mostrar bonito en español
 const fmtFecha = (d) => {
   if (!d) return '-';
   const dt = new Date(d);
   if (isNaN(dt.getTime())) return '-';
   return dt.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
 };
+
+// 👉 Helper para normalizar a 'YYYY-MM-DD' en inputs tipo date
+const toDateInput = (d) => {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return '';
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+// 👉 Limpia fechas vacías a null (evita enviar "")
+const cleanDate = (v) => (v && String(v).trim() ? v : null);
 
 const SociosModule = () => {
   const [sociosList, setSociosList] = useState([]);
@@ -32,6 +46,7 @@ const SociosModule = () => {
     direccion: '',
     cp: '',
     estatus: 'activo',
+    fecha_nacimiento: '', // 👈 NUEVO en estado
   });
 
   const [loading, setLoading] = useState(true);
@@ -176,6 +191,7 @@ const SociosModule = () => {
       direccion: '',
       cp: '',
       estatus: 'activo',
+      fecha_nacimiento: '', // 👈 reset
     });
     setEditingSocio(null);
     setPhotoFile(null);
@@ -188,7 +204,7 @@ const SociosModule = () => {
     e.preventDefault();
     setError(null);
 
-    // Validaciones mínimas
+    // Validaciones mínimas (fecha_nacimiento NO es obligatoria)
     const required = ['nombre', 'apellido_paterno', 'apellido_materno', 'email', 'contrasena', 'telefono', 'direccion', 'cp'];
     const missing = required.filter((k) => !`${newSocio[k]}`.trim());
     if (missing.length) {
@@ -205,6 +221,7 @@ const SociosModule = () => {
         const patchBody = {
           ...newSocio,
           estatus: newSocio.estatus === 'activo',
+          fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento), // 👈 normaliza
         };
 
         const res = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${editingSocio.id_socio}`, {
@@ -250,7 +267,11 @@ const SociosModule = () => {
         }
       } else {
         // Crear socio (sin foto_url)
-        const bodyToSend = { ...newSocio, estatus: newSocio.estatus === 'activo' };
+        const bodyToSend = {
+          ...newSocio,
+          estatus: newSocio.estatus === 'activo',
+          fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento), // 👈 normaliza
+        };
         const res = await fetch(`${SUPABASE_URL}/rest/v1/socios`, {
           method: 'POST',
           headers: {
@@ -341,6 +362,7 @@ const SociosModule = () => {
       direccion: socio.direccion || '',
       cp: socio.cp || '',
       estatus: socio.estatus ? 'activo' : 'inactivo',
+      fecha_nacimiento: toDateInput(socio.fecha_nacimiento) || '', // 👈 pre-carga en input date
     });
     setPhotoFile(null);
     setPhotoPreview(socio.foto_url || '');
@@ -431,6 +453,7 @@ const SociosModule = () => {
                 direccion: '',
                 cp: '',
                 estatus: 'activo',
+                fecha_nacimiento: '',
               });
               setPhotoFile(null);
               setPhotoPreview('');
@@ -553,6 +576,19 @@ const SociosModule = () => {
               <option value="activo">Activo</option>
               <option value="inactivo">Inactivo</option>
             </select>
+
+            {/* 👇 NUEVO: Fecha de nacimiento */}
+            <div className="col-span-full">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de nacimiento</label>
+              <input
+                type="date"
+                name="fecha_nacimiento"
+                value={newSocio.fecha_nacimiento}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+              />
+              <p className="text-xs text-slate-500 mt-1">Opcional</p>
+            </div>
 
             {/* Subida de foto */}
             <div className="col-span-full">
@@ -725,7 +761,7 @@ const SociosModule = () => {
         </div>
       )}
 
-      {/* Modal Ficha del socio (con miembro_desde agregado) */}
+      {/* Modal Ficha del socio (con Fecha de nacimiento agregada) */}
       {showFicha && socioFicha && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg">
@@ -766,10 +802,10 @@ const SociosModule = () => {
                 <div className="font-medium">{socioFicha.cp || '-'}</div>
               </div>
 
-              {/* 👉 NUEVO: Miembro desde */}
+              {/* NUEVO: Fecha de nacimiento */}
               <div className="p-3 bg-slate-50 rounded-lg">
-                <div className="text-xs text-slate-500">Miembro desde</div>
-                <div className="font-medium">{fmtFecha(socioFicha.miembro_desde)}</div>
+                <div className="text-xs text-slate-500">Fecha de nacimiento</div>
+                <div className="font-medium">{fmtFecha(socioFicha.fecha_nacimiento)}</div>
               </div>
 
               <div className="md:col-span-2 p-3 bg-slate-50 rounded-lg">
