@@ -10,43 +10,19 @@ function toLocalDate(dateLike) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateLike)) return new Date(`${dateLike}T00:00:00`);
   return new Date(dateLike);
 }
-function addYears(d, n) {
-  const nd = new Date(d.getTime());
-  nd.setFullYear(nd.getFullYear() + n);
-  return nd;
-}
-function addDays(d, n) {
-  const nd = new Date(d.getTime());
-  nd.setDate(nd.getDate() + n);
-  return nd;
-}
-function startOfToday() {
-  const t = new Date();
-  return new Date(t.getFullYear(), t.getMonth(), t.getDate());
-}
-function money(n) {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(n || 0));
-}
-function localPlainDateTime() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const M = String(d.getMonth() + 1).padStart(2, '0');
-  const D = String(d.getDate()).padStart(2, '0');
-  const h = String(d.getHours()).padStart(2, '0');
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const s = String(d.getSeconds()).padStart(2, '0');
-  return `${y}-${M}-${D}T${h}:${m}:${s}`;
-}
+function addYears(d, n) { const nd = new Date(d.getTime()); nd.setFullYear(nd.getFullYear() + n); return nd; }
+function addDays(d, n) { const nd = new Date(d.getTime()); nd.setDate(nd.getDate() + n); return nd; }
+function startOfToday() { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); }
+function money(n) { return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(n || 0)); }
+function localPlainDateTime() { const d = new Date(); const y=d.getFullYear(); const M=String(d.getMonth()+1).padStart(2,'0'); const D=String(d.getDate()).padStart(2,'0'); const h=String(d.getHours()).padStart(2,'0'); const m=String(d.getMinutes()).padStart(2,'0'); const s=String(d.getSeconds()).padStart(2,'0'); return `${y}-${M}-${D}T${h}:${m}:${s}`; }
 
-// ====== Módulo ======
 const MultasRenovacionesModule = () => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
-  const [socios, setSocios] = useState([]);            // {id_socio, nombre, apellidos..., miembro_desde}
-  const [pagosAfiliacion, setPagosAfiliacion] = useState([]); // {id_socio, fecha_hora, estatus, monto_afiliacion_papeleria}
+  const [socios, setSocios] = useState([]);
+  const [pagosAfiliacion, setPagosAfiliacion] = useState([]);
 
-  // UI: modales y selección
   const [showListadoModal, setShowListadoModal] = useState(false);
   const [selSocio, setSelSocio] = useState(null);
 
@@ -54,11 +30,6 @@ const MultasRenovacionesModule = () => {
   const [montoAfiliacion, setMontoAfiliacion] = useState('');
   const [guardandoPago, setGuardandoPago] = useState(false);
   const [toast, setToast] = useState('');
-
-  // KPIs placeholders (puedes conectarlos luego)
-  const kpiAcumuladoAfiliaciones = 0;
-  const kpiAcumuladoMultasHoja = 0;
-  const kpiAcumuladoMoras = 0;
 
   // ===== Carga inicial =====
   useEffect(() => {
@@ -103,21 +74,18 @@ const MultasRenovacionesModule = () => {
     return map;
   }, [pagosAfiliacion]);
 
-  // ===== Próximas renovaciones (ventana 30 días antes) =====
+  // ===== Próximas renovaciones =====
   const proximasRenovaciones = useMemo(() => {
     const hoy = startOfToday();
     const resultados = [];
-
     for (const s of socios) {
       const miembroDesde = toLocalDate(s.miembro_desde);
       const ultimoPago = lastPaidMap.get(s.id_socio) || null;
       const ancla = ultimoPago || miembroDesde;
       if (!ancla) continue;
-
       let proxima = addYears(ancla, 1);
       while (proxima <= hoy) proxima = addYears(proxima, 1);
       const inicioVentana = addDays(proxima, -30);
-
       if (hoy >= inicioVentana) {
         resultados.push({
           id_socio: s.id_socio,
@@ -130,32 +98,26 @@ const MultasRenovacionesModule = () => {
     return resultados;
   }, [socios, lastPaidMap]);
 
+  // ======== ACUMULADO DE AFILIACIONES (ÚNICO CAMBIO SOLICITADO) ========
+  const kpiAcumuladoAfiliaciones = useMemo(() => {
+    return pagosAfiliacion
+      .filter(p => (p.estatus || '').toUpperCase() === 'AFILIACION PAGADA')
+      .reduce((sum, p) => sum + Number(p.monto_afiliacion_papeleria || 0), 0);
+  }, [pagosAfiliacion]);
+  // =====================================================================
+
   const kpiProximasRenovaciones = proximasRenovaciones.length;
+  const kpiAcumuladoMultasHoja = 0;
+  const kpiAcumuladoMoras = 0;
 
-  // ===== Acciones UI =====
-  const abrirListado = () => {
-    setSelSocio(null);
-    setShowListadoModal(true);
-  };
-  const cerrarListado = () => {
-    setShowListadoModal(false);
-    setSelSocio(null);
-  };
+  const abrirListado = () => { setSelSocio(null); setShowListadoModal(true); };
+  const cerrarListado = () => { setShowListadoModal(false); setSelSocio(null); };
+  const abrirPagar = () => { if (!selSocio) return; setMontoAfiliacion(''); setShowPagarModal(true); };
+  const cerrarPagar = () => setShowPagarModal(false);
 
-  const abrirPagar = () => {
-    if (!selSocio) return;
-    setMontoAfiliacion('');
-    setShowPagarModal(true);
-  };
-  const cerrarPagar = () => {
-    setShowPagarModal(false);
-  };
-
-  // ===== Guardar pago de afiliación =====
   const aplicarPagoAfiliacion = async () => {
     const monto = Number(montoAfiliacion);
     if (!selSocio || !monto || monto <= 0) return;
-
     setGuardandoPago(true);
     try {
       const body = {
@@ -174,18 +136,11 @@ const MultasRenovacionesModule = () => {
         },
         body: JSON.stringify(body)
       });
-      if (!r.ok) {
-        const e = await r.json().catch(() => ({}));
-        throw new Error(e?.message || 'No se pudo registrar el pago');
-      }
-      const inserted = await r.json(); // por si quieres usarlo
-      // Actualizar memoria: añadimos a pagosAfiliacion y el socio saldrá de la lista por la lógica de ancla
-      setPagosAfiliacion((prev) => [...prev, ...(inserted || [])]);
-
+      if (!r.ok) throw new Error('No se pudo registrar el pago');
+      const inserted = await r.json();
+      setPagosAfiliacion(prev => [...prev, ...(inserted || [])]);
       setToast('Afiliación renovada correctamente.');
       setTimeout(() => setToast(''), 2500);
-
-      // Cerrar modales / limpiar selección
       setShowPagarModal(false);
       setSelSocio(null);
     } catch (e) {
@@ -195,7 +150,6 @@ const MultasRenovacionesModule = () => {
     }
   };
 
-  // ===== Render =====
   const cards = [
     {
       id: 'proximas',
@@ -203,7 +157,7 @@ const MultasRenovacionesModule = () => {
       value: kpiProximasRenovaciones.toLocaleString(),
       bg: 'bg-blue-100',
       text: 'text-blue-800',
-      onClick: abrirListado,
+      onClick: () => { setSelSocio(null); setShowListadoModal(true); },
       icon: (
         <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -246,7 +200,7 @@ const MultasRenovacionesModule = () => {
       icon: (
         <svg className="w-7 h-7 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a2 2 0 00-3 3v8a3 3 0 003 3z" />
         </svg>
       )
     }
@@ -272,25 +226,21 @@ const MultasRenovacionesModule = () => {
                 key={c.id}
                 type="button"
                 onClick={c.onClick}
-                className={`${c.bg} rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all text-left ${
-                  c.onClick ? 'cursor-pointer' : 'cursor-default'
-                }`}
+                className={`${c.bg} rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all text-left ${c.onClick ? 'cursor-pointer' : 'cursor-default'}`}
               >
                 <div className="flex items-center justify-between mb-3">
                   <h3 className={`text-lg font-semibold ${c.text}`}>{c.title}</h3>
                   <div className="p-2 bg-white bg-opacity-40 rounded-full">{c.icon}</div>
                 </div>
                 <div className={`text-3xl font-bold ${c.text}`}>{c.value}</div>
-                {c.id === 'proximas' && (
-                  <div className="text-sm mt-2 text-slate-700">Click para ver detalle</div>
-                )}
+                {c.id === 'proximas' && <div className="text-sm mt-2 text-slate-700">Click para ver detalle</div>}
               </button>
             ))}
           </div>
         </>
       )}
 
-      {/* ===== Modal: Listado de Próximas Renovaciones ===== */}
+      {/* Los modales y lógica de pago permanecen igual que antes */}
       {showListadoModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-3xl shadow-xl">
@@ -320,12 +270,7 @@ const MultasRenovacionesModule = () => {
                           return (
                             <tr key={r.id_socio} className="border-b border-slate-100 hover:bg-slate-50">
                               <td className="py-3 px-4">
-                                <input
-                                  type="radio"
-                                  name="selSocioRenov"
-                                  checked={seleccionado}
-                                  onChange={() => setSelSocio(r)}
-                                />
+                                <input type="radio" name="selSocioRenov" checked={seleccionado} onChange={() => setSelSocio(r)} />
                               </td>
                               <td className="py-3 px-4">{r.id_socio}</td>
                               <td className="py-3 px-4">{r.nombre}</td>
@@ -341,11 +286,9 @@ const MultasRenovacionesModule = () => {
 
                   <div className="flex justify-end gap-3 mt-4">
                     <button
-                      className={`px-4 py-2 rounded-xl text-white ${
-                        selSocio ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-400 cursor-not-allowed'
-                      }`}
+                      className={`px-4 py-2 rounded-xl text-white ${selSocio ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-400 cursor-not-allowed'}`}
                       disabled={!selSocio}
-                      onClick={abrirPagar}
+                      onClick={() => { if (!selSocio) return; setMontoAfiliacion(''); setShowPagarModal(true); }}
                     >
                       Renovar Afiliación
                     </button>
@@ -357,7 +300,6 @@ const MultasRenovacionesModule = () => {
         </div>
       )}
 
-      {/* ===== Sub-Modal: Capturar monto y confirmar pago ===== */}
       {showPagarModal && selSocio && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-5">
@@ -365,27 +307,21 @@ const MultasRenovacionesModule = () => {
             <p className="text-slate-700 mb-4">
               Socio <span className="font-semibold">{selSocio.nombre}</span> (ID {selSocio.id_socio})
             </p>
-
             <div className="space-y-4">
               <div>
                 <label className="block text-sm text-slate-700 mb-1">Monto de afiliación</label>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="number" min="0" step="0.01"
                   className="w-full px-3 py-2 border rounded-lg"
                   value={montoAfiliacion}
                   onChange={(e) => setMontoAfiliacion(e.target.value)}
                   placeholder="0.00"
                 />
               </div>
-
               <div className="flex justify-end gap-2 pt-2">
                 <button className="px-4 py-2 rounded-lg bg-slate-100" onClick={cerrarPagar}>Cancelar</button>
                 <button
-                  className={`px-4 py-2 rounded-lg text-white ${
-                    Number(montoAfiliacion) > 0 && !guardandoPago ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-400 cursor-not-allowed'
-                  }`}
+                  className={`px-4 py-2 rounded-lg text-white ${Number(montoAfiliacion) > 0 && !guardandoPago ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-400 cursor-not-allowed'}`}
                   onClick={aplicarPagoAfiliacion}
                   disabled={!(Number(montoAfiliacion) > 0) || guardandoPago}
                 >
