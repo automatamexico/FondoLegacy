@@ -7,23 +7,52 @@ const SUPABASE_ANON_KEY =
 
 const FONDO_BUCKET = 'fondo-documentos';
 
+// === util: formateo y sanitización ===
+function formatFechaCorta(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return d.toLocaleString('es-MX', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+// Sanitiza nombres de archivo: quita acentos y caracteres no permitidos, conserva extensión
+function sanitizeFileName(name) {
+  if (!name) return `${Date.now()}`;
+  const parts = name.split('.');
+  const ext = parts.length > 1 ? '.' + parts.pop() : '';
+  const base = parts.join('.');
+  const noAccents = base.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const safeBase = noAccents.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^[-.]+|[-.]+$/g, '');
+  const safeExt = ext.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return (safeBase || 'archivo') + safeExt;
+}
+// Tipos permitidos (imágenes, pdf, word, excel)
+const ALLOWED_MIME = new Set([
+  'image/jpeg', 'image/png', 'image/webp',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+]);
+const ALLOWED_EXT = ['.jpg', '.jpeg', '.png', '.webp', '.pdf', '.doc', '.docx', '.xls', '.xlsx'];
+
 const CentroDigitalModule = () => {
-  // --- búsqueda y selección de socio ---
+  // --- búsqueda / selección socio (SIN CAMBIOS) ---
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [selectedSocio, setSelectedSocio] = useState(null);
 
-  // --- listado de documentos consultados ---
   const [docsLoading, setDocsLoading] = useState(false);
   const [docsError, setDocsError] = useState('');
   const [documentosSocio, setDocumentosSocio] = useState([]);
   const [fotoUrlSocio, setFotoUrlSocio] = useState('');
 
-  // --- modal subida ---
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
-  // ======= NUEVO: Documentos y contratos del Fondo =======
+  // ======= Documentos y contratos del Fondo (NUEVO) =======
   const [fondoFiles, setFondoFiles] = useState([]);
   const [fondoLoading, setFondoLoading] = useState(false);
   const [fondoError, setFondoError] = useState('');
@@ -41,26 +70,11 @@ const CentroDigitalModule = () => {
     []
   );
 
-  const formatFechaCorta = (iso) => {
-    if (!iso) return '-';
-    const d = new Date(iso);
-    return d.toLocaleString('es-MX', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  // -------------------------------------------------------
-  // Búsqueda de socios (sugerencias)
-  // -------------------------------------------------------
+  // --------- Búsqueda de socios (SIN CAMBIOS) ---------
   const handleSearch = async (e) => {
     const term = e.target.value;
     setSearchTerm(term);
     setSelectedSocio(null);
-    // limpiar documentos mostrados del socio anterior
     setDocumentosSocio([]);
     setFotoUrlSocio('');
     setDocsError('');
@@ -77,14 +91,11 @@ const CentroDigitalModule = () => {
       );
       if (!resp.ok) throw new Error('No se pudieron buscar socios');
       const all = await resp.json();
-
       const lower = term.toLowerCase();
       const filtered = all.filter(
         (s) =>
           s.id_socio.toString().includes(lower) ||
-          `${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`
-            .toLowerCase()
-            .includes(lower)
+          `${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`.toLowerCase().includes(lower)
       );
       setSearchResults(filtered.slice(0, 10));
     } catch {
@@ -92,19 +103,16 @@ const CentroDigitalModule = () => {
     }
   };
 
-  const handleSelectSocio = (socio) => {
-    setSelectedSocio(socio);
-    setSearchTerm(`ID: ${socio.id_socio} — ${socio.nombre} ${socio.apellido_paterno} ${socio.apellido_materno}`);
+  const handleSelectSocio = (s) => {
+    setSelectedSocio(s);
+    setSearchTerm(`ID: ${s.id_socio} — ${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`);
     setSearchResults([]);
-    // limpiar resultados previos
     setDocumentosSocio([]);
     setFotoUrlSocio('');
     setDocsError('');
   };
 
-  // -------------------------------------------------------
-  // Consultar documentación del socio seleccionado
-  // -------------------------------------------------------
+  // --------- Consultar documentación socio (SIN CAMBIOS) ---------
   const consultarDocumentacion = async () => {
     if (!selectedSocio) return;
     setDocsLoading(true);
@@ -113,27 +121,19 @@ const CentroDigitalModule = () => {
     setFotoUrlSocio('');
 
     try {
-      // Foto
       const socioResp = await fetch(
         `${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${selectedSocio.id_socio}&select=foto_url`,
         { headers: authHeaders }
       );
-      if (!socioResp.ok) {
-        const e = await socioResp.json();
-        throw new Error(e.message || 'Error consultando socio');
-      }
+      if (!socioResp.ok) throw new Error((await socioResp.json()).message || 'Error consultando socio');
       const socioJson = await socioResp.json();
       setFotoUrlSocio(socioJson?.[0]?.foto_url || '');
 
-      // Documentos
       const resp = await fetch(
         `${SUPABASE_URL}/rest/v1/documentos_socios?id_socio=eq.${selectedSocio.id_socio}&order=fecha_subida.desc&select=id_documento,tipo_documento,nombre_documento,url_documento,fecha_subida`,
         { headers: authHeaders }
       );
-      if (!resp.ok) {
-        const e = await resp.json();
-        throw new Error(e.message || 'Error consultando documentos');
-      }
+      if (!resp.ok) throw new Error((await resp.json()).message || 'Error consultando documentos');
       const docs = await resp.json();
       setDocumentosSocio(docs);
     } catch (err) {
@@ -143,37 +143,30 @@ const CentroDigitalModule = () => {
     }
   };
 
-  // -------------------------------------------------------
-  // Subida a Storage y registro en DB (SOCIO)
-  // -------------------------------------------------------
+  // --------- Subida a Storage (SOCIO) (SIN CAMBIOS) ---------
   const subirArchivo = async (file, tipo) => {
     setUploadError('');
-    if (!selectedSocio) {
-      setUploadError('Selecciona primero un socio.');
-      return;
-    }
+    if (!selectedSocio) { setUploadError('Selecciona primero un socio.'); return; }
     try {
-      const isImage = file.type === 'image/png' || file.type === 'image/jpeg';
+      const isImage = file.type === 'image/png' || file.type === 'image/jpeg' || file.type === 'image/webp';
       const isPdf = file.type === 'application/pdf';
 
-      if (tipo === 'foto' && !isImage) throw new Error('La foto debe ser JPG o PNG');
+      if (tipo === 'foto' && !isImage) throw new Error('La foto debe ser JPG/PNG/WEBP');
       if (tipo !== 'foto' && !isPdf) throw new Error('Los documentos deben ser PDF');
 
-      // Ruta destino por bucket
       let bucket = '';
       let path = '';
       if (tipo === 'foto') {
         bucket = 'fotos-socios';
-        path = `socio_${selectedSocio.id_socio}/${Date.now()}_${file.name}`;
+        path = `socio_${selectedSocio.id_socio}/${Date.now()}_${sanitizeFileName(file.name)}`;
       } else if (tipo === 'ine' || tipo === 'comprobante') {
         bucket = 'documentos-socios';
-        path = `socio_${selectedSocio.id_socio}/${tipo}_${Date.now()}_${file.name}`;
+        path = `socio_${selectedSocio.id_socio}/${tipo}_${Date.now()}_${sanitizeFileName(file.name)}`;
       } else {
         bucket = 'avales-y-varios';
-        path = `socio_${selectedSocio.id_socio}/${Date.now()}_${file.name}`;
+        path = `socio_${selectedSocio.id_socio}/${Date.now()}_${sanitizeFileName(file.name)}`;
       }
 
-      // Subir a Storage
       const uploadResp = await fetch(
         `${SUPABASE_URL}/storage/v1/object/${bucket}/${encodeURIComponent(path)}`,
         {
@@ -182,6 +175,7 @@ const CentroDigitalModule = () => {
             apikey: SUPABASE_ANON_KEY,
             Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
             'x-upsert': 'true',
+            'Content-Type': file.type || 'application/octet-stream'
           },
           body: file,
         }
@@ -191,13 +185,9 @@ const CentroDigitalModule = () => {
         throw new Error(`Error subiendo a Storage: ${uploadResp.status} ${e.message || ''}`);
       }
 
-      // URL pública
-      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${encodeURIComponent(
-        path
-      )}`;
+      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${encodeURIComponent(path)}`;
 
       if (tipo === 'foto') {
-        // Guardar url en tabla socios
         const patch = await fetch(
           `${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${selectedSocio.id_socio}`,
           {
@@ -212,14 +202,13 @@ const CentroDigitalModule = () => {
         }
         setFotoUrlSocio(publicUrl);
       } else {
-        // Registrar metadatos en documentos_socios
         const ins = await fetch(`${SUPABASE_URL}/rest/v1/documentos_socios`, {
           method: 'POST',
           headers: { ...authHeaders, Prefer: 'return=representation' },
           body: JSON.stringify({
             id_socio: selectedSocio.id_socio,
-            tipo_documento: tipo, // 'ine' | 'comprobante' | 'varios'
-            nombre_documento: file.name,
+            tipo_documento: tipo,
+            nombre_documento: sanitizeFileName(file.name),
             url_documento: publicUrl,
             fecha_subida: new Date().toISOString(),
           }),
@@ -228,7 +217,6 @@ const CentroDigitalModule = () => {
           const e = await ins.json().catch(() => ({}));
           throw new Error(`No se pudo registrar el documento: ${ins.status} ${e.message || ''}`);
         }
-        // actualizar lista si estamos viendo este socio
         consultarDocumentacion();
       }
     } catch (err) {
@@ -237,9 +225,8 @@ const CentroDigitalModule = () => {
   };
 
   // =======================================================
-  // ======= NUEVO: Documentos y contratos del Fondo =======
+  // ======= Documentos y contratos del Fondo (NUEVO) ======
   // =======================================================
-
   const fondoPublicUrl = (path) =>
     `${SUPABASE_URL}/storage/v1/object/public/${FONDO_BUCKET}/${encodeURIComponent(path)}`;
 
@@ -247,7 +234,6 @@ const CentroDigitalModule = () => {
     setFondoLoading(true);
     setFondoError('');
     try {
-      // Listado de objetos
       const resp = await fetch(
         `${SUPABASE_URL}/storage/v1/object/list/${FONDO_BUCKET}`,
         {
@@ -258,7 +244,7 @@ const CentroDigitalModule = () => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            prefix: '', // raíz
+            prefix: '',
             limit: 1000,
             offset: 0,
             sortBy: { column: 'name', order: 'asc' },
@@ -270,9 +256,7 @@ const CentroDigitalModule = () => {
         throw new Error(e.message || 'No se pudo listar el bucket (verifica que exista y sea público).');
       }
       const items = await resp.json();
-      // items: [{ name, id, updated_at, created_at, metadata, ... }]
-      const filesOnly = (items || []).filter((x) => !x.id || x.name); // ignorar carpetas virtuales
-      setFondoFiles(filesOnly);
+      setFondoFiles(items || []);
     } catch (err) {
       setFondoError(err.message || 'Error listando archivos del Fondo.');
       setFondoFiles([]);
@@ -281,12 +265,23 @@ const CentroDigitalModule = () => {
     }
   };
 
+  // Valida tipo por MIME o extensión (por si el navegador no da MIME)
+  function isAllowedFile(file) {
+    if (ALLOWED_MIME.has(file.type)) return true;
+    const name = (file.name || '').toLowerCase();
+    return ALLOWED_EXT.some(ext => name.endsWith(ext));
+  }
+
   const subirFondoArchivos = async (fileList) => {
     if (!fileList || fileList.length === 0) return;
     setFondoError('');
     try {
-      for (const file of fileList) {
-        const path = `${Date.now()}_${file.name}`;
+      for (const file of Array.from(fileList)) {
+        if (!isAllowedFile(file)) {
+          throw new Error(`Tipo de archivo no permitido: ${file.name}`);
+        }
+        const safeName = sanitizeFileName(file.name);
+        const path = `${Date.now()}_${safeName}`;
         const up = await fetch(
           `${SUPABASE_URL}/storage/v1/object/${FONDO_BUCKET}/${encodeURIComponent(path)}`,
           {
@@ -295,6 +290,7 @@ const CentroDigitalModule = () => {
               apikey: SUPABASE_ANON_KEY,
               Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
               'x-upsert': 'true',
+              'Content-Type': file.type || 'application/octet-stream'
             },
             body: file,
           }
@@ -356,9 +352,7 @@ const CentroDigitalModule = () => {
     }
   };
 
-  // -------------------------------------------------------
-  // UI
-  // -------------------------------------------------------
+  // --------------- UI ---------------
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -366,8 +360,8 @@ const CentroDigitalModule = () => {
         <p className="text-slate-600">Cargar información del socio y consultar documentación</p>
       </div>
 
+      {/* === Bloque SOCIO (SIN CAMBIOS visuales) === */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        {/* Búsqueda + acciones */}
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
           <label className="block text-sm font-medium text-slate-700 mb-2">
             Buscar ID de socio o Nombre completo
@@ -378,7 +372,6 @@ const CentroDigitalModule = () => {
             placeholder="Ej. 12 o 'Juan Pérez'"
             className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          {/* Sugerencias */}
           {searchResults.length > 0 && (
             <div className="mt-2 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white">
               {searchResults.map((s) => (
@@ -418,7 +411,6 @@ const CentroDigitalModule = () => {
           </div>
         </div>
 
-        {/* Resultado de consulta */}
         <div className="bg-white rounded-2xl border border-slate-200 p-4 mt-6">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">Documentación del socio</h3>
 
@@ -435,7 +427,6 @@ const CentroDigitalModule = () => {
 
           {!docsLoading && !docsError && (fotoUrlSocio || documentosSocio.length > 0) && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Foto del socio */}
               {fotoUrlSocio && (
                 <div className="border border-slate-200 rounded-xl p-4">
                   <div className="flex items-center mb-3">
@@ -458,7 +449,6 @@ const CentroDigitalModule = () => {
                 </div>
               )}
 
-              {/* Documentos */}
               {documentosSocio.map((doc) => (
                 <div key={doc.id_documento} className="border border-slate-200 rounded-xl p-4 hover:shadow-sm">
                   <div className="flex items-center space-x-3 mb-3">
@@ -507,10 +497,7 @@ const CentroDigitalModule = () => {
                 Subir archivos — ID {selectedSocio.id_socio} — {selectedSocio.nombre} {selectedSocio.apellido_paterno}
               </h3>
               <button
-                onClick={() => {
-                  setShowUploadModal(false);
-                  setUploadError('');
-                }}
+                onClick={() => { setShowUploadModal(false); setUploadError(''); }}
                 className="text-slate-600 hover:text-slate-900"
               >
                 Cerrar
@@ -518,15 +505,14 @@ const CentroDigitalModule = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Foto */}
               <div className="border-2 border-dashed rounded-xl p-4 text-center">
                 <h4 className="font-medium mb-2">Foto del socio</h4>
-                <p className="text-xs text-slate-500 mb-3">JPG o PNG</p>
+                <p className="text-xs text-slate-500 mb-3">JPG / PNG / WEBP</p>
                 <label className="inline-block px-4 py-2 bg-slate-100 rounded-lg cursor-pointer hover:bg-slate-200">
                   Elegir archivo
                   <input
                     type="file"
-                    accept="image/png,image/jpeg"
+                    accept="image/png,image/jpeg,image/webp"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
@@ -536,7 +522,6 @@ const CentroDigitalModule = () => {
                 </label>
               </div>
 
-              {/* INE */}
               <div className="border-2 border-dashed rounded-xl p-4 text-center">
                 <h4 className="font-medium mb-2">INE (PDF)</h4>
                 <p className="text-xs text-slate-500 mb-3">Solo PDF</p>
@@ -554,7 +539,6 @@ const CentroDigitalModule = () => {
                 </label>
               </div>
 
-              {/* Comprobante */}
               <div className="border-2 border-dashed rounded-xl p-4 text-center">
                 <h4 className="font-medium mb-2">Comprobante de domicilio (PDF)</h4>
                 <p className="text-xs text-slate-500 mb-3">Solo PDF</p>
@@ -572,7 +556,6 @@ const CentroDigitalModule = () => {
                 </label>
               </div>
 
-              {/* Varios */}
               <div className="border-2 border-dashed rounded-xl p-4 text-center">
                 <h4 className="font-medium mb-2">Avales y varios (PDF)</h4>
                 <p className="text-xs text-slate-500 mb-3">Puedes subir varios PDFs</p>
@@ -585,9 +568,7 @@ const CentroDigitalModule = () => {
                     className="hidden"
                     onChange={async (e) => {
                       const files = Array.from(e.target.files || []);
-                      for (const f of files) {
-                        await subirArchivo(f, 'varios');
-                      }
+                      for (const f of files) await subirArchivo(f, 'varios');
                     }}
                   />
                 </label>
@@ -599,9 +580,7 @@ const CentroDigitalModule = () => {
         </div>
       )}
 
-      {/* =================================================== */}
-      {/* ========== NUEVA SECCIÓN: Documentos del Fondo ==== */}
-      {/* =================================================== */}
+      {/* ========== NUEVA SECCIÓN: Documentos del Fondo ========== */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <div className="flex items-center justify-between mb-2">
           <div>
@@ -619,6 +598,7 @@ const CentroDigitalModule = () => {
               ref={fileInputRef}
               type="file"
               multiple
+              accept={ALLOWED_EXT.join(',')}
               className="hidden"
               onChange={(e) => subirFondoArchivos(e.target.files)}
             />
@@ -634,7 +614,7 @@ const CentroDigitalModule = () => {
         {fondoError && <p className="text-red-600 mb-3">{fondoError}</p>}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Zona de subida con Drag & Drop */}
+          {/* Zona Drag & Drop */}
           <div
             ref={dropRef}
             onDragOver={onFondoDragOver}
@@ -646,10 +626,10 @@ const CentroDigitalModule = () => {
               <span className="text-slate-600 text-2xl">⬆️</span>
             </div>
             <p className="text-slate-700 font-medium">Arrastra y suelta archivos aquí</p>
-            <p className="text-slate-500 text-sm">o usa el botón “Subir archivos”</p>
+            <p className="text-slate-500 text-sm">Formatos: {ALLOWED_EXT.join(', ')}</p>
           </div>
 
-          {/* Explorador de archivos */}
+          {/* Explorador */}
           <div className="border border-slate-200 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-semibold text-slate-900">Archivos en el Fondo</h4>
@@ -710,7 +690,6 @@ const CentroDigitalModule = () => {
               ))}
             </div>
 
-            {/* Pie con tip */}
             <div className="text-xs text-slate-500 mt-3">
               Tip: usa nombres claros, ej. <em>Contrato_Marco_2025.pdf</em>
             </div>
