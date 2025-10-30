@@ -10,26 +10,38 @@ const avatarFallback = (s) => {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bg}&color=fff&size=128`;
 };
 
-// 👉 Helper: fecha bonita en español
-const fmtFecha = (d) => {
-  if (!d) return '-';
-  const dt = new Date(d);
+/** ======== FECHAS SIN DESFASE (no restar 1 día) ======== */
+/** Detecta 'YYYY-MM-DD' estrictamente */
+const isYMD = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+/** Convierte 'YYYY-MM-DD' a Date en zona local sin usar UTC implícito */
+const dateFromYMDLocal = (ymd) => {
+  if (!isYMD(ymd)) return null;
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y, m - 1, d); // <-- local, sin zona
+};
+/** Formatea bonito en español SIN desfase */
+const fmtFecha = (v) => {
+  if (!v) return '-';
+  if (isYMD(v)) {
+    const dt = dateFromYMDLocal(v);
+    return dt ? dt.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '-';
+  }
+  const dt = new Date(v);
   if (isNaN(dt.getTime())) return '-';
   return dt.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
 };
-
-// 👉 Helper para inputs tipo date
-const toDateInput = (d) => {
-  if (!d) return '';
-  const dt = new Date(d);
+/** Para inputs <input type="date"> SIN desfase */
+const toDateInput = (v) => {
+  if (!v) return '';
+  if (isYMD(v)) return v;
+  const dt = new Date(v);
   if (isNaN(dt.getTime())) return '';
   const y = dt.getFullYear();
   const m = String(dt.getMonth() + 1).padStart(2, '0');
-  const day = String(dt.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  const d = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 };
-
-// 👉 Normaliza fechas vacías a null
+/** Normaliza fechas vacías a null */
 const cleanDate = (v) => (v && String(v).trim() ? v : null);
 
 const SociosModule = () => {
@@ -46,9 +58,7 @@ const SociosModule = () => {
     direccion: '',
     cp: '',
     estatus: 'activo',
-    // 👇 mantenemos fecha_nacimiento (agregada previamente)
     fecha_nacimiento: '',
-    // NOTA: no tocamos miembro_desde en el form (no lo pediste). Solo lo mostramos en la ficha.
   });
 
   const [loading, setLoading] = useState(true);
@@ -150,7 +160,7 @@ const SociosModule = () => {
     setPhotoUploading(true);
     try {
       const ext = photoFile.type === 'image/png' ? 'png' : 'jpg';
-      const path = `socio_${socioId}.${ext}`; // archivo por id, se puede sobrescribir
+      const path = `socio_${socioId}.${ext}`;
       const uploadUrl = `${SUPABASE_URL}/storage/v1/object/fotos-socios/${encodeURIComponent(path)}?upsert=true`;
 
       const upRes = await fetch(uploadUrl, {
@@ -206,7 +216,6 @@ const SociosModule = () => {
     e.preventDefault();
     setError(null);
 
-    // Validaciones mínimas (fecha_nacimiento NO es obligatoria)
     const required = ['nombre', 'apellido_paterno', 'apellido_materno', 'email', 'contrasena', 'telefono', 'direccion', 'cp'];
     const missing = required.filter((k) => !`${newSocio[k]}`.trim());
     if (missing.length) {
@@ -219,11 +228,10 @@ const SociosModule = () => {
       let socioId;
 
       if (editingSocio) {
-        // Update principal
         const patchBody = {
           ...newSocio,
           estatus: newSocio.estatus === 'activo',
-          fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento), // normaliza
+          fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
         };
 
         const res = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${editingSocio.id_socio}`, {
@@ -244,7 +252,6 @@ const SociosModule = () => {
         const socio = updated[0];
         socioId = socio.id_socio;
 
-        // Si hay foto nueva, subir y guardar URL
         if (photoFile) {
           const url = await uploadPhotoToSupabase(socioId);
           if (url) {
@@ -264,11 +271,9 @@ const SociosModule = () => {
             }
           }
         } else {
-          // Actualiza en memoria sin tocar foto
           setSociosList((prev) => prev.map((s) => (s.id_socio === socioId ? socio : s)));
         }
       } else {
-        // Crear socio (sin foto_url)
         const bodyToSend = {
           ...newSocio,
           estatus: newSocio.estatus === 'activo',
@@ -295,7 +300,6 @@ const SociosModule = () => {
         const socio = inserted[0];
         const socioIdNew = socio.id_socio;
 
-        // Subir foto si adjuntó
         if (photoFile) {
           const url = await uploadPhotoToSupabase(socioIdNew);
           if (url) {
@@ -317,7 +321,6 @@ const SociosModule = () => {
           setSociosList((prev) => [...prev, socio]);
         }
 
-        // Crea usuario de sistema
         const usernameFromEmail = newSocio.email.split('@')[0];
         const newUserSystem = {
           usuario: usernameFromEmail,
@@ -362,6 +365,7 @@ const SociosModule = () => {
       direccion: socio.direccion || '',
       cp: socio.cp || '',
       estatus: socio.estatus ? 'activo' : 'inactivo',
+      // Usar toDateInput "segura" que respeta 'YYYY-MM-DD' tal cual
       fecha_nacimiento: toDateInput(socio.fecha_nacimiento) || '',
     });
     setPhotoFile(null);
@@ -761,7 +765,7 @@ const SociosModule = () => {
         </div>
       )}
 
-      {/* Modal Ficha del socio — muestra Fecha de nacimiento y Miembro desde */}
+      {/* Modal Ficha del socio — AHORA SIN DESFASE en fechas */}
       {showFicha && socioFicha && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg">
@@ -801,13 +805,13 @@ const SociosModule = () => {
                 <div className="font-medium">{socioFicha.cp || '-'}</div>
               </div>
 
-              {/* Fecha de nacimiento */}
+              {/* Fecha de nacimiento (formateada sin desfase) */}
               <div className="p-3 bg-slate-50 rounded-lg">
                 <div className="text-xs text-slate-500">Fecha de nacimiento</div>
                 <div className="font-medium">{fmtFecha(socioFicha.fecha_nacimiento)}</div>
               </div>
 
-              {/* Miembro desde */}
+              {/* Miembro desde (formateada sin desfase) */}
               <div className="p-3 bg-slate-50 rounded-lg">
                 <div className="text-xs text-slate-500">Miembro desde</div>
                 <div className="font-medium">{fmtFecha(socioFicha.miembro_desde)}</div>
