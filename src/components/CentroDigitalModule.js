@@ -1,9 +1,11 @@
 // src/components/CentroDigitalModule.js
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
+
+const FONDO_BUCKET = 'fondo-documentos';
 
 const CentroDigitalModule = () => {
   // --- búsqueda y selección de socio ---
@@ -20,6 +22,15 @@ const CentroDigitalModule = () => {
   // --- modal subida ---
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadError, setUploadError] = useState('');
+
+  // ======= NUEVO: Documentos y contratos del Fondo =======
+  const [fondoFiles, setFondoFiles] = useState([]);
+  const [fondoLoading, setFondoLoading] = useState(false);
+  const [fondoError, setFondoError] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState(null);
+  const dropRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const authHeaders = useMemo(
     () => ({
@@ -133,7 +144,7 @@ const CentroDigitalModule = () => {
   };
 
   // -------------------------------------------------------
-  // Subida a Storage y registro en DB
+  // Subida a Storage y registro en DB (SOCIO)
   // -------------------------------------------------------
   const subirArchivo = async (file, tipo) => {
     setUploadError('');
@@ -225,8 +236,128 @@ const CentroDigitalModule = () => {
     }
   };
 
+  // =======================================================
+  // ======= NUEVO: Documentos y contratos del Fondo =======
+  // =======================================================
+
+  const fondoPublicUrl = (path) =>
+    `${SUPABASE_URL}/storage/v1/object/public/${FONDO_BUCKET}/${encodeURIComponent(path)}`;
+
+  const listarFondoArchivos = async () => {
+    setFondoLoading(true);
+    setFondoError('');
+    try {
+      // Listado de objetos
+      const resp = await fetch(
+        `${SUPABASE_URL}/storage/v1/object/list/${FONDO_BUCKET}`,
+        {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            prefix: '', // raíz
+            limit: 1000,
+            offset: 0,
+            sortBy: { column: 'name', order: 'asc' },
+          }),
+        }
+      );
+      if (!resp.ok) {
+        const e = await resp.json().catch(() => ({}));
+        throw new Error(e.message || 'No se pudo listar el bucket (verifica que exista y sea público).');
+      }
+      const items = await resp.json();
+      // items: [{ name, id, updated_at, created_at, metadata, ... }]
+      const filesOnly = (items || []).filter((x) => !x.id || x.name); // ignorar carpetas virtuales
+      setFondoFiles(filesOnly);
+    } catch (err) {
+      setFondoError(err.message || 'Error listando archivos del Fondo.');
+      setFondoFiles([]);
+    } finally {
+      setFondoLoading(false);
+    }
+  };
+
+  const subirFondoArchivos = async (fileList) => {
+    if (!fileList || fileList.length === 0) return;
+    setFondoError('');
+    try {
+      for (const file of fileList) {
+        const path = `${Date.now()}_${file.name}`;
+        const up = await fetch(
+          `${SUPABASE_URL}/storage/v1/object/${FONDO_BUCKET}/${encodeURIComponent(path)}`,
+          {
+            method: 'POST',
+            headers: {
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+              'x-upsert': 'true',
+            },
+            body: file,
+          }
+        );
+        if (!up.ok) {
+          const e = await up.json().catch(() => ({}));
+          throw new Error(`Error subiendo "${file.name}": ${e.message || up.statusText}`);
+        }
+      }
+      await listarFondoArchivos();
+    } catch (err) {
+      setFondoError(err.message || 'Error al subir archivos.');
+    }
+  };
+
+  const onFondoDrop = (e) => {
+    e.preventDefault();
+    dropRef.current?.classList.remove('ring-2', 'ring-emerald-500');
+    const files = e.dataTransfer.files;
+    if (files && files.length) subirFondoArchivos(files);
+  };
+  const onFondoDragOver = (e) => {
+    e.preventDefault();
+    dropRef.current?.classList.add('ring-2', 'ring-emerald-500');
+  };
+  const onFondoDragLeave = () => {
+    dropRef.current?.classList.remove('ring-2', 'ring-emerald-500');
+  };
+
+  const pedirBorrarFondo = (file) => {
+    setFileToDelete(file);
+    setShowDeleteConfirm(true);
+  };
+  const cancelarBorrarFondo = () => {
+    setShowDeleteConfirm(false);
+    setFileToDelete(null);
+  };
+  const confirmarBorrarFondo = async () => {
+    if (!fileToDelete?.name) return;
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/storage/v1/object/remove`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prefixes: [fileToDelete.name] }),
+      });
+      if (!resp.ok) {
+        const e = await resp.json().catch(() => ({}));
+        throw new Error(e.message || 'No se pudo eliminar el archivo del Storage.');
+      }
+      await listarFondoArchivos();
+    } catch (err) {
+      setFondoError(err.message || 'Error eliminando archivo.');
+    } finally {
+      cancelarBorrarFondo();
+    }
+  };
+
   // -------------------------------------------------------
-  // UI (solo Documentos)
+  // UI
   // -------------------------------------------------------
   return (
     <div className="p-6 space-y-6">
@@ -367,7 +498,7 @@ const CentroDigitalModule = () => {
         </div>
       </div>
 
-      {/* Modal subir archivos */}
+      {/* Modal subir archivos (SOCIO) */}
       {showUploadModal && selectedSocio && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl p-6">
@@ -467,9 +598,145 @@ const CentroDigitalModule = () => {
           </div>
         </div>
       )}
+
+      {/* =================================================== */}
+      {/* ========== NUEVA SECCIÓN: Documentos del Fondo ==== */}
+      {/* =================================================== */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h3 className="text-xl font-semibold text-slate-900">Documentos y contratos del Fondo</h3>
+            <p className="text-slate-600 text-sm">Sube, consulta, descarga o elimina archivos compartidos del Fondo.</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700"
+            >
+              Subir archivos
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => subirFondoArchivos(e.target.files)}
+            />
+            <button
+              onClick={listarFondoArchivos}
+              className="px-4 py-2 bg-slate-800 text-white rounded-xl hover:bg-slate-900"
+            >
+              Actualizar
+            </button>
+          </div>
+        </div>
+
+        {fondoError && <p className="text-red-600 mb-3">{fondoError}</p>}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Zona de subida con Drag & Drop */}
+          <div
+            ref={dropRef}
+            onDragOver={onFondoDragOver}
+            onDragLeave={onFondoDragLeave}
+            onDrop={onFondoDrop}
+            className="min-h-[180px] border-2 border-dashed border-slate-300 rounded-2xl p-6 flex flex-col items-center justify-center text-center"
+          >
+            <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mb-3">
+              <span className="text-slate-600 text-2xl">⬆️</span>
+            </div>
+            <p className="text-slate-700 font-medium">Arrastra y suelta archivos aquí</p>
+            <p className="text-slate-500 text-sm">o usa el botón “Subir archivos”</p>
+          </div>
+
+          {/* Explorador de archivos */}
+          <div className="border border-slate-200 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-semibold text-slate-900">Archivos en el Fondo</h4>
+              {fondoLoading ? (
+                <span className="text-sm text-slate-500">Cargando…</span>
+              ) : (
+                <span className="text-sm text-slate-500">
+                  {fondoFiles.length} archivo{fondoFiles.length === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
+
+            <div className="max-h-[360px] overflow-y-auto space-y-2">
+              {(!fondoLoading && fondoFiles.length === 0) && (
+                <p className="text-slate-500">Aún no hay archivos.</p>
+              )}
+
+              {fondoFiles.map((f) => (
+                <div key={f.name} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-medium text-slate-900 truncate max-w-[220px]" title={f.name}>{f.name}</div>
+                      <div className="text-xs text-slate-500">
+                        {f.updated_at ? formatFechaCorta(f.updated_at) : ''}
+                        {f.metadata?.size ? ` • ${(f.metadata.size/1024).toFixed(1)} KB` : ''}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={fondoPublicUrl(f.name)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      Abrir
+                    </a>
+                    <a
+                      href={fondoPublicUrl(f.name)}
+                      download
+                      className="px-3 py-1.5 text-sm rounded-lg bg-slate-100 hover:bg-slate-200"
+                    >
+                      Descargar
+                    </a>
+                    <button
+                      onClick={() => pedirBorrarFondo(f)}
+                      className="px-3 py-1.5 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Pie con tip */}
+            <div className="text-xs text-slate-500 mt-3">
+              Tip: usa nombres claros, ej. <em>Contrato_Marco_2025.pdf</em>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Confirmación de borrado (FONDO) */}
+      {showDeleteConfirm && fileToDelete && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold mb-2">Confirmar eliminación</h3>
+            <p className="text-slate-700 mb-6">
+              ¿Está seguro que desea borrar el archivo <strong>{fileToDelete.name}</strong>?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button className="px-4 py-2 rounded-lg bg-slate-100" onClick={cancelarBorrarFondo}>Cancelar</button>
+              <button className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700" onClick={confirmarBorrarFondo}>
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default CentroDigitalModule;
-
