@@ -12,6 +12,8 @@ import PagosModule from './components/PagosModule';
 import ReportesModule from './components/ReportesModule';
 import RetirosModule from './components/RetirosModule';
 
+// ⬇️ NUEVO: importa el módulo de Multas y Renovaciones
+import MultasRenovacionesModule from './components/MultasRenovacionesModule';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -57,6 +59,7 @@ function App() {
   };
 
   const renderActiveSection = () => {
+    // Vista de USUARIO (socio)
     if (currentUser && currentUser.role === 'usuario') {
       const idSocio = localStorage.getItem('id_socio');
       if (!idSocio) {
@@ -73,11 +76,15 @@ function App() {
           return <CentroDigitalModule idSocio={idSocio} />;
         case 'pagos':
           return <PagosModule idSocio={idSocio} />;
+        // (Opcional) habilitar para usuarios si en el futuro agregas el ítem al sidebar de usuarios:
+        case 'multas-renovaciones':
+          return <MultasRenovacionesModule idSocio={idSocio} />;
         default:
           return <AhorrosModule idSocio={idSocio} />;
       }
     }
 
+    // Vista de ADMIN
     switch (activeSection) {
       case 'dashboard':
         return <DashboardMain />;
@@ -91,12 +98,15 @@ function App() {
         return <CentroDigitalModule />;
       case 'usuarios':
         return <UsuariosModule />;
-      case 'pagos':   
+      case 'pagos':
         return <PagosModule />;
-          case 'retiros':
-  return <RetirosModule />;
+      case 'retiros':
+        return <RetirosModule />;
       case 'reportes':
         return <ReportesModule />;
+      // ⬇️ NUEVO: ruta para Multas y Renovaciones (admin)
+      case 'multas-renovaciones':
+        return <MultasRenovacionesModule />;
       default:
         return <DashboardMain />;
     }
@@ -124,7 +134,3 @@ function App() {
 }
 
 export default App;
-
-
-
-
