@@ -10,7 +10,7 @@ const avatarFallback = (s) => {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bg}&color=fff&size=128`;
 };
 
-// 👉 Helper de formato de fecha para mostrar bonito en español
+// 👉 Helper: fecha bonita en español
 const fmtFecha = (d) => {
   if (!d) return '-';
   const dt = new Date(d);
@@ -18,7 +18,7 @@ const fmtFecha = (d) => {
   return dt.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
 };
 
-// 👉 Helper para normalizar a 'YYYY-MM-DD' en inputs tipo date
+// 👉 Helper para inputs tipo date
 const toDateInput = (d) => {
   if (!d) return '';
   const dt = new Date(d);
@@ -29,7 +29,7 @@ const toDateInput = (d) => {
   return `${y}-${m}-${day}`;
 };
 
-// 👉 Limpia fechas vacías a null (evita enviar "")
+// 👉 Normaliza fechas vacías a null
 const cleanDate = (v) => (v && String(v).trim() ? v : null);
 
 const SociosModule = () => {
@@ -46,7 +46,9 @@ const SociosModule = () => {
     direccion: '',
     cp: '',
     estatus: 'activo',
-    fecha_nacimiento: '', // 👈 NUEVO en estado
+    // 👇 mantenemos fecha_nacimiento (agregada previamente)
+    fecha_nacimiento: '',
+    // NOTA: no tocamos miembro_desde en el form (no lo pediste). Solo lo mostramos en la ficha.
   });
 
   const [loading, setLoading] = useState(true);
@@ -191,7 +193,7 @@ const SociosModule = () => {
       direccion: '',
       cp: '',
       estatus: 'activo',
-      fecha_nacimiento: '', // 👈 reset
+      fecha_nacimiento: '',
     });
     setEditingSocio(null);
     setPhotoFile(null);
@@ -221,7 +223,7 @@ const SociosModule = () => {
         const patchBody = {
           ...newSocio,
           estatus: newSocio.estatus === 'activo',
-          fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento), // 👈 normaliza
+          fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento), // normaliza
         };
 
         const res = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${editingSocio.id_socio}`, {
@@ -270,7 +272,7 @@ const SociosModule = () => {
         const bodyToSend = {
           ...newSocio,
           estatus: newSocio.estatus === 'activo',
-          fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento), // 👈 normaliza
+          fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
         };
         const res = await fetch(`${SUPABASE_URL}/rest/v1/socios`, {
           method: 'POST',
@@ -284,7 +286,6 @@ const SociosModule = () => {
         });
         if (!res.ok) {
           const e = await res.json().catch(() => ({}));
-          // posible duplicado de email (si tienes unique en BD)
           if (e?.message?.toLowerCase?.().includes('duplicate') || e?.message?.includes('unique')) {
             throw new Error('El correo ya existe, por favor use otro.');
           }
@@ -308,13 +309,12 @@ const SociosModule = () => {
               },
               body: JSON.stringify({ foto_url: url }),
             });
-            // recarga lista local
             await fetchSocios();
           } else {
-            setSociosList((prev) => [...prev, socio]); // sin foto
+            setSociosList((prev) => [...prev, socio]);
           }
         } else {
-          setSociosList((prev) => [...prev, socio]); // sin foto
+          setSociosList((prev) => [...prev, socio]);
         }
 
         // Crea usuario de sistema
@@ -362,7 +362,7 @@ const SociosModule = () => {
       direccion: socio.direccion || '',
       cp: socio.cp || '',
       estatus: socio.estatus ? 'activo' : 'inactivo',
-      fecha_nacimiento: toDateInput(socio.fecha_nacimiento) || '', // 👈 pre-carga en input date
+      fecha_nacimiento: toDateInput(socio.fecha_nacimiento) || '',
     });
     setPhotoFile(null);
     setPhotoPreview(socio.foto_url || '');
@@ -577,7 +577,7 @@ const SociosModule = () => {
               <option value="inactivo">Inactivo</option>
             </select>
 
-            {/* 👇 NUEVO: Fecha de nacimiento */}
+            {/* Fecha de nacimiento */}
             <div className="col-span-full">
               <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de nacimiento</label>
               <input
@@ -761,7 +761,7 @@ const SociosModule = () => {
         </div>
       )}
 
-      {/* Modal Ficha del socio (con Fecha de nacimiento agregada) */}
+      {/* Modal Ficha del socio — muestra Fecha de nacimiento y Miembro desde */}
       {showFicha && socioFicha && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg">
@@ -782,7 +782,6 @@ const SociosModule = () => {
                 <div className="text-slate-900 font-medium">
                   {socioFicha.nombre} {socioFicha.apellido_paterno} {socioFicha.apellido_materno}
                 </div>
-                {/* Teléfono en el encabezado */}
                 <div className="text-sm text-slate-600 mt-1">
                   Teléfono:{' '}
                   <span className="font-medium text-slate-900">
@@ -802,10 +801,16 @@ const SociosModule = () => {
                 <div className="font-medium">{socioFicha.cp || '-'}</div>
               </div>
 
-              {/* NUEVO: Fecha de nacimiento */}
+              {/* Fecha de nacimiento */}
               <div className="p-3 bg-slate-50 rounded-lg">
                 <div className="text-xs text-slate-500">Fecha de nacimiento</div>
                 <div className="font-medium">{fmtFecha(socioFicha.fecha_nacimiento)}</div>
+              </div>
+
+              {/* Miembro desde */}
+              <div className="p-3 bg-slate-50 rounded-lg">
+                <div className="text-xs text-slate-500">Miembro desde</div>
+                <div className="font-medium">{fmtFecha(socioFicha.miembro_desde)}</div>
               </div>
 
               <div className="md:col-span-2 p-3 bg-slate-50 rounded-lg">
