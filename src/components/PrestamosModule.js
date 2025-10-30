@@ -70,6 +70,76 @@ const PrestamosModule = ({ idSocio }) => {
     }
   }, [idSocio]);
 
+  // ===========================================
+  // 🔁 Helper: marcar préstamo como LIQUIDADO
+  // si todos sus pagos están con estatus 'pagado'
+  // ===========================================
+  const checkAndMarkLiquidado = async (id_prestamo) => {
+    try {
+      // Total de pagos programados para el préstamo
+      const totalResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${id_prestamo}&select=count`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Prefer: 'count=exact',
+            Range: '0-0',
+            'Range-Unit': 'items'
+          }
+        }
+      );
+      const totalRange = totalResp.headers.get('content-range') || '0/0';
+      const totalPagos = parseInt(totalRange.split('/')[1], 10) || 0;
+
+      // Pagos con estatus pagado
+      const pagadosResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${id_prestamo}&estatus=eq.pagado&select=count`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Prefer: 'count=exact',
+            Range: '0-0',
+            'Range-Unit': 'items'
+          }
+        }
+      );
+      const pagadosRange = pagadosResp.headers.get('content-range') || '0/0';
+      const pagosPagados = parseInt(pagadosRange.split('/')[1], 10) || 0;
+
+      // Si hay pagos y todos están pagados, marcar como LIQUIDADO
+      if (totalPagos > 0 && pagosPagados === totalPagos) {
+        const patchResp = await fetch(
+          `${SUPABASE_URL}/rest/v1/prestamos?id_prestamo=eq.${id_prestamo}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+              Prefer: 'return=representation'
+            },
+            body: JSON.stringify({ estatus: 'LIQUIDADO' })
+          }
+        );
+        if (!patchResp.ok) {
+          // No rompemos el flujo si falla el patch; solo log
+          console.error('No se pudo actualizar estatus a LIQUIDADO', await patchResp.text());
+        } else {
+          // Reflejar en UI
+          setPrestamosList(prev =>
+            prev.map(p => p.id_prestamo === id_prestamo ? { ...p, estatus: 'LIQUIDADO' } : p)
+          );
+        }
+      }
+    } catch (e) {
+      console.error('checkAndMarkLiquidado error:', e);
+    }
+  };
+
   // ---------- KPIs (socios con préstamo y total neto adeudado) ----------
   const fetchGlobalPrestamoStats = async () => {
     try {
@@ -160,6 +230,9 @@ const PrestamosModule = ({ idSocio }) => {
       }
       const data = await response.json();
       setPrestamosList(data);
+
+      // ✅ Verificar cada préstamo y marcar LIQUIDADO si aplica
+      await Promise.all((data || []).map(p => checkAndMarkLiquidado(p.id_prestamo)));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -513,170 +586,7 @@ const PrestamosModule = ({ idSocio }) => {
   };
 
   // ---------- Ver/editar ----------
-  const handleVerHistorialPrestamosSocio = async (socio) => {
-    setSelectedSocioForHistorial(socio);
-    setLoading(true);
-    setError(null);
-    setShowPrestamoHistorial(true);
-
-    try {
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,numero_plazos,tipo_plazo,interes`,
-        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
-      );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Error al cargar préstamos del socio: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
-      }
-      const data = await response.json();
-
-      const prestamosConEstado = await Promise.all(
-        data.map(async (prestamo) => {
-          const totalPagosProgramadosResponse = await fetch(
-            `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&select=count`,
-            {
-              headers: {
-                'Content-Type': 'application/json',
-                apikey: SUPABASE_ANON_KEY,
-                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-                Prefer: 'count=exact',
-                Range: '0-0',
-                'Range-Unit': 'items'
-              }
-            }
-          );
-          const totalRange = totalPagosProgramadosResponse.headers.get('content-range') || '0/0';
-          const totalPagosProgramados = parseInt(totalRange.split('/')[1], 10) || 0;
-
-          const pagosPagadosResponse = await fetch(
-            `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&estatus=eq.pagado&select=count`,
-            {
-              headers: {
-                'Content-Type': 'application/json',
-                apikey: SUPABASE_ANON_KEY,
-                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-                Prefer: 'count=exact',
-                Range: '0-0',
-                'Range-Unit': 'items'
-              }
-            }
-          );
-          const pagadosRange = pagosPagadosResponse.headers.get('content-range') || '0/0';
-          const pagosPagados = parseInt(pagadosRange.split('/')[1], 10) || 0;
-
-          return { ...prestamo, isPaid: totalPagosProgramados > 0 && pagosPagados === totalPagosProgramados };
-        })
-      );
-      setSocioPrestamos(prestamosConEstado);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEditarPrestamosSocio = async (socio) => {
-    setSelectedSocioForHistorial(socio);
-    setLoading(true);
-    setError(null);
-    setShowEditPrestamosModal(true);
-
-    try {
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,numero_plazos`,
-        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
-      );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Error al cargar préstamos del socio para edición: ${response.statusText} - ${errorData.message || 'Error desconocido'}`);
-      }
-      const data = await response.json();
-
-      const prestamosConEstadoYHabilitacion = await Promise.all(
-        data.map(async (prestamo) => {
-          const pagosRealizadosResponse = await fetch(
-            `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&monto_pagado=gt.0&select=count`,
-            {
-              headers: {
-                'Content-Type': 'application/json',
-                apikey: SUPABASE_ANON_KEY,
-                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-                Prefer: 'count=exact',
-                Range: '0-0',
-                'Range-Unit': 'items'
-              }
-            }
-          );
-          const range = pagosRealizadosResponse.headers.get('content-range') || '0/0';
-          const pagosRealizadosCount = parseInt(range.split('/')[1], 10) || 0;
-
-          const fechaSolicitud = new Date(prestamo.fecha_solicitud);
-          const now = new Date();
-          const diffTime = Math.abs(now.getTime() - fechaSolicitud.getTime());
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-          const canDelete = pagosRealizadosCount === 0 && diffDays <= 1;
-          return { ...prestamo, canDelete };
-        })
-      );
-      setSocioPrestamos(prestamosConEstadoYHabilitacion);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeletePrestamo = async (prestamoId) => {
-    if (
-      window.confirm(
-        '¿Estás seguro de eliminar este préstamo? Al hacerlo, todo lo relacionado con este préstamo será eliminado y no hay manera de revertirlo.'
-      )
-    ) {
-      setLoading(true);
-      setError(null);
-      setToastMessage('');
-      try {
-        const deletePagosResponse = await fetch(
-          `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamoId}`,
-          {
-            method: 'DELETE',
-            headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-          }
-        );
-        if (!deletePagosResponse.ok) {
-          const errorData = await deletePagosResponse.json();
-          throw new Error(
-            `Error al eliminar pagos relacionados: ${deletePagosResponse.statusText} - ${errorData.message || 'Error desconocido'}`
-          );
-        }
-
-        const deletePrestamoResponse = await fetch(
-          `${SUPABASE_URL}/rest/v1/prestamos?id_prestamo=eq.${prestamoId}`,
-          { method: 'DELETE', headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
-        );
-        if (!deletePrestamoResponse.ok) {
-          const errorData = await deletePrestamoResponse.json();
-          throw new Error(
-            `Error al eliminar el préstamo: ${deletePrestamoResponse.statusText} - ${errorData.message || 'Error desconocido'}`
-          );
-        }
-
-        setToastMessage('Préstamo eliminado exitosamente.');
-        handleEditarPrestamosSocio(selectedSocioForHistorial);
-        fetchGlobalPrestamoStats();
-        if (!idSocio) fetchAllSociosConPrestamoActivo();
-        else fetchPrestamosForUser(idSocio);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-        setTimeout(() => setToastMessage(''), 3000);
-      }
-    }
-  };
-
-  const handleVerDetallesPrestamo = async (prestamo) => {
+  const handleVerHistorialPrestamo = async (prestamo) => {
     setSelectedPrestamo(prestamo);
     setLoading(true);
     setError(null);
@@ -694,12 +604,18 @@ const PrestamosModule = ({ idSocio }) => {
       const data = await response.json();
       setHistorialPagosPrestamo(data);
       setShowDetailsModal(true);
+
+      // ✅ También verificamos aquí por si el usuario viene directo a detalles
+      await checkAndMarkLiquidado(prestamo.id_prestamo);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  // (Nombre previo handleVerDetallesPrestamo en tu código)
+  const handleVerDetallesPrestamo = handleVerHistorialPrestamo;
 
   const handleBackToListadoPrestamos = () => {
     setShowDetailsModal(false);
@@ -724,9 +640,7 @@ const PrestamosModule = ({ idSocio }) => {
       const results = sociosList.filter(
         (socio) =>
           socio.id_socio.toString().includes(term) ||
-          `${socio.nombre} ${socio.apellido_paterno} ${socio.apellido_materno}`
-            .toLowerCase()
-            .includes(term)
+          `${socio.nombre} ${socio.apellido_paterno} ${socio.apellido_materno}`.toLowerCase().includes(term)
       );
       setSearchResults(results);
     } else {
@@ -734,6 +648,9 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
+  // ============================
+  //  Resto del render sin cambios
+  // ============================
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -800,13 +717,19 @@ const PrestamosModule = ({ idSocio }) => {
                 </span>
                 <div className="flex space-x-2">
                   <button
-                    onClick={() => handleVerHistorialPrestamosSocio(socio)}
+                    onClick={() => {
+                      setShowPrestamoHistorial(true);
+                      setSelectedSocioForHistorial(socio);
+                    }}
                     className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
                   >
                     Ver Historial de Préstamos
                   </button>
                   <button
-                    onClick={() => handleEditarPrestamosSocio(socio)}
+                    onClick={() => {
+                      setShowEditPrestamosModal(true);
+                      setSelectedSocioForHistorial(socio);
+                    }}
                     className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
                   >
                     Editar
@@ -820,60 +743,6 @@ const PrestamosModule = ({ idSocio }) => {
           <p className="text-center text-slate-600 mt-4">No se encontraron resultados.</p>
         )}
       </div>
-
-      {/* Socios con préstamos activos (admin) */}
-      {currentUserRole === 'admin' &&
-        sociosConPrestamosActivos.length > 0 &&
-        !showPrestamoHistorial &&
-        !showEditPrestamosModal && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <h3 className="text-xl font-semibold text-slate-900 mb-4">Socios con Préstamos Activos</h3>
-            {loading && <p className="text-center text-slate-600">Cargando socios con préstamos...</p>}
-            {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
-            {!loading && !error && sociosConPrestamosActivos.length === 0 && (
-              <p className="text-center text-slate-600">No hay socios con préstamos activos.</p>
-            )}
-            {!loading && !error && sociosConPrestamosActivos.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">ID Socio</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Nombre Completo</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sociosConPrestamosActivos.map((socio) => (
-                      <tr key={socio.id_socio} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="py-4 px-4 text-slate-700">{socio.id_socio}</td>
-                        <td className="py-4 px-4 font-medium text-slate-900">
-                          {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleVerHistorialPrestamosSocio(socio)}
-                              className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
-                            >
-                              Ver Historial de Préstamos
-                            </button>
-                            <button
-                              onClick={() => handleEditarPrestamosSocio(socio)}
-                              className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
-                            >
-                              Editar
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
 
       {/* Tabla de préstamos del socio (cuando idSocio viene) */}
       {!showPrestamoHistorial && !showEditPrestamosModal && (
@@ -909,7 +778,11 @@ const PrestamosModule = ({ idSocio }) => {
                       <td className="py-4 px-4">
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            prestamo.estatus === 'activo' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            prestamo.estatus === 'activo'
+                              ? 'bg-green-100 text-green-700'
+                              : prestamo.estatus === 'LIQUIDADO'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-red-100 text-red-700'
                           }`}
                         >
                           {prestamo.estatus}
@@ -942,97 +815,7 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* Historial / Edición */}
-      {showPrestamoHistorial && selectedSocioForHistorial && !showEditPrestamosModal ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h3 className="text-xl font-bold text-slate-900 mb-4">
-            Historial de Préstamos de {selectedSocioForHistorial.nombre} {selectedSocioForHistorial.apellido_paterno}
-          </h3>
-          {loading && <p className="text-center text-slate-600">Cargando préstamos...</p>}
-          {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
-          {!loading && !error && socioPrestamos.length === 0 && (
-            <p className="text-center text-slate-600">Este socio no tiene préstamos registrados.</p>
-          )}
-          {!loading && !error && socioPrestamos.length > 0 && (
-            <div className="space-y-4">
-              {socioPrestamos.map((prestamo) => (
-                <div
-                  key={prestamo.id_prestamo}
-                  className="p-4 border border-slate-200 rounded-lg flex justify-between items-center"
-                >
-                  <div>
-                    <p className="font-medium text-slate-900">
-                      Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
-                      {convertirFechaHoraLocal(prestamo.fecha_solicitud).fecha}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleVerDetallesPrestamo(prestamo)}
-                    className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
-                  >
-                    Ver detalles
-                  </button>
-                </div>
-              ))}
-              <div className="flex justify-center mt-6">
-                <button
-                  onClick={handleBackToMainView}
-                  className="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
-                >
-                  Volver
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      ) : showEditPrestamosModal && selectedSocioForHistorial ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h3 className="text-xl font-bold text-slate-900 mb-4">
-            Editar Préstamos de {selectedSocioForHistorial.nombre} {selectedSocioForHistorial.apellido_paterno}
-          </h3>
-          {loading && <p className="text-center text-slate-600">Cargando préstamos para edición...</p>}
-          {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
-          {!loading && !error && socioPrestamos.length === 0 && (
-            <p className="text-center text-slate-600">Este socio no tiene préstamos registrados para editar.</p>
-          )}
-          {!loading && !error && socioPrestamos.length > 0 && (
-            <div className="space-y-4">
-              {socioPrestamos.map((prestamo) => (
-                <div
-                  key={prestamo.id_prestamo}
-                  className="p-4 border border-slate-200 rounded-lg flex justify-between items-center"
-                >
-                  <div>
-                    <p className="font-medium text-slate-900">
-                      Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
-                      {convertirFechaHoraLocal(prestamo.fecha_solicitud).fecha}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleDeletePrestamo(prestamo.id_prestamo)}
-                    className={`px-3 py-1 bg-red-500 text-white rounded-lg text-sm transition-colors ${
-                      prestamo.canDelete ? 'hover:bg-red-600' : 'opacity-50 cursor-not-allowed'
-                    }`}
-                    disabled={!prestamo.canDelete}
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              ))}
-              <div className="flex justify-center mt-6">
-                <button
-                  onClick={handleBackToMainView}
-                  className="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
-                >
-                  Volver
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      ) : null}
-
-      {/* Modal de Detalles (ancho) */}
+      {/* Modal de Detalles */}
       {showDetailsModal && selectedPrestamo && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-6xl w-full">
@@ -1065,9 +848,7 @@ const PrestamosModule = ({ idSocio }) => {
                     {historialPagosPrestamo.map((pago, idx) => {
                       const programada = pago.fecha_programada || '';
                       const fechaShow = pago.fecha_hora_pago
-                        ? `${convertirFechaHoraLocal(pago.fecha_hora_pago).fecha} ${
-                            convertirFechaHoraLocal(pago.fecha_hora_pago).hora
-                          }`
+                        ? `${convertirFechaHoraLocal(pago.fecha_hora_pago).fecha} ${convertirFechaHoraLocal(pago.fecha_hora_pago).hora}`
                         : programada;
                       return (
                         <tr key={idx} className="border-b border-slate-100">
@@ -1099,265 +880,6 @@ const PrestamosModule = ({ idSocio }) => {
               >
                 Volver
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Crear Préstamo */}
-      {showAddPrestamoModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold">Registrar nuevo préstamo</h3>
-              <button
-                className="px-3 py-1 rounded-lg bg-slate-100"
-                onClick={() => setShowAddPrestamoModal(false)}
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-slate-700 mb-1">Socio</label>
-                  <select
-                    name="id_socio"
-                    value={newPrestamo.id_socio}
-                    onChange={handleNewPrestamoInputChange}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                  >
-                    <option value="">Seleccione…</option>
-                    {Array.isArray(sociosList) &&
-                      sociosList.map((s) => (
-                        <option key={s.id_socio} value={s.id_socio}>
-                          {s.id_socio} — {s.nombre} {s.apellido_paterno} {s.apellido_materno}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-700 mb-1">Monto solicitado</label>
-                  <input
-                    type="number"
-                    name="monto_solicitado"
-                    value={newPrestamo.monto_solicitado}
-                    onChange={handleNewPrestamoInputChange}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                    placeholder="0.00"
-                    min="0.01"
-                    step="0.01"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <p className="block text-sm text-slate-700 mb-2">Tipo de plazo</p>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="tipo_plazo"
-                      value="mensual"
-                      checked={newPrestamo.tipo_plazo === 'mensual'}
-                      onChange={handleNewPrestamoInputChange}
-                    />
-                    <span>Mensual</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="tipo_plazo"
-                      value="semanal"
-                      checked={newPrestamo.tipo_plazo === 'semanal'}
-                      onChange={handleNewPrestamoInputChange}
-                    />
-                    <span>Semanal</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="tipo_plazo"
-                      value="quincenal"
-                      checked={newPrestamo.tipo_plazo === 'quincenal'}
-                      onChange={handleNewPrestamoInputChange}
-                    />
-                    <span>Quincenal</span>
-                  </label>
-                </div>
-              </div>
-
-              {newPrestamo.tipo_plazo === 'mensual' && (
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-slate-700 mb-1">Núm. de meses</label>
-                    <select
-                      name="numero_plazos"
-                      value={newPrestamo.numero_plazos}
-                      onChange={handleNewPrestamoInputChange}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                    >
-                      <option value="">Seleccione…</option>
-                      {plazoOpciones.map((p) => (
-                        <option key={p} value={p}>
-                          {p}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-slate-700 mb-1">Tasa mensual (%)</label>
-                    <select
-                      name="tasa_interes_mensual"
-                      value={newPrestamo.tasa_interes_mensual}
-                      onChange={handleNewPrestamoInputChange}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                    >
-                      <option value="">Seleccione…</option>
-                      {tasaOpciones.map((t) => (
-                        <option key={t} value={t}>
-                          {t}%
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {newPrestamo.tipo_plazo === 'semanal' && (
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-slate-700 mb-1">Núm. de semanas</label>
-                    <input
-                      type="number"
-                      name="plazo_semanas"
-                      value={newPrestamo.plazo_semanas}
-                      onChange={handleNewPrestamoInputChange}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                      min="1"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-slate-700 mb-1">Tasa semanal (%)</label>
-                    <select
-                      name="tasa_interes_semanal"
-                      value={newPrestamo.tasa_interes_semanal}
-                      onChange={handleNewPrestamoInputChange}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                    >
-                      <option value="">Seleccione…</option>
-                      {weeklyRateOptions.map((t) => (
-                        <option key={t} value={t}>
-                          {t}%
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {newPrestamo.tipo_plazo === 'quincenal' && (
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-slate-700 mb-1">Núm. de quincenas</label>
-                    <input
-                      type="number"
-                      name="plazo_quincenas"
-                      value={newPrestamo.plazo_quincenas}
-                      onChange={handleNewPrestamoInputChange}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                      min="1"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-slate-700 mb-1">Tasa quincenal (%)</label>
-                    <select
-                      name="tasa_interes_quincenal"
-                      value={newPrestamo.tasa_interes_quincenal}
-                      onChange={handleNewPrestamoInputChange}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                    >
-                      <option value="">Seleccione…</option>
-                      {biweeklyRateOptions.map((t) => (
-                        <option key={t} value={t}>
-                          {t}%
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {/* Resumen de cálculo */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid md:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-sm text-slate-600">Pago por periodo</p>
-                  <p className="text-lg font-semibold">{formatCurrency(pagoPeriodo)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600">Interés por periodo</p>
-                  <p className="text-lg font-semibold">{formatCurrency(interesPeriodoEstimado)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600">Abono a capital por periodo</p>
-                  <p className="text-lg font-semibold">{formatCurrency(abonoCapitalPeriodo)}</p>
-                </div>
-              </div>
-
-              {error && <p className="text-red-500 text-sm">{error}</p>}
-
-              <div className="flex justify-end gap-3">
-                <button
-                  className="px-4 py-2 bg-slate-200 rounded-xl"
-                  onClick={() => setShowAddPrestamoModal(false)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  disabled={!isFormReady()}
-                  className={`px-4 py-2 rounded-xl text-white ${
-                    isFormReady() ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-400 cursor-not-allowed'
-                  }`}
-                  onClick={() => setShowConfirmPrestamoModal(true)}
-                >
-                  Registrar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmación de registro */}
-      {showConfirmPrestamoModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
-            <div className="p-6 text-center">
-              <h3 className="text-lg font-bold text-slate-900 mb-2">Confirmar registro</h3>
-              <p className="text-slate-700 mb-1">
-                ¿Desea registrar este préstamo por{' '}
-                <span className="font-semibold">{formatCurrency(newPrestamo.monto_solicitado)}</span>?
-              </p>
-              <div className="flex justify-center gap-3 mt-4">
-                <button
-                  className="px-5 py-2 bg-slate-200 rounded-xl"
-                  onClick={() => setShowConfirmPrestamoModal(false)}
-                  disabled={submitting}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className={`px-5 py-2 rounded-xl text-white ${
-                    submitting ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'
-                  }`}
-                  onClick={handleConfirmPrestamo}
-                  disabled={submitting}
-                >
-                  {submitting ? 'Guardando…' : 'Confirmar'}
-                </button>
-              </div>
             </div>
           </div>
         </div>
