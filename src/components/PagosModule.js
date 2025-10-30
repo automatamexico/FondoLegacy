@@ -152,14 +152,48 @@ const PagosModule = ({ idSocio }) => {
     run();
   }, [buscarSocioTerm]);
 
+  // === NUEVO: cálculo de "Préstamo Liquidado" (misma lógica del módulo Préstamos) ===
+  const isPrestamoLiquidado = async (id_prestamo) => {
+    try {
+      const totalResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${id_prestamo}&select=count`,
+        { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', 'Range-Unit': 'items', Range: '0-0' } }
+      );
+      const totalRange = totalResp.headers.get('content-range') || '0/0';
+      const total = parseInt(totalRange.split('/')[1], 10) || 0;
+
+      const pagadosResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${id_prestamo}&estatus=eq.pagado&select=count`,
+        { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', 'Range-Unit': 'items', Range: '0-0' } }
+      );
+      const pagadosRange = pagadosResp.headers.get('content-range') || '0/0';
+      const pagados = parseInt(pagadosRange.split('/')[1], 10) || 0;
+
+      return total > 0 && pagados === total;
+    } catch {
+      return false;
+    }
+  };
+
   const verPrestamos = async () => {
     if (!socioSel) return;
     const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioSel.id_socio}&select=id_prestamo,monto_solicitado,numero_plazos,interes,tipo_plazo`,
+      // Incluimos estatus para mostrar si ya viene LIQUIDADO desde la tabla
+      `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioSel.id_socio}&select=id_prestamo,monto_solicitado,numero_plazos,interes,tipo_plazo,estatus`,
       { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
     );
     const data = await r.json();
-    setPrestamosSocio(data);
+
+    // Enriquecer con isLiquidado (misma lógica que módulo de Préstamos)
+    const enriched = await Promise.all(
+      (data || []).map(async (p) => {
+        const liquid = await isPrestamoLiquidado(p.id_prestamo);
+        return { ...p, isLiquidado: liquid || (String(p.estatus || '').toUpperCase() === 'LIQUIDADO') };
+        // Respetamos el campo estatus si ya está LIQUIDADO, pero la bandera se basa en los pagos.
+      })
+    );
+
+    setPrestamosSocio(enriched);
     setPrestamoSel(null);
   };
 
@@ -212,7 +246,7 @@ const PagosModule = ({ idSocio }) => {
     try {
       const monto = Number(montoIngresado);
 
-      // Calcula interés/capital (con base en lo definido al crear el préstamo)
+      // Calcula interés/capital
       const capitalEstimado = Number(prestamoMeta.monto_solicitado) / Number(prestamoMeta.numero_plazos || 1);
       const interesEstimado = Number(prestamoMeta.monto_solicitado) * (Number(prestamoMeta.interes) / 100);
       const interes_pagado = Math.min(monto, interesEstimado);
@@ -229,8 +263,8 @@ const PagosModule = ({ idSocio }) => {
         monto_pagado: monto,
         interes_pagado,
         capital_pagado,
-        forma_pago: formaPago,               // <<<<<< NUEVO
-        nota: (nota || '').trim() || null    // <<<<<< nota guardada
+        forma_pago: formaPago,
+        nota: (nota || '').trim() || null
       };
 
       const r = await fetch(
@@ -389,6 +423,12 @@ const PagosModule = ({ idSocio }) => {
                     <span className="font-medium">
                       Préstamo #{p.id_prestamo} — {fmtMoney(p.monto_solicitado)} — {p.tipo_plazo} — {p.numero_plazos} plazos — Tasa {p.interes}%
                     </span>
+                    {/* === NUEVO: Leyenda si está liquidado === */}
+                    {p.isLiquidado && (
+                      <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
+                        Préstamo Liquidado
+                      </span>
+                    )}
                   </div>
                 </label>
               ))}
