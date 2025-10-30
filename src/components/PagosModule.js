@@ -117,12 +117,16 @@ const PagosModule = ({ idSocio }) => {
   const [pagosProgramados, setPagosProgramados] = useState([]);
   const [prestamoMeta, setPrestamoMeta] = useState(null); // {monto_solicitado, numero_plazos, interes}
 
-  // Sub-modal: ingresar monto / forma de pago / nota
+  // Sub-modal: ingresar monto / forma de pago / nota  (+ multa por hoja)
   const [showMontoModal, setShowMontoModal] = useState(false);
   const [pagoTarget, setPagoTarget] = useState(null);
   const [montoIngresado, setMontoIngresado] = useState('');
   const [formaPago, setFormaPago] = useState(''); // 'Efectivo' | 'Transferencia'
   const [formaPagoError, setFormaPagoError] = useState('');
+
+  // NUEVO: Multa por hoja
+  const [multaHoja, setMultaHoja] = useState('no'); // 'si' | 'no'
+  const [montoMultaHoja, setMontoMultaHoja] = useState('');
 
   // Nota
   const [nota, setNota] = useState('');
@@ -178,18 +182,15 @@ const PagosModule = ({ idSocio }) => {
   const verPrestamos = async () => {
     if (!socioSel) return;
     const r = await fetch(
-      // Incluimos estatus para mostrar si ya viene LIQUIDADO desde la tabla
       `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioSel.id_socio}&select=id_prestamo,monto_solicitado,numero_plazos,interes,tipo_plazo,estatus`,
       { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
     );
     const data = await r.json();
 
-    // Enriquecer con isLiquidado (misma lógica que módulo de Préstamos)
     const enriched = await Promise.all(
       (data || []).map(async (p) => {
         const liquid = await isPrestamoLiquidado(p.id_prestamo);
         return { ...p, isLiquidado: liquid || (String(p.estatus || '').toUpperCase() === 'LIQUIDADO') };
-        // Respetamos el campo estatus si ya está LIQUIDADO, pero la bandera se basa en los pagos.
       })
     );
 
@@ -224,6 +225,9 @@ const PagosModule = ({ idSocio }) => {
     setFormaPago('');
     setFormaPagoError('');
     setNota('');
+    // Inicializar NUEVO estado de multa
+    setMultaHoja('no');
+    setMontoMultaHoja('');
     setShowMontoModal(true);
   };
 
@@ -234,6 +238,11 @@ const PagosModule = ({ idSocio }) => {
     }
     if (!formaPago) {
       setFormaPagoError('debe seleccionar su forma de pago');
+      return;
+    }
+    // Validación NUEVA: si multaHoja = 'si', se requiere monto de multa > 0
+    if (multaHoja === 'si' && !(Number(montoMultaHoja) > 0)) {
+      alert('Indique el monto de la multa por hoja.');
       return;
     }
     setShowConfirm(true);
@@ -281,16 +290,46 @@ const PagosModule = ({ idSocio }) => {
       );
       if (!r.ok) throw new Error('No se pudo registrar el pago');
 
+      // NUEVO: si seleccionó "Multa por hoja = Sí", registrar en pago_multas
+      if (multaHoja === 'si' && Number(montoMultaHoja) > 0 && socioSel?.id_socio) {
+        try {
+          const multaBody = {
+            id_socio: socioSel.id_socio,
+            multa_hoja: true,
+            monto_multa_hoja: Number(montoMultaHoja),
+            fecha_hora: nowLocalPlain
+          };
+          const rMulta = await fetch(`${SUPABASE_URL}/rest/v1/pago_multas`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+              Prefer: 'return=representation'
+            },
+            body: JSON.stringify(multaBody)
+          });
+          // Si falla, no bloquea el flujo de pago de préstamo
+          if (!rMulta.ok) {
+            console.warn('No se pudo registrar la multa por hoja.');
+          }
+        } catch (e) {
+          console.warn('Error registrando multa por hoja:', e?.message || e);
+        }
+      }
+
       // Refrescar lista del modal
       await abrirRealizarPago();
 
-      // Cerrar sub-modales
+      // Cerrar sub-modales y limpiar
       setShowConfirm(false);
       setShowMontoModal(false);
       setPagoTarget(null);
       setMontoIngresado('');
       setFormaPago('');
       setNota('');
+      setMultaHoja('no');
+      setMontoMultaHoja('');
     } catch (e) {
       alert('No se pudo registrar el pago.');
     } finally {
@@ -524,7 +563,7 @@ const PagosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* SUB-MODAL: ingresar monto + forma de pago + nota */}
+      {/* SUB-MODAL: ingresar monto + forma de pago + nota + (NUEVO) Multa por hoja */}
       {showMontoModal && pagoTarget && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-5">
@@ -568,6 +607,49 @@ const PagosModule = ({ idSocio }) => {
                 </div>
                 {formaPagoError && <p className="text-red-600 text-sm mt-1">{formaPagoError}</p>}
               </div>
+
+              {/* NUEVO: Multa por hoja */}
+              <div>
+                <p className="block text-sm text-slate-700 mb-2">Multa por hoja</p>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="multa_hoja"
+                      value="no"
+                      checked={multaHoja === 'no'}
+                      onChange={(e) => { setMultaHoja(e.target.value); setMontoMultaHoja(''); }}
+                    />
+                    No
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="multa_hoja"
+                      value="si"
+                      checked={multaHoja === 'si'}
+                      onChange={(e) => setMultaHoja(e.target.value)}
+                    />
+                    Sí
+                  </label>
+                </div>
+
+                {multaHoja === 'si' && (
+                  <div className="mt-3">
+                    <label className="block text-sm text-slate-700 mb-1">Monto de la multa</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="w-full px-3 py-2 border rounded-lg"
+                      value={montoMultaHoja}
+                      onChange={(e) => setMontoMultaHoja(e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                )}
+              </div>
+              {/* FIN NUEVO */}
 
               <div>
                 <label className="block text-sm text-slate-700 mb-1">Nota (opcional)</label>
