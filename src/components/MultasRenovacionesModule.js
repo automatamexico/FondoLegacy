@@ -4,9 +4,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
-// Helpers de fechas seguros (evitan desfases por zona horaria)
+// ===== Helpers de fechas / formato =====
 function toLocalDate(dateLike) {
-  // dateLike: 'YYYY-MM-DD' o ISO. Para fechas puras añadimos T00:00:00
   if (!dateLike) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateLike)) return new Date(`${dateLike}T00:00:00`);
   return new Date(dateLike);
@@ -28,20 +27,45 @@ function startOfToday() {
 function money(n) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(n || 0));
 }
+function localPlainDateTime() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const M = String(d.getMonth() + 1).padStart(2, '0');
+  const D = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  const s = String(d.getSeconds()).padStart(2, '0');
+  return `${y}-${M}-${D}T${h}:${m}:${s}`;
+}
 
+// ====== Módulo ======
 const MultasRenovacionesModule = () => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
-  const [socios, setSocios] = useState([]); // {id_socio, nombre, apellidos..., miembro_desde}
-  const [pagosAfiliacion, setPagosAfiliacion] = useState([]); // {id_socio, fecha_hora, estatus}
+  const [socios, setSocios] = useState([]);            // {id_socio, nombre, apellidos..., miembro_desde}
+  const [pagosAfiliacion, setPagosAfiliacion] = useState([]); // {id_socio, fecha_hora, estatus, monto_afiliacion_papeleria}
 
+  // UI: modales y selección
+  const [showListadoModal, setShowListadoModal] = useState(false);
+  const [selSocio, setSelSocio] = useState(null);
+
+  const [showPagarModal, setShowPagarModal] = useState(false);
+  const [montoAfiliacion, setMontoAfiliacion] = useState('');
+  const [guardandoPago, setGuardandoPago] = useState(false);
+  const [toast, setToast] = useState('');
+
+  // KPIs placeholders (puedes conectarlos luego)
+  const kpiAcumuladoAfiliaciones = 0;
+  const kpiAcumuladoMultasHoja = 0;
+  const kpiAcumuladoMoras = 0;
+
+  // ===== Carga inicial =====
   useEffect(() => {
     (async () => {
       setLoading(true);
       setErr(null);
       try {
-        // 1) Socios con miembro_desde
         const rSoc = await fetch(
           `${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno,miembro_desde&order=id_socio.asc`,
           { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
@@ -49,9 +73,8 @@ const MultasRenovacionesModule = () => {
         if (!rSoc.ok) throw new Error('No se pudieron cargar los socios');
         const sociosData = await rSoc.json();
 
-        // 2) Pagos de afiliación (sólo los que tienen estatus; usaremos el último por socio)
         const rPag = await fetch(
-          `${SUPABASE_URL}/rest/v1/pago_afiliaciones?select=id_socio,fecha_hora,estatus`,
+          `${SUPABASE_URL}/rest/v1/pago_afiliaciones?select=id_socio,fecha_hora,estatus,monto_afiliacion_papeleria`,
           { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
         );
         if (!rPag.ok) throw new Error('No se pudieron cargar los pagos de afiliación');
@@ -67,7 +90,7 @@ const MultasRenovacionesModule = () => {
     })();
   }, []);
 
-  // Mapa: último pago de afiliación exitoso por socio
+  // ===== Último pago por socio (estatus correcto) =====
   const lastPaidMap = useMemo(() => {
     const map = new Map();
     for (const p of pagosAfiliacion) {
@@ -80,26 +103,21 @@ const MultasRenovacionesModule = () => {
     return map;
   }, [pagosAfiliacion]);
 
-  // Cálculo de próximas renovaciones (ventana: 30 días antes del aniversario en adelante)
+  // ===== Próximas renovaciones (ventana 30 días antes) =====
   const proximasRenovaciones = useMemo(() => {
     const hoy = startOfToday();
     const resultados = [];
 
     for (const s of socios) {
-      // Ancla: último pago exitoso, si no existe usar miembro_desde
       const miembroDesde = toLocalDate(s.miembro_desde);
       const ultimoPago = lastPaidMap.get(s.id_socio) || null;
       const ancla = ultimoPago || miembroDesde;
-      if (!ancla) continue; // si no hay ninguna fecha, no se puede calcular
+      if (!ancla) continue;
 
-      // Avanzar ancla + 1 año hasta que la "próxima" quede en el futuro
       let proxima = addYears(ancla, 1);
-      while (proxima <= hoy) {
-        proxima = addYears(proxima, 1);
-      }
-
-      // Si ya estamos dentro de la ventana de 30 días previos a la próxima renovación => contar
+      while (proxima <= hoy) proxima = addYears(proxima, 1);
       const inicioVentana = addDays(proxima, -30);
+
       if (hoy >= inicioVentana) {
         resultados.push({
           id_socio: s.id_socio,
@@ -108,23 +126,84 @@ const MultasRenovacionesModule = () => {
         });
       }
     }
-    // Puedes ordenar por fecha más próxima
     resultados.sort((a, b) => a.proxima_renovacion - b.proxima_renovacion);
     return resultados;
   }, [socios, lastPaidMap]);
 
-  // KPIs de las 4 tarjetas
   const kpiProximasRenovaciones = proximasRenovaciones.length;
-  const kpiAcumuladoAfiliaciones = 0;      // Conéctalo a tu suma real cuando lo decidas
-  const kpiAcumuladoMultasHoja = 0;        // Conéctalo a tu suma real
-  const kpiAcumuladoMoras = 0;             // Conéctalo a tu suma real
 
+  // ===== Acciones UI =====
+  const abrirListado = () => {
+    setSelSocio(null);
+    setShowListadoModal(true);
+  };
+  const cerrarListado = () => {
+    setShowListadoModal(false);
+    setSelSocio(null);
+  };
+
+  const abrirPagar = () => {
+    if (!selSocio) return;
+    setMontoAfiliacion('');
+    setShowPagarModal(true);
+  };
+  const cerrarPagar = () => {
+    setShowPagarModal(false);
+  };
+
+  // ===== Guardar pago de afiliación =====
+  const aplicarPagoAfiliacion = async () => {
+    const monto = Number(montoAfiliacion);
+    if (!selSocio || !monto || monto <= 0) return;
+
+    setGuardandoPago(true);
+    try {
+      const body = {
+        id_socio: selSocio.id_socio,
+        monto_afiliacion_papeleria: monto,
+        fecha_hora: localPlainDateTime(),
+        estatus: 'AFILIACION PAGADA'
+      };
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/pago_afiliaciones`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=representation'
+        },
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        throw new Error(e?.message || 'No se pudo registrar el pago');
+      }
+      const inserted = await r.json(); // por si quieres usarlo
+      // Actualizar memoria: añadimos a pagosAfiliacion y el socio saldrá de la lista por la lógica de ancla
+      setPagosAfiliacion((prev) => [...prev, ...(inserted || [])]);
+
+      setToast('Afiliación renovada correctamente.');
+      setTimeout(() => setToast(''), 2500);
+
+      // Cerrar modales / limpiar selección
+      setShowPagarModal(false);
+      setSelSocio(null);
+    } catch (e) {
+      alert(e.message || 'No se pudo registrar el pago.');
+    } finally {
+      setGuardandoPago(false);
+    }
+  };
+
+  // ===== Render =====
   const cards = [
     {
+      id: 'proximas',
       title: 'Próximas Renovaciones',
       value: kpiProximasRenovaciones.toLocaleString(),
       bg: 'bg-blue-100',
       text: 'text-blue-800',
+      onClick: abrirListado,
       icon: (
         <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -133,6 +212,7 @@ const MultasRenovacionesModule = () => {
       )
     },
     {
+      id: 'afiliaciones',
       title: 'Acumulado de Afiliaciones',
       value: money(kpiAcumuladoAfiliaciones),
       bg: 'bg-green-100',
@@ -145,6 +225,7 @@ const MultasRenovacionesModule = () => {
       )
     },
     {
+      id: 'multas',
       title: 'Acumulado de multas por hoja',
       value: money(kpiAcumuladoMultasHoja),
       bg: 'bg-orange-100',
@@ -157,6 +238,7 @@ const MultasRenovacionesModule = () => {
       )
     },
     {
+      id: 'moras',
       title: 'Acumulado de moras',
       value: money(kpiAcumuladoMoras),
       bg: 'bg-purple-100',
@@ -185,46 +267,140 @@ const MultasRenovacionesModule = () => {
       {!loading && !err && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {cards.map((c, i) => (
-              <div key={i} className={`${c.bg} rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all`}>
+            {cards.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={c.onClick}
+                className={`${c.bg} rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all text-left ${
+                  c.onClick ? 'cursor-pointer' : 'cursor-default'
+                }`}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <h3 className={`text-lg font-semibold ${c.text}`}>{c.title}</h3>
                   <div className="p-2 bg-white bg-opacity-40 rounded-full">{c.icon}</div>
                 </div>
                 <div className={`text-3xl font-bold ${c.text}`}>{c.value}</div>
-              </div>
+                {c.id === 'proximas' && (
+                  <div className="text-sm mt-2 text-slate-700">Click para ver detalle</div>
+                )}
+              </button>
             ))}
           </div>
+        </>
+      )}
 
-          {/* (Opcional) Lista breve de próximos a renovar */}
-          {proximasRenovaciones.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6">
-              <h3 className="text-xl font-semibold text-slate-900 mb-3">Socios próximos a renovar (30 días)</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="text-left py-3 px-4 text-slate-700">ID Socio</th>
-                      <th className="text-left py-3 px-4 text-slate-700">Nombre</th>
-                      <th className="text-left py-3 px-4 text-slate-700">Próxima renovación</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {proximasRenovaciones.map(r => (
-                      <tr key={r.id_socio} className="border-b border-slate-100">
-                        <td className="py-3 px-4">{r.id_socio}</td>
-                        <td className="py-3 px-4">{r.nombre}</td>
-                        <td className="py-3 px-4">
-                          {r.proxima_renovacion.toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+      {/* ===== Modal: Listado de Próximas Renovaciones ===== */}
+      {showListadoModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-3xl shadow-xl">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">Próximas Renovaciones (30 días)</h3>
+              <button className="px-3 py-1 rounded-lg bg-slate-100" onClick={cerrarListado}>Cerrar</button>
+            </div>
+
+            <div className="p-4">
+              {proximasRenovaciones.length === 0 ? (
+                <p className="text-slate-600">No hay socios próximos a renovar.</p>
+              ) : (
+                <>
+                  <div className="max-h-[55vh] overflow-y-auto rounded-lg border border-slate-200">
+                    <table className="w-full">
+                      <thead className="bg-slate-50 sticky top-0">
+                        <tr className="border-b border-slate-200">
+                          <th className="text-left py-3 px-4 text-slate-700">Seleccionar</th>
+                          <th className="text-left py-3 px-4 text-slate-700">ID Socio</th>
+                          <th className="text-left py-3 px-4 text-slate-700">Nombre</th>
+                          <th className="text-left py-3 px-4 text-slate-700">Próxima renovación</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {proximasRenovaciones.map((r) => {
+                          const seleccionado = selSocio?.id_socio === r.id_socio;
+                          return (
+                            <tr key={r.id_socio} className="border-b border-slate-100 hover:bg-slate-50">
+                              <td className="py-3 px-4">
+                                <input
+                                  type="radio"
+                                  name="selSocioRenov"
+                                  checked={seleccionado}
+                                  onChange={() => setSelSocio(r)}
+                                />
+                              </td>
+                              <td className="py-3 px-4">{r.id_socio}</td>
+                              <td className="py-3 px-4">{r.nombre}</td>
+                              <td className="py-3 px-4">
+                                {r.proxima_renovacion.toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex justify-end gap-3 mt-4">
+                    <button
+                      className={`px-4 py-2 rounded-xl text-white ${
+                        selSocio ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-400 cursor-not-allowed'
+                      }`}
+                      disabled={!selSocio}
+                      onClick={abrirPagar}
+                    >
+                      Renovar Afiliación
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Sub-Modal: Capturar monto y confirmar pago ===== */}
+      {showPagarModal && selSocio && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-5">
+            <h3 className="text-lg font-semibold mb-2">Renovar Afiliación</h3>
+            <p className="text-slate-700 mb-4">
+              Socio <span className="font-semibold">{selSocio.nombre}</span> (ID {selSocio.id_socio})
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-slate-700 mb-1">Monto de afiliación</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="w-full px-3 py-2 border rounded-lg"
+                  value={montoAfiliacion}
+                  onChange={(e) => setMontoAfiliacion(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button className="px-4 py-2 rounded-lg bg-slate-100" onClick={cerrarPagar}>Cancelar</button>
+                <button
+                  className={`px-4 py-2 rounded-lg text-white ${
+                    Number(montoAfiliacion) > 0 && !guardandoPago ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-400 cursor-not-allowed'
+                  }`}
+                  onClick={aplicarPagoAfiliacion}
+                  disabled={!(Number(montoAfiliacion) > 0) || guardandoPago}
+                >
+                  {guardandoPago ? 'Guardando…' : 'Aceptar'}
+                </button>
               </div>
             </div>
-          )}
-        </>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-4 right-4 bg-emerald-600 text-white px-6 py-3 rounded-xl shadow-lg z-50">
+          {toast}
+        </div>
       )}
     </div>
   );
