@@ -10,6 +10,14 @@ const avatarFallback = (s) => {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bg}&color=fff&size=128`;
 };
 
+// 👉 Helper de formato de fecha para "miembro_desde"
+const fmtFecha = (d) => {
+  if (!d) return '-';
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return '-';
+  return dt.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+};
+
 const SociosModule = () => {
   const [sociosList, setSociosList] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -263,13 +271,13 @@ const SociosModule = () => {
         }
         const inserted = await res.json();
         const socio = inserted[0];
-        socioId = socio.id_socio;
+        const socioIdNew = socio.id_socio;
 
         // Subir foto si adjuntó
         if (photoFile) {
-          const url = await uploadPhotoToSupabase(socioId);
+          const url = await uploadPhotoToSupabase(socioIdNew);
           if (url) {
-            await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioId}`, {
+            await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioIdNew}`, {
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
@@ -295,7 +303,7 @@ const SociosModule = () => {
           email: newSocio.email,
           contrasena: newSocio.contrasena,
           rol: 'usuario',
-          id_socio: socioId,
+          id_socio: socioIdNew,
         };
         const sysRes = await fetch(`${SUPABASE_URL}/rest/v1/usuarios_sistema`, {
           method: 'POST',
@@ -717,7 +725,7 @@ const SociosModule = () => {
         </div>
       )}
 
-      {/* Modal Ficha del socio (con teléfono agregado en el encabezado) */}
+      {/* Modal Ficha del socio (con miembro_desde agregado) */}
       {showFicha && socioFicha && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg">
@@ -738,7 +746,7 @@ const SociosModule = () => {
                 <div className="text-slate-900 font-medium">
                   {socioFicha.nombre} {socioFicha.apellido_paterno} {socioFicha.apellido_materno}
                 </div>
-                {/* NUEVO: Teléfono en el encabezado */}
+                {/* Teléfono en el encabezado */}
                 <div className="text-sm text-slate-600 mt-1">
                   Teléfono:{' '}
                   <span className="font-medium text-slate-900">
@@ -757,6 +765,13 @@ const SociosModule = () => {
                 <div className="text-xs text-slate-500">Código Postal</div>
                 <div className="font-medium">{socioFicha.cp || '-'}</div>
               </div>
+
+              {/* 👉 NUEVO: Miembro desde */}
+              <div className="p-3 bg-slate-50 rounded-lg">
+                <div className="text-xs text-slate-500">Miembro desde</div>
+                <div className="font-medium">{fmtFecha(socioFicha.miembro_desde)}</div>
+              </div>
+
               <div className="md:col-span-2 p-3 bg-slate-50 rounded-lg">
                 <div className="text-xs text-slate-500">Dirección</div>
                 <div className="font-medium">{socioFicha.direccion || '-'}</div>
@@ -779,4 +794,3 @@ const SociosModule = () => {
 };
 
 export default SociosModule;
-
