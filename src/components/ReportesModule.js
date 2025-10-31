@@ -7,8 +7,8 @@ const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
-// Cambia por tu logo (PNG recomendado, fondo transparente)
-const LOGO_URL = 'https://via.placeholder.com/200x60.png?text=TU+LOGO';
+const LOGO_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co/storage/v1/object/public/Logos/LOGO_OK.png';
+const BRAND = '#0ea15a'; // VERDE solicitado
 
 const monthNames = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -32,40 +32,12 @@ const getFechaPrestamo = (p) =>
 
 // intenta leer el monto principal del préstamo
 const getMontoPrestamo = (p) =>
-  Number(p?.monto_prestamo ?? p?.monto ?? p?.principal ?? p?.cantidad ?? p?.monto_solicitado ?? 0);
-
-// Helpers para PDF
-const ymd = (d) => {
-  const Y = d.getFullYear();
-  const M = String(d.getMonth()+1).padStart(2,'0');
-  const D = String(d.getDate()).padStart(2,'0');
-  return `${Y}-${M}-${D}`;
-};
-const fetchJSON = async (path, options = {}) => {
-  const r = await fetch(`${SUPABASE_URL}${path}`, {
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      ...options.headers
-    },
-    ...options
-  });
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  const ct = r.headers.get('content-type') || '';
-  return ct.includes('application/json') ? r.json() : r.blob();
-};
-const blobToBase64 = (blob) =>
-  new Promise((res) => {
-    const reader = new FileReader();
-    reader.onloadend = () => res(reader.result);
-    reader.readAsDataURL(blob);
-  });
+  Number(p?.monto_prestamo ?? p?.monto ?? p?.principal ?? p?.cantidad ?? 0);
 
 export default function ReportesModule() {
-  // ========= NUEVO: Selector de tipo de reporte =========
-  const [activeReport, setActiveReport] = useState('control-prestamos'); // 'control-prestamos' | 'corrida-pdf'
+  // Selección de “tarjeta de reporte” (de momento solo 1)
+  const [activeCard] = useState('control-prestamos');
 
-  // ========= (EXISTENTE) Control de préstamos (Excel/Tabla) =========
   // Buscador
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -86,11 +58,12 @@ export default function ReportesModule() {
       { key: 'abonoCapital', label: 'Abono a capital préstamo' },
       { key: 'saldo', label: 'Saldo' },
       { key: 'totalPagado', label: 'Total pagado' }
+      // (NO tocamos columnas de la tabla en pantalla)
     ],
     []
   );
 
-  // Buscar socios (solo ID + nombre completo en sugerencias) — Control de préstamos
+  // Buscar socios (solo ID + nombre completo en sugerencias)
   const handleSearch = async (term) => {
     setSearchTerm(term);
     setSelectedSocio(null);
@@ -119,7 +92,10 @@ export default function ReportesModule() {
       const filtered = data
         .filter((s) => {
           const full = `${s.nombre || ''} ${s.apellido_paterno || ''} ${s.apellido_materno || ''}`.trim().toLowerCase();
-          return String(s.id_socio).includes(t) || full.includes(t);
+          return (
+            String(s.id_socio).includes(t) ||
+            full.includes(t)
+          );
         })
         .slice(0, 15);
 
@@ -131,7 +107,7 @@ export default function ReportesModule() {
     }
   };
 
-  // Al seleccionar un socio en las sugerencias — Control de préstamos
+  // Al seleccionar un socio en las sugerencias
   const handlePickSocio = async (s) => {
     setSelectedSocio(s);
     setSuggestions([]);
@@ -139,7 +115,7 @@ export default function ReportesModule() {
     await cargarControlPrestamos(s.id_socio, s);
   };
 
-  // Cargar préstamos y pagos -> armar filas — Control de préstamos
+  // Cargar préstamos y pagos -> armar filas
   const cargarControlPrestamos = async (idSocio, socioObj) => {
     setLoadingRows(true);
     setErrorRows('');
@@ -214,7 +190,10 @@ export default function ReportesModule() {
             fechaAbono: '',
             abonoCapital: fmtMoney(0),
             saldo: fmtMoney(montoPrestamo),
-            totalPagado: fmtMoney(0)
+            totalPagado: fmtMoney(0),
+            // campos adicionales que usaremos SOLO para el PDF:
+            _estatus: '',     // sin guiones cuando no es pagado
+            _fPago: ''        // sin guiones cuando no hay fecha
           });
           continue;
         }
@@ -226,6 +205,11 @@ export default function ReportesModule() {
           totalPagadoAcum += montoPagado;
           saldo = Math.max(0, saldo - abonoCap);
 
+          // Ajustes solicitados para PDF:
+          const estatusLc = String(pg.estatus || '').toLowerCase();
+          const estatusPdf = estatusLc === 'pagado' ? 'PAGADO' : ''; // blanco si NO es pagado
+          const fechaPagoPdf = pg.fecha_pago ? fmtFechaLarga(pg.fecha_pago) : ''; // blanco si no hay fecha
+
           outRows.push({
             no: pg.numero_pago ?? '',
             fechaPrestamo: fmtFechaLarga(fechaPrestamo),
@@ -233,7 +217,9 @@ export default function ReportesModule() {
             fechaAbono: fmtFechaLarga(pg.fecha_pago),
             abonoCapital: fmtMoney(abonoCap),
             saldo: fmtMoney(saldo),
-            totalPagado: fmtMoney(totalPagadoAcum)
+            totalPagado: fmtMoney(totalPagadoAcum),
+            _estatus: estatusPdf,
+            _fPago: fechaPagoPdf
           });
         });
       }
@@ -247,204 +233,152 @@ export default function ReportesModule() {
     }
   };
 
-  // ========= NUEVO: Corrida de préstamo (PDF) =========
-  // Búsqueda y selección (independiente para no tocar lo anterior)
-  const [termPdf, setTermPdf] = useState('');
-  const [sugPdf, setSugPdf] = useState([]);
-  const [socioPdf, setSocioPdf] = useState(null);
-  const [prestamosPdf, setPrestamosPdf] = useState([]);
-  const [prestamoSelPdf, setPrestamoSelPdf] = useState(null);
-  const [pagosPdf, setPagosPdf] = useState([]);
-  const [loadingPdf, setLoadingPdf] = useState(false);
-  const [errPdf, setErrPdf] = useState('');
-
-  // Sugerencias de socios — PDF
-  useEffect(() => {
-    const run = async () => {
-      const t = (termPdf || '').trim().toLowerCase();
-      if (!t) { setSugPdf([]); return; }
-      try {
-        const all = await fetchJSON(`/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno`);
-        const fil = (all || []).filter(s =>
-          String(s.id_socio).includes(t) ||
-          `${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`.toLowerCase().includes(t)
-        ).slice(0, 15);
-        setSugPdf(fil);
-      } catch {
-        setSugPdf([]);
-      }
-    };
-    run();
-  }, [termPdf]);
-
-  const seleccionarSocioPdf = async (s) => {
-    setSocioPdf(s);
-    setTermPdf(`ID: ${s.id_socio} — ${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`);
-    setSugPdf([]);
-    setPrestamoSelPdf(null);
-    setPagosPdf([]);
-    setErrPdf('');
-    try {
-      const prs = await fetchJSON(`/rest/v1/prestamos?id_socio=eq.${s.id_socio}&select=id_prestamo,monto_solicitado,numero_plazos,interes,tipo_plazo,fecha_solicitud,estatus&order=id_prestamo.desc`);
-      setPrestamosPdf(prs || []);
-    } catch (e) {
-      setPrestamosPdf([]);
-      setErrPdf('No se pudieron cargar los préstamos del socio.');
-    }
+  // ---------- Exportar PDF (con color VERDE, logo, columnas ajustadas y “Firma”) ----------
+  const loadImageAsDataURL = async (url) => {
+    const res = await fetch(url, { mode: 'cors' });
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.readAsDataURL(blob);
+    });
   };
 
-  const cargarPagosPdf = async (id_prestamo) => {
-    setPagosPdf([]);
-    setErrPdf('');
-    if (!id_prestamo) return;
-    setLoadingPdf(true);
-    try {
-      const rows = await fetchJSON(`/rest/v1/pagos_prestamos?id_prestamo=eq.${id_prestamo}&select=numero_pago,fecha_programada,fecha_pago,fecha_hora_pago,monto_pago,monto_pagado,interes_pagado,capital_pagado,estatus&order=numero_pago.asc`);
-      setPagosPdf(rows || []);
-    } catch (e) {
-      setErrPdf('No se pudo cargar la corrida (pagos programados).');
-    } finally {
-      setLoadingPdf(false);
+  const handleExportPDF = async () => {
+    if (!selectedSocio || rows.length === 0) {
+      alert('Selecciona un socio y genera el reporte antes de exportar a PDF.');
+      return;
     }
-  };
 
-  const totalesPdf = useMemo(() => {
-    const totPagado = pagosPdf.reduce((s, r) => s + Number(r.monto_pagado || 0), 0);
-    const totInteres = pagosPdf.reduce((s, r) => s + Number(r.interes_pagado || 0), 0);
-    const totCapital = pagosPdf.reduce((s, r) => s + Number(r.capital_pagado || 0), 0);
-    return { totPagado, totInteres, totCapital };
-  }, [pagosPdf]);
+    const doc = new jsPDF({ unit: 'mm', format: 'letter', compress: true });
 
-  const getLogoDataURL = async () => {
+    // Header con logo y color principal
     try {
-      const blob = await (await fetch(LOGO_URL)).blob();
-      return await blobToBase64(blob);
+      const dataUrl = await loadImageAsDataURL(LOGO_URL);
+      // Logo (ancho aprox 28mm, alto proporcional). Posición margen sup/izq
+      doc.addImage(dataUrl, 'PNG', 16, 10, 28, 28);
     } catch {
-      return null;
-    }
-  };
-
-  const generarPDF = async () => {
-    if (!socioPdf || !prestamoSelPdf) { alert('Selecciona socio y préstamo.'); return; }
-
-    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-    const primary = '#0EA5E9';  // sky-500
-    const dark = '#0F172A';     // slate-900
-    const gray = '#64748B';     // slate-500
-
-    // Header
-    doc.setFillColor(primary);
-    doc.rect(0, 0, 595, 80, 'F');
-
-    try {
-      const dataUrl = await getLogoDataURL();
-      if (dataUrl) doc.addImage(dataUrl, 'PNG', 30, 20, 140, 42);
-      else {
-        doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor('#FFFFFF');
-        doc.text('TU LOGO', 30, 50);
-      }
-    } catch {
-      doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor('#FFFFFF');
-      doc.text('TU LOGO', 30, 50);
+      // si falla el logo, continuamos sin él
     }
 
-    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor('#FFFFFF');
-    doc.text('Reporte de Corrida de Préstamo', 565, 50, { align: 'right' });
+    // Título con color marca
+    doc.setTextColor(BRAND);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('Reporte de Control de Préstamos', 48, 18);
 
-    // Datos
-    let y = 110;
-    doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(dark);
-    doc.text('Datos del socio', 30, y); y += 8;
-    doc.setDrawColor(primary); doc.setLineWidth(1); doc.line(30, y, 200, y); y += 14;
+    doc.setFontSize(10);
+    doc.setTextColor('#111111');
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Socio: ID ${selectedSocio.id_socio} — ${selectedSocio.nombre} ${selectedSocio.apellido_paterno ?? ''} ${selectedSocio.apellido_materno ?? ''}`, 48, 25);
 
-    doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(gray);
-    const socioLine1 = `ID: ${socioPdf.id_socio}   Nombre: ${socioPdf.nombre} ${socioPdf.apellido_paterno || ''} ${socioPdf.apellido_materno || ''}`;
-    doc.text(socioLine1, 30, y); y += 16;
+    const fechaStr = new Date().toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+    doc.text(`Generado: ${fechaStr}`, 48, 31);
 
-    doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(dark);
-    doc.text('Datos del préstamo', 30, y); y += 8;
-    doc.setDrawColor(primary); doc.setLineWidth(1); doc.line(30, y, 200, y); y += 14;
+    // Línea separadora en VERDE
+    doc.setDrawColor(BRAND);
+    doc.setLineWidth(0.6);
+    doc.line(16, 42, 200, 42);
 
-    const p = prestamoSelPdf;
-    doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(gray);
-    doc.text(`Préstamo #${p.id_prestamo} — Estatus: ${String(p.estatus || '').toUpperCase()}`, 30, y); y += 16;
-    doc.text(`Fecha de solicitud: ${p.fecha_solicitud ? fmtFechaLarga(p.fecha_solicitud) : '—'}`, 30, y); y += 16;
-    doc.text(`Monto solicitado: ${fmtMoney(p.monto_solicitado)}  ·  Plazo: ${p.numero_plazos} ${p.tipo_plazo || 'plazos'}  ·  Interés: ${p.interes}%`, 30, y); y += 24;
+    // Tabla principal (usamos SOLO para PDF los campos calculados _fPago, _estatus, Firma)
+    // Encabezados requeridos + columna “Firma”
+    const head = [[
+      'No',
+      'Fecha préstamo',
+      'Préstamo',
+      'F. Pago',
+      'Abono a capital',
+      'Saldo',
+      'Total pagado',
+      'Pagado',
+      'Firma'
+    ]];
 
-    // Tabla
-    const columns = [
-      { header: 'No', dataKey: 'no' },
-      { header: 'F. Programada', dataKey: 'fp' },
-      { header: 'F. Pago', dataKey: 'fpago' },
-      { header: 'Estatus', dataKey: 'st' },
-      { header: 'Monto', dataKey: 'monto' },
-      { header: 'Interés', dataKey: 'interes' },
-      { header: 'Capital', dataKey: 'capital' },
-      { header: 'Pagado', dataKey: 'pagado' },
-    ];
-    const rowsPdf = (pagosPdf || []).map(r => ({
-      no: r.numero_pago ?? '',
-      fp: r.fecha_programada ? fmtFechaLarga(r.fecha_programada) : '—',
-      fpago: r.fecha_hora_pago ? fmtFechaLarga(r.fecha_hora_pago) : (r.fecha_pago ? fmtFechaLarga(r.fecha_pago) : '—'),
-      st: String(r.estatus || '').toUpperCase(),
-      monto: fmtMoney(r.monto_pago),
-      interes: r.interes_pagado != null ? fmtMoney(r.interes_pagado) : '—',
-      capital: r.capital_pagado != null ? fmtMoney(r.capital_pagado) : '—',
-      pagado: r.monto_pagado != null ? fmtMoney(r.monto_pagado) : '—',
-    }));
-
-    doc.autoTable({
-      startY: y,
-      headStyles: { fillColor: primary, textColor: '#ffffff', fontStyle: 'bold' },
-      bodyStyles: { textColor: dark },
-      alternateRowStyles: { fillColor: '#F8FAFC' },
-      styles: { fontSize: 10, cellPadding: 6 },
-      columns,
-      body: rowsPdf
+    // Filas
+    const body = rows.map((r) => {
+      // “Firma”: si estatus = PENDIENTE => blanco, si = PAGADO => VALIDADO
+      // Nota: en rows guardamos _estatus ya normalizado a '' o 'PAGADO'
+      const firma = r._estatus === 'PAGADO' ? 'VALIDADO' : '';
+      // F. Pago: usar r._fPago (ya en blanco si no hay)
+      return [
+        r.no,
+        r.fechaPrestamo || '',
+        r.prestamo || '',
+        r._fPago || '',
+        r.abonoCapital || '',
+        r.saldo || '',
+        r.totalPagado || '',
+        r._estatus || '',
+        firma
+      ];
     });
 
-    const endY = doc.lastAutoTable.finalY || (y + 20);
+    // Estilos de la tabla (cabezera en VERDE)
+    doc.autoTable({
+      startY: 48,
+      head,
+      body,
+      theme: 'grid',
+      styles: {
+        font: 'helvetica',
+        fontSize: 9,
+        cellPadding: 2.5
+      },
+      headStyles: {
+        fillColor: BRAND,
+        textColor: '#ffffff',
+        lineColor: BRAND,
+        halign: 'center',
+        fontStyle: 'bold'
+      },
+      bodyStyles: {
+        lineColor: '#dddddd'
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 12 },
+        1: { cellWidth: 28 },
+        2: { cellWidth: 25 },
+        3: { halign: 'center', cellWidth: 22 },
+        4: { halign: 'right', cellWidth: 28 },
+        5: { halign: 'right', cellWidth: 22 },
+        6: { halign: 'right', cellWidth: 26 },
+        7: { halign: 'center', cellWidth: 18 }, // Pagado (estatus)
+        8: { halign: 'center', cellWidth: 20 }  // Firma
+      },
+      didDrawPage: (data) => {
+        // Pie de página simple
+        const pageSize = doc.internal.pageSize;
+        const pageWidth = pageSize.getWidth();
+        const pageHeight = pageSize.getHeight();
+        doc.setFontSize(8);
+        doc.setTextColor('#666666');
+        doc.text(
+          `Página ${doc.internal.getNumberOfPages()}`,
+          pageWidth - 30,
+          pageHeight - 10
+        );
+      }
+    });
 
-    // Totales
-    doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(dark);
-    doc.text('Totales', 30, endY + 24);
-    doc.setDrawColor(primary); doc.setLineWidth(1); doc.line(30, endY + 28, 100, endY + 28);
-
-    doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor('#64748B');
-    doc.text(`Total pagado: ${fmtMoney(totalesPdf.totPagado)}`, 30, endY + 46);
-    doc.text(`Intereses pagados: ${fmtMoney(totalesPdf.totInteres)}`, 30, endY + 64);
-    doc.text(`Capital pagado: ${fmtMoney(totalesPdf.totCapital)}`, 30, endY + 82);
-
-    // Firma
-    const firmaY = endY + 140;
-    doc.setDrawColor('#CBD5E1');
-    doc.line(360, firmaY, 560, firmaY);
-    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor('#64748B');
-    doc.text('Firma del Socio', 460, firmaY + 14, { align: 'center' });
-
-    // Pie
-    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor('#94A3B8');
-    const hoy = new Date();
-    doc.text(`Generado el ${fmtFechaLarga(hoy)} · ${ymd(hoy)}`, 30, 820);
+    // Importante: ELIMINAMOS cualquier bloque de “firma del socio” al final (no se agrega nada extra)
 
     // Descargar
-    doc.save(`Corrida_Socio_${socioPdf.id_socio}_Prestamo_${p.id_prestamo}.pdf`);
+    const safeName = `reporte_prestamos_socio_${selectedSocio.id_socio}.pdf`;
+    doc.save(safeName);
   };
 
-  // ========= RENDER =========
   return (
     <div className="p-6 space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-slate-900 mb-2">Reportes</h2>
-        <p className="text-slate-600">Selecciona tu tipo de reporte y genera la salida correspondiente</p>
+        <p className="text-slate-600">Exporta tus reportes directamente a Excel</p>
       </div>
 
-      {/* Selección de tipo de reporte */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Tarjetas de selección de reporte (solo una activa) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <button
-          onClick={() => setActiveReport('control-prestamos')}
           className={`text-left rounded-2xl border p-5 transition-all ${
-            activeReport === 'control-prestamos'
+            activeCard === 'control-prestamos'
               ? 'border-green-300 bg-green-50'
               : 'border-slate-200 hover:bg-slate-50'
           }`}
@@ -456,85 +390,79 @@ export default function ReportesModule() {
               </svg>
             </div>
             <div>
-              <h3 className="font-semibold text-slate-900">Control de préstamos (Tabla/Excel)</h3>
-              <p className="text-sm text-slate-600">Consulta y exporta el control por préstamo.</p>
+              <h3 className="font-semibold text-slate-900">Control de préstamos</h3>
+              <p className="text-sm text-slate-600">Genera la hoja de control por préstamo en Excel.</p>
             </div>
           </div>
         </button>
 
-        <button
-          onClick={() => setActiveReport('corrida-pdf')}
-          className={`text-left rounded-2xl border p-5 transition-all ${
-            activeReport === 'corrida-pdf'
-              ? 'border-sky-300 bg-sky-50'
-              : 'border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center">
-              <svg className="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 3h10a2 2 0 012 2v11l-4 4H7a2 2 0 01-2-2V5a2 2 0 012-2z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-900">Corrida de préstamo (PDF)</h3>
-              <p className="text-sm text-slate-600">Genera un PDF elegante con logo, tabla y totales.</p>
-            </div>
-          </div>
-        </button>
+        <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-slate-400">
+          Próximamente…
+        </div>
+        <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-slate-400">
+          Próximamente…
+        </div>
       </div>
 
-      {/* ===== VISTA: CONTROL DE PRÉSTAMOS (EXISTENTE) ===== */}
-      {activeReport === 'control-prestamos' && (
-        <div className="bg-white rounded-2xl border border-slate-200">
-          <div className="p-6 space-y-4">
-            <h4 className="text-lg font-semibold text-slate-900">Parámetros del reporte</h4>
+      {/* Parámetros */}
+      <div className="bg-white rounded-2xl border border-slate-200">
+        <div className="p-6 space-y-4">
+          <h4 className="text-lg font-semibold text-slate-900">Parámetros del reporte</h4>
 
-            {/* Buscador de socio */}
-            <div className="relative">
-              <input
-                value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
-                placeholder="Buscar ID de socio o Nombre completo"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              {isSearching && (
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-500">
-                  Buscando…
-                </span>
-              )}
+          {/* Buscador de socio */}
+          <div className="relative">
+            <input
+              value={searchTerm}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder="Buscar ID de socio o Nombre completo"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            {isSearching && (
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-500">
+                Buscando…
+              </span>
+            )}
 
-              {/* Sugerencias */}
-              {suggestions.length > 0 && (
-                <div className="absolute z-10 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-72 overflow-auto">
-                  {suggestions.map((s) => {
-                    const full = `${s.nombre || ''} ${s.apellido_paterno || ''} ${s.apellido_materno || ''}`.trim();
-                    return (
-                      <button
-                        key={s.id_socio}
-                        onClick={() => handlePickSocio(s)}
-                        className="w-full text-left px-4 py-2 hover:bg-slate-50"
-                      >
-                        <span className="font-medium text-slate-800">ID: {s.id_socio}</span>
-                        <span className="text-slate-600"> — {full}</span>
-                      </button>
-                    );
-                  })}
+            {/* Sugerencias: SOLO “ID — Nombre completo” */}
+            {suggestions.length > 0 && (
+              <div className="absolute z-10 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-72 overflow-auto">
+                {suggestions.map((s) => {
+                  const full = `${s.nombre || ''} ${s.apellido_paterno || ''} ${s.apellido_materno || ''}`.trim();
+                  return (
+                    <button
+                      key={s.id_socio}
+                      onClick={() => handlePickSocio(s)}
+                      className="w-full text-left px-4 py-2 hover:bg-slate-50"
+                    >
+                      <span className="font-medium text-slate-800">ID: {s.id_socio}</span>
+                      <span className="text-slate-600"> — {full}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Seleccionado */}
+          <div className="pt-2">
+            <h5 className="text-sm font-medium text-slate-700 mb-2">Selecciona un socio</h5>
+            {selectedSocio ? (
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                <div className="text-slate-800">
+                  <span className="font-semibold">
+                    ID {selectedSocio.id_socio} — {selectedSocio.nombre} {selectedSocio.apellido_paterno}{' '}
+                    {selectedSocio.apellido_materno}
+                  </span>
                 </div>
-              )}
-            </div>
-
-            {/* Seleccionado */}
-            <div className="pt-2">
-              <h5 className="text-sm font-medium text-slate-700 mb-2">Selecciona un socio</h5>
-              {selectedSocio ? (
-                <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-                  <div className="text-slate-800">
-                    <span className="font-semibold">
-                      ID {selectedSocio.id_socio} — {selectedSocio.nombre} {selectedSocio.apellido_paterno}{' '}
-                      {selectedSocio.apellido_materno}
-                    </span>
-                  </div>
+                <div className="flex items-center gap-3">
+                  {/* Botón Exportar PDF (no movemos nada más) */}
+                  <button
+                    className="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                    onClick={handleExportPDF}
+                    disabled={!rows.length}
+                  >
+                    Exportar PDF
+                  </button>
                   <button
                     className="text-sm text-blue-600 hover:underline"
                     onClick={() => {
@@ -548,142 +476,58 @@ export default function ReportesModule() {
                     Limpiar selección
                   </button>
                 </div>
-              ) : (
-                <p className="text-slate-500">Aún no has seleccionado un socio.</p>
-              )}
-            </div>
+              </div>
+            ) : (
+              <p className="text-slate-500">Aún no has seleccionado un socio.</p>
+            )}
+          </div>
 
-            {/* Resultados */}
-            <div className="pt-4">
-              <h5 className="text-sm font-medium text-slate-700 mb-2">
-                {selectedSocio ? `Préstamos de ${selectedSocio.nombre}` : 'Resultados'}
-              </h5>
+          {/* Resultados */}
+          <div className="pt-4">
+            <h5 className="text-sm font-medium text-slate-700 mb-2">
+              {selectedSocio ? `Préstamos de ${selectedSocio.nombre}` : 'Resultados'}
+            </h5>
 
-              {loadingRows && <p className="text-slate-600">Cargando información…</p>}
-              {!loadingRows && errorRows && <p className="text-red-600">{errorRows}</p>}
-              {!loadingRows && !errorRows && rows.length === 0 && selectedSocio && (
-                <p className="text-slate-600">No hay información que mostrar.</p>
-              )}
+            {loadingRows && <p className="text-slate-600">Cargando información…</p>}
+            {!loadingRows && errorRows && (
+              <p className="text-red-600">{errorRows}</p>
+            )}
+            {!loadingRows && !errorRows && rows.length === 0 && selectedSocio && (
+              <p className="text-slate-600">No hay información que mostrar.</p>
+            )}
 
-              {!loadingRows && !errorRows && rows.length > 0 && (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-200">
-                        {headers.map((h) => (
-                          <th key={h.key} className="text-left py-3 px-4 font-semibold text-slate-700">
-                            {h.label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((r, idx) => (
-                        <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
-                          <td className="py-3 px-4 text-slate-800">{r.no}</td>
-                          <td className="py-3 px-4 text-slate-800">{r.fechaPrestamo}</td>
-                          <td className="py-3 px-4 text-slate-800">{r.prestamo}</td>
-                          <td className="py-3 px-4 text-slate-800">{r.fechaAbono}</td>
-                          <td className="py-3 px-4 text-slate-800">{r.abonoCapital}</td>
-                          <td className="py-3 px-4 text-slate-800">{r.saldo}</td>
-                          <td className="py-3 px-4 text-slate-800">{r.totalPagado}</td>
-                        </tr>
+            {!loadingRows && !errorRows && rows.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200">
+                      {headers.map((h) => (
+                        <th key={h.key} className="text-left py-3 px-4 font-semibold text-slate-700">
+                          {h.label}
+                        </th>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== VISTA: CORRIDA DE PRÉSTAMO (PDF) ===== */}
-      {activeReport === 'corrida-pdf' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
-          <div>
-            <h4 className="text-lg font-semibold text-slate-900">Corrida de préstamo (PDF)</h4>
-            <p className="text-slate-600">Genera un PDF con encabezado, logo, tabla de pagos y totales.</p>
-          </div>
-
-          {/* Buscar socio */}
-          <div className="relative">
-            <input
-              value={termPdf}
-              onChange={(e) => setTermPdf(e.target.value)}
-              placeholder="Buscar ID de socio o Nombre completo"
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
-            />
-            {sugPdf.length > 0 && (
-              <div className="absolute z-10 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-72 overflow-auto">
-                {sugPdf.map((s) => (
-                  <button
-                    key={s.id_socio}
-                    onClick={() => seleccionarSocioPdf(s)}
-                    className="w-full text-left px-4 py-2 hover:bg-slate-50"
-                  >
-                    #{s.id_socio} — {s.nombre} {s.apellido_paterno} {s.apellido_materno}
-                  </button>
-                ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, idx) => (
+                      <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
+                        <td className="py-3 px-4 text-slate-800">{r.no}</td>
+                        <td className="py-3 px-4 text-slate-800">{r.fechaPrestamo}</td>
+                        <td className="py-3 px-4 text-slate-800">{r.prestamo}</td>
+                        <td className="py-3 px-4 text-slate-800">{r.fechaAbono}</td>
+                        <td className="py-3 px-4 text-slate-800">{r.abonoCapital}</td>
+                        <td className="py-3 px-4 text-slate-800">{r.saldo}</td>
+                        <td className="py-3 px-4 text-slate-800">{r.totalPagado}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
 
-          {/* Préstamos del socio */}
-          {socioPdf && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h5 className="font-semibold text-slate-900">
-                  Préstamos del socio seleccionado
-                </h5>
-                <span className="text-sm text-slate-500">Socio: <strong>#{socioPdf.id_socio}</strong></span>
-              </div>
-
-              {prestamosPdf.length === 0 ? (
-                <p className="text-slate-500">El socio no tiene préstamos.</p>
-              ) : (
-                <div className="grid gap-2">
-                  {prestamosPdf.map(p => (
-                    <label key={p.id_prestamo} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border">
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="radio"
-                          name="prestamoPdf"
-                          checked={prestamoSelPdf?.id_prestamo === p.id_prestamo}
-                          onChange={() => { setPrestamoSelPdf(p); cargarPagosPdf(p.id_prestamo); }}
-                        />
-                        <span className="font-medium">
-                          #{p.id_prestamo} — {fmtMoney(p.monto_solicitado)} · {p.numero_plazos} {p.tipo_plazo || 'plazos'} · {p.interes}% · {p.estatus}
-                        </span>
-                      </div>
-                      <span className="text-xs text-slate-500">
-                        Solicitado: {p.fecha_solicitud ? fmtFechaLarga(p.fecha_solicitud) : '—'}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              {errPdf && <p className="text-red-600 mt-3">{errPdf}</p>}
-
-              <div className="mt-4 flex items-center gap-3">
-                <button
-                  onClick={generarPDF}
-                  disabled={!prestamoSelPdf || loadingPdf}
-                  className={`px-4 py-2 rounded-xl text-white ${prestamoSelPdf && !loadingPdf ? 'bg-sky-600 hover:bg-sky-700' : 'bg-slate-400 cursor-not-allowed'}`}
-                >
-                  {loadingPdf ? 'Cargando corrida…' : 'Exportar PDF'}
-                </button>
-                {prestamoSelPdf && pagosPdf.length > 0 && (
-                  <span className="text-sm text-slate-500">
-                    Registros en la corrida: <strong>{pagosPdf.length}</strong> · Total pagado: <strong>{fmtMoney(totalesPdf.totPagado)}</strong>
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
