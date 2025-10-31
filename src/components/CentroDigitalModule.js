@@ -6,7 +6,7 @@ const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
 // ====== utilidades ======
-const headersJSON = (anon = true) => ({
+const headersJSON = () => ({
   'Content-Type': 'application/json',
   apikey: SUPABASE_ANON_KEY,
   Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
@@ -45,9 +45,17 @@ function buildObjectKey(file) {
   return `${yyyy}/${mm}/${dd}/${ts}_${safeName}`;
 }
 
+// SOLO previsualizables en navegador
 function isPreviewable(name = '') {
   const n = name.toLowerCase();
-  return n.endsWith('.pdf') || n.endsWith('.png') || n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.gif') || n.endsWith('.webp');
+  return (
+    n.endsWith('.pdf') ||
+    n.endsWith('.png') ||
+    n.endsWith('.jpg') ||
+    n.endsWith('.jpeg') ||
+    n.endsWith('.gif') ||
+    n.endsWith('.webp')
+  );
 }
 
 function formatBytes(b) {
@@ -281,7 +289,6 @@ const CentroDigitalModule = () => {
     setFondoError('');
     setSelectedFile(null);
     try {
-      // Puedes paginar con offset/limit; aquí traemos 1000 por simplicidad
       const resp = await fetch(
         `${SUPABASE_URL}/storage/v1/object/list/${BUCKET_FONDO}`,
         {
@@ -299,8 +306,7 @@ const CentroDigitalModule = () => {
         const e = await resp.json().catch(() => ({}));
         throw new Error(e.message || `Error al listar: ${resp.statusText}`);
       }
-      const files = await resp.json(); // array [{ name, id, updated_at, created_at, metadata:{ size, mimetype } }, ...]
-      // Filtramos folders virtuales (si vienen) y nos quedamos con objetos
+      const files = await resp.json(); // array
       const onlyFiles = (files || []).filter((x) => !!x.name && !x.id?.endsWith('/'));
       setFondoFiles(onlyFiles);
     } catch (e) {
@@ -686,6 +692,7 @@ const CentroDigitalModule = () => {
                 {fondoFiles.map((f) => {
                   const url = publicUrlFor(f.name);
                   const size = f?.metadata?.size;
+                  const previewable = isPreviewable(f.name);
                   return (
                     <div
                       key={f.id || f.name}
@@ -699,15 +706,18 @@ const CentroDigitalModule = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-                        <a
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {isPreviewable(f.name) ? 'Abrir' : 'Ver/Descargar'}
-                        </a>
+                        {/* Solo mostrar "Abrir" si es previsualizable en navegador */}
+                        {previewable && (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Abrir
+                          </a>
+                        )}
                         <a
                           href={url}
                           download
