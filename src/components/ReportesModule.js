@@ -7,7 +7,7 @@ const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
-// Logo cuadrado solicitado
+// Logo cuadrado solicitado (se mantiene)
 const LOGO_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co/storage/v1/object/public/Logos/logo_fondo_blanco.png';
 
 const monthNames = [
@@ -24,6 +24,18 @@ const fmtFechaLarga = (dateStr) => {
   const mm = monthNames[d.getMonth()] || '';
   const yyyy = d.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
+};
+
+// === NUEVO: fecha corta "01-ene-25" ===
+const MES_ABR = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const fmtFechaCorta = (val) => {
+  if (!val) return '';
+  const d = new Date(val);
+  if (isNaN(d)) return '';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mmm = MES_ABR[d.getMonth()];
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}-${mmm}-${yy}`;
 };
 
 // intenta leer un campo de fecha válido del préstamo
@@ -320,10 +332,10 @@ export default function ReportesModule() {
     doc.setFillColor(primary);
     doc.rect(0, 0, 595, 80, 'F');
 
-    // Logo cuadrado (ancho=alto para no deformar)
+    // Logo cuadrado
     try {
       const dataUrl = await getLogoDataURL();
-      const LOGO_SIZE = 50; // cuadrado, se ve bien en el header
+      const LOGO_SIZE = 50;
       if (dataUrl) doc.addImage(dataUrl, 'PNG', 30, 15, LOGO_SIZE, LOGO_SIZE);
       else {
         doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor('#FFFFFF');
@@ -354,34 +366,44 @@ export default function ReportesModule() {
     const p = prestamoSelPdf;
     doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(gray);
     doc.text(`Préstamo #${p.id_prestamo} — Estatus: ${String(p.estatus || '').toUpperCase()}`, 30, y); y += 16;
-    doc.text(`Fecha de solicitud: ${p.fecha_solicitud ? fmtFechaLarga(p.fecha_solicitud) : ''}`, 30, y); y += 16;
+    // Fecha con formato corto
+    doc.text(`Fecha de solicitud: ${p.fecha_solicitud ? fmtFechaCorta(p.fecha_solicitud) : ''}`, 30, y); y += 16;
     doc.text(`Monto solicitado: ${fmtMoney(p.monto_solicitado)}  ·  Plazo: ${p.numero_plazos} ${p.tipo_plazo || 'plazos'}  ·  Interés: ${p.interes}%`, 30, y); y += 24;
 
-    // === Tabla (sin "Interés" ni "Capital") + Firma ===
+    // === Tabla (orden y nombres solicitados) + Saldo + Firma ===
+    // Orden requerido: No, F.Abono, F.Pago, Monto a Pagar, Pagado, Estatus (+ agregamos Saldo)
     const columns = [
       { header: 'No', dataKey: 'no' },
-      { header: 'F. Programada', dataKey: 'fp' },
+      { header: 'F. Abono', dataKey: 'fabono' },
       { header: 'F. Pago', dataKey: 'fpago' },
-      { header: 'Estatus', dataKey: 'st' },
-      { header: 'Monto', dataKey: 'monto' },
+      { header: 'Monto a Pagar', dataKey: 'montoPagar' },
       { header: 'Pagado', dataKey: 'pagado' },
-      { header: 'Firma', dataKey: 'firma' },
+      { header: 'Estatus', dataKey: 'st' },
+      { header: 'Saldo', dataKey: 'saldo' },
+      { header: 'Firma', dataKey: 'firma' }, // se mantiene
     ];
 
+    // Saldo decreciente basado en capital_pagado
+    let saldoCorrida = Number(p.monto_solicitado || 0);
     const rowsPdf = (pagosPdf || []).map(r => {
       const estatus = String(r.estatus || '').toUpperCase();
-      const fpProg = r.fecha_programada ? fmtFechaLarga(r.fecha_programada) : '';
-      const fpago  = r.fecha_hora_pago ? fmtFechaLarga(r.fecha_hora_pago) : (r.fecha_pago ? fmtFechaLarga(r.fecha_pago) : '');
+      const fAbono = r.fecha_programada ? fmtFechaCorta(r.fecha_programada) : '';
+      const fPago  = r.fecha_hora_pago ? fmtFechaCorta(r.fecha_hora_pago) : (r.fecha_pago ? fmtFechaCorta(r.fecha_pago) : '');
       const pagado = (r.monto_pagado != null) ? fmtMoney(r.monto_pagado) : '';
       const firma  = (estatus === 'PAGADO') ? 'VALIDADO' : '';
 
+      // restamos solo capital_pagado (abono a capital)
+      const abonoCapital = Number(r.capital_pagado || 0);
+      saldoCorrida = Math.max(0, saldoCorrida - abonoCapital);
+
       return {
         no: r.numero_pago ?? '',
-        fp: fpProg,
-        fpago,
-        st: estatus,
-        monto: fmtMoney(r.monto_pago),
+        fabono: fAbono,
+        fpago: fPago,
+        montoPagar: fmtMoney(r.monto_pago),
         pagado,
+        st: estatus,
+        saldo: fmtMoney(saldoCorrida),
         firma
       };
     });
@@ -398,7 +420,7 @@ export default function ReportesModule() {
 
     const endY = doc.lastAutoTable.finalY || (y + 20);
 
-    // Totales (se conservan)
+    // Totales (sin cambios)
     doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor('#0F172A');
     doc.text('Totales', 30, endY + 24);
     doc.setDrawColor(primary); doc.setLineWidth(1); doc.line(30, endY + 28, 100, endY + 28);
@@ -408,10 +430,10 @@ export default function ReportesModule() {
     doc.text(`Intereses pagados: ${fmtMoney(totalesPdf.totInteres)}`, 30, endY + 64);
     doc.text(`Capital pagado: ${fmtMoney(totalesPdf.totCapital)}`, 30, endY + 82);
 
-    // Pie
+    // Pie con fecha corta
     doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor('#94A3B8');
     const hoy = new Date();
-    doc.text(`Generado el ${fmtFechaLarga(hoy)} · ${ymd(hoy)}`, 30, 820);
+    doc.text(`Generado el ${fmtFechaCorta(hoy)} · ${ymd(hoy)}`, 30, 820);
 
     doc.save(`Corrida_Socio_${socioPdf.id_socio}_Prestamo_${p.id_prestamo}.pdf`);
   };
@@ -588,7 +610,7 @@ export default function ReportesModule() {
         <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
           <div>
             <h4 className="text-lg font-semibold text-slate-900">Corrida de préstamo (PDF)</h4>
-            <p className="text-slate-600">Genera un PDF con encabezado, logo, tabla de pagos y totales.</p>
+            <p className="text-slate-600">Genera un PDF con encabezado, logo, tabla y totales.</p>
           </div>
 
           {/* Buscar socio */}
@@ -642,7 +664,7 @@ export default function ReportesModule() {
                         </span>
                       </div>
                       <span className="text-xs text-slate-500">
-                        Solicitado: {p.fecha_solicitud ? fmtFechaLarga(p.fecha_solicitud) : '—'}
+                        Solicitado: {p.fecha_solicitud ? fmtFechaCorta(p.fecha_solicitud) : ''}
                       </span>
                     </label>
                   ))}
