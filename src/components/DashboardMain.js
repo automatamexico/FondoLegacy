@@ -11,8 +11,9 @@ const DashboardMain = () => {
     prestamosActivos: 0,
     montoTotalPrestado: 0,
     interesesAcumulados: 0,
-    proximosPagos: 0,     // NUEVO
-    pagosVencidos: 0,     // NUEVO
+    proximosPagos: 0,
+    pagosVencidos: 0,
+    proximasRenovaciones: 0, // NUEVO
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -35,7 +36,6 @@ const DashboardMain = () => {
     return r.json();
   }
 
-  // Helper para obtener conteos vía Content-Range (más eficiente)
   async function fetchCount(url) {
     const r = await fetch(url, {
       headers: {
@@ -50,6 +50,18 @@ const DashboardMain = () => {
     const cr = r.headers.get('content-range') || '0/0';
     return parseInt(cr.split('/')[1] || '0', 10);
   }
+
+  // Helpers de fecha para renovaciones
+  const addYears = (date, n) => {
+    const d = new Date(date);
+    d.setFullYear(d.getFullYear() + n);
+    return d;
+  };
+  const subDays = (date, n) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() - n);
+    return d;
+  };
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -69,7 +81,7 @@ const DashboardMain = () => {
       }, 0);
       const ahorrosAcumulados = sumaPos - sumaNegAbs;
 
-      // 3) Préstamos activos y total prestado neto (solicitado - capital_pagado)
+      // 3) Préstamos activos y total prestado neto (solicitado - capital_pagado) + intereses acumulados
       const prestamos = await fetchJSON(`${SUPABASE_URL}/rest/v1/prestamos?select=estatus,monto_solicitado`);
       const prestamosActivos = prestamos.filter(p => p.estatus === 'activo').length;
       const totalSolicitado = prestamos.reduce((s, p) => s + (parseFloat(p.monto_solicitado) || 0), 0);
@@ -79,7 +91,7 @@ const DashboardMain = () => {
       const interesesAcumulados = pagos.reduce((s, r) => s + (parseFloat(r.interes_pagado) || 0), 0);
       const montoTotalPrestado = Math.max(0, totalSolicitado - totalCapitalPagado);
 
-      // 4) NUEVO: Próximos pagos (siguientes 3 días) y Pagos vencidos (antes de hoy) con estatus pendiente
+      // 4) Próximos pagos (siguientes 3 días) y Pagos vencidos (antes de hoy) con estatus pendiente
       const now = new Date();
       const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
       const d1 = new Date(now); d1.setDate(now.getDate()+1);
@@ -96,6 +108,30 @@ const DashboardMain = () => {
         `${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_programada=lt.${today}&estatus=eq.pendiente&select=id_pago`
       );
 
+      // 5) NUEVO: Próximas Renovaciones (30 días antes del aniversario del siguiente año, excluir si ya pagó afiliación)
+      const sociosRen = await fetchJSON(`${SUPABASE_URL}/rest/v1/socios?select=id_socio,nombre,apellido_paterno,apellido_materno,miembro_desde,estatus`);
+      const pagosAf = await fetchJSON(`${SUPABASE_URL}/rest/v1/pago_afiliaciones?select=id_socio,estatus`);
+      const pagosSet = new Set(
+        (pagosAf || [])
+          .filter(p => String(p.estatus || '').toUpperCase() === 'AFILIACION PAGADA')
+          .map(p => p.id_socio)
+      );
+
+      const hoy = new Date();
+      const proximasRenovacionesCount = (sociosRen || [])
+        .filter(s => s.estatus !== false && s.miembro_desde) // activos y con fecha
+        .map(s => {
+          const base = new Date(s.miembro_desde);
+          // siguiente aniversario respecto al año actual
+          let nextAnniv = new Date(base);
+          nextAnniv.setFullYear(hoy.getFullYear());
+          if (nextAnniv < hoy) nextAnniv = addYears(nextAnniv, 1);
+          const apareceDesde = subDays(nextAnniv, 30);
+          return { id_socio: s.id_socio, apareceDesde, nextAnniv };
+        })
+        .filter(row => hoy >= row.apareceDesde && !pagosSet.has(row.id_socio))
+        .length;
+
       setStats({
         totalSocios,
         ahorrosAcumulados,
@@ -104,6 +140,7 @@ const DashboardMain = () => {
         interesesAcumulados,
         proximosPagos,
         pagosVencidos,
+        proximasRenovaciones: proximasRenovacionesCount,
       });
     } catch (e) {
       setError(e.message);
@@ -171,7 +208,6 @@ const DashboardMain = () => {
       bgColor: 'bg-sky-100',
       textColor: 'text-sky-800',
     },
-    // NUEVAS TARJETAS:
     {
       title: 'Próximos pagos',
       value: stats.proximosPagos.toLocaleString(),
@@ -193,6 +229,18 @@ const DashboardMain = () => {
       ),
       bgColor: 'bg-fuchsia-100',
       textColor: 'text-fuchsia-800',
+    },
+    // NUEVA TARJETA:
+    {
+      title: 'Próximas Renovaciones',
+      value: stats.proximasRenovaciones.toLocaleString(),
+      icon: (
+        <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+      bgColor: 'bg-blue-100',
+      textColor: 'text-blue-800',
     },
   ];
 
