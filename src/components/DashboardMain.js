@@ -10,7 +10,9 @@ const DashboardMain = () => {
     ahorrosAcumulados: 0,
     prestamosActivos: 0,
     montoTotalPrestado: 0,
-    interesesAcumulados: 0, // NUEVO
+    interesesAcumulados: 0,
+    proximosPagos: 0,     // NUEVO
+    pagosVencidos: 0,     // NUEVO
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -31,6 +33,22 @@ const DashboardMain = () => {
     });
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
     return r.json();
+  }
+
+  // Helper para obtener conteos vía Content-Range (más eficiente)
+  async function fetchCount(url) {
+    const r = await fetch(url, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Prefer: 'count=exact',
+        'Range-Unit': 'items',
+        Range: '0-0',
+      },
+    });
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    const cr = r.headers.get('content-range') || '0/0';
+    return parseInt(cr.split('/')[1] || '0', 10);
   }
 
   const fetchDashboardData = async () => {
@@ -56,20 +74,36 @@ const DashboardMain = () => {
       const prestamosActivos = prestamos.filter(p => p.estatus === 'activo').length;
       const totalSolicitado = prestamos.reduce((s, p) => s + (parseFloat(p.monto_solicitado) || 0), 0);
 
-      const pagos = await fetchJSON(`${SUPABASE_URL}/rest/v1/pagos_prestamos?select=capital_pagado`);
+      const pagos = await fetchJSON(`${SUPABASE_URL}/rest/v1/pagos_prestamos?select=capital_pagado,interes_pagado`);
       const totalCapitalPagado = pagos.reduce((s, r) => s + (parseFloat(r.capital_pagado) || 0), 0);
+      const interesesAcumulados = pagos.reduce((s, r) => s + (parseFloat(r.interes_pagado) || 0), 0);
       const montoTotalPrestado = Math.max(0, totalSolicitado - totalCapitalPagado);
 
-      // 4) NUEVO: Intereses acumulados al día de hoy (suma de interes_pagado > 0)
-      const interesesRows = await fetchJSON(`${SUPABASE_URL}/rest/v1/pagos_prestamos?select=interes_pagado&interes_pagado=gt.0`);
-      const interesesAcumulados = interesesRows.reduce((s, r) => s + (parseFloat(r.interes_pagado) || 0), 0);
+      // 4) NUEVO: Próximos pagos (siguientes 3 días) y Pagos vencidos (antes de hoy) con estatus pendiente
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const d1 = new Date(now); d1.setDate(now.getDate()+1);
+      const d2 = new Date(now); d2.setDate(now.getDate()+2);
+      const d3 = new Date(now); d3.setDate(now.getDate()+3);
+      const s1 = `${d1.getFullYear()}-${String(d1.getMonth()+1).padStart(2,'0')}-${String(d1.getDate()).padStart(2,'0')}`;
+      const s2 = `${d2.getFullYear()}-${String(d2.getMonth()+1).padStart(2,'0')}-${String(d2.getDate()).padStart(2,'0')}`;
+      const s3 = `${d3.getFullYear()}-${String(d3.getMonth()+1).padStart(2,'0')}-${String(d3.getDate()).padStart(2,'0')}`;
+
+      const proximosPagos = await fetchCount(
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?or=(fecha_programada.eq.${s1},fecha_programada.eq.${s2},fecha_programada.eq.${s3})&estatus=eq.pendiente&select=id_pago`
+      );
+      const pagosVencidos = await fetchCount(
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_programada=lt.${today}&estatus=eq.pendiente&select=id_pago`
+      );
 
       setStats({
         totalSocios,
         ahorrosAcumulados,
         prestamosActivos,
         montoTotalPrestado,
-        interesesAcumulados, // NUEVO
+        interesesAcumulados,
+        proximosPagos,
+        pagosVencidos,
       });
     } catch (e) {
       setError(e.message);
@@ -126,7 +160,6 @@ const DashboardMain = () => {
       bgColor: 'bg-purple-100',
       textColor: 'text-purple-800',
     },
-    // NUEVA TARJETA
     {
       title: 'Intereses acumulados al día de hoy',
       value: formatCurrency(stats.interesesAcumulados),
@@ -137,6 +170,29 @@ const DashboardMain = () => {
       ),
       bgColor: 'bg-sky-100',
       textColor: 'text-sky-800',
+    },
+    // NUEVAS TARJETAS:
+    {
+      title: 'Próximos pagos',
+      value: stats.proximosPagos.toLocaleString(),
+      icon: (
+        <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+      bgColor: 'bg-yellow-100',
+      textColor: 'text-yellow-800',
+    },
+    {
+      title: 'Pagos vencidos',
+      value: stats.pagosVencidos.toLocaleString(),
+      icon: (
+        <svg className="w-8 h-8 text-fuchsia-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+      bgColor: 'bg-fuchsia-100',
+      textColor: 'text-fuchsia-800',
     },
   ];
 
