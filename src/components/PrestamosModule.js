@@ -1,5 +1,5 @@
 // src/components/PrestamosModule.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { convertirFechaHoraLocal } from '../utils/dateFormatter';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
@@ -44,12 +44,9 @@ const PrestamosModule = ({ idSocio }) => {
     id_socio: '',
     monto_solicitado: '',
     numero_plazos: '',
-    tasa_interes_mensual: '',
-    tipo_plazo: 'mensual',
-    plazo_semanas: '',
-    tasa_interes_semanal: '',
-    plazo_quincenas: '',
-    tasa_interes_quincenal: ''
+    tipo_plazo: 'mensual', // mensual | semanal | quincenal
+    interes: '',           // interés por periodo (%) según tipo_plazo
+    fecha_solicitud: ''    // ISO (yyyy-mm-dd)
   });
 
   const [pagoPeriodo, setPagoPeriodo] = useState(0);
@@ -223,7 +220,6 @@ const PrestamosModule = ({ idSocio }) => {
       const data = await response.json();
       const prestamosConEstado = await Promise.all(
         data.map(async (prestamo) => {
-          // Para informar si ya está pagado completamente (solo informativo)
           const totalPagosProgramadosResponse = await fetch(
             `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&select=count`,
             { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, Prefer: 'count=exact', Range: '0-0', 'Range-Unit': 'items' } }
@@ -381,6 +377,147 @@ const PrestamosModule = ({ idSocio }) => {
 
   const formatCurrency = (value) =>
     new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
+
+  // ===== Helpers de cálculo y fechas (para el modal de nuevo préstamo) =====
+  const calcularPagoRequerido = (monto, tasaPctPorPeriodo, nPlazos) => {
+    const P = Number(monto) || 0;
+    const i = (Number(tasaPctPorPeriodo) || 0) / 100;
+    const n = Number(nPlazos) || 0;
+    if (P <= 0 || n <= 0) return 0;
+    if (i <= 0) return P / n;
+    // Fórmula PMT de amortización francesa
+    return (P * i) / (1 - Math.pow(1 + i, -n));
+  };
+
+  const addPeriod = (dateISO, tipo, k) => {
+    const d = new Date(dateISO);
+    if (tipo === 'semanal') d.setDate(d.getDate() + 7 * k);
+    else if (tipo === 'quincenal') d.setDate(d.getDate() + 14 * k);
+    else d.setMonth(d.getMonth() + k); // mensual
+    return d.toISOString().slice(0, 10);
+  };
+
+  // ===== Manejo del modal (nuevo préstamo) =====
+  useEffect(() => {
+    // si viene idSocio como prop, lo prefijamos
+    if (idSocio && sociosList && sociosList.length) {
+      setNewPrestamo((prev) => ({ ...prev, id_socio: idSocio }));
+    }
+  }, [idSocio, sociosList]);
+
+  useEffect(() => {
+    // cálculo en vivo de pago / interés estimado / abono capital
+    const pago = calcularPagoRequerido(
+      newPrestamo.monto_solicitado,
+      newPrestamo.interes,
+      newPrestamo.numero_plazos
+    );
+    setPagoPeriodo(pago);
+    // estimaciones simples (primer periodo):
+    const interesEst = (Number(newPrestamo.monto_solicitado || 0) * (Number(newPrestamo.interes || 0) / 100));
+    setInteresPeriodoEstimado(interesEst);
+    setAbonoCapitalPeriodo(Math.max(0, pago - interesEst));
+  }, [newPrestamo.monto_solicitado, newPrestamo.interes, newPrestamo.numero_plazos]);
+
+  const resetNuevoPrestamo = () => {
+    setNewPrestamo({
+      id_socio: idSocio || '',
+      monto_solicitado: '',
+      numero_plazos: '',
+      tipo_plazo: 'mensual',
+      interes: '',
+      fecha_solicitud: ''
+    });
+    setPagoPeriodo(0);
+    setInteresPeriodoEstimado(0);
+    setAbonoCapitalPeriodo(0);
+  };
+
+  const handleCreatePrestamo = async () => {
+    // Validaciones mínimas
+    if (!newPrestamo.id_socio) return alert('Selecciona un socio.');
+    if (!newPrestamo.monto_solicitado || Number(newPrestamo.monto_solicitado) <= 0) return alert('Monto inválido.');
+    if (!newPrestamo.numero_plazos || Number(newPrestamo.numero_plazos) <= 0) return alert('Plazos inválidos.');
+    if (newPrestamo.interes === '' || Number(newPrestamo.interes) < 0) return alert('Interés por periodo inválido.');
+    const fechaSolicitud = newPrestamo.fecha_solicitud || new Date().toISOString().slice(0,10);
+
+    setSubmitting(true);
+    try {
+      // 1) Insertar préstamo
+      const pagoRequerido = Number(pagoPeriodo.toFixed(2));
+      const bodyPrestamo = {
+        id_socio: Number(newPrestamo.id_socio),
+        monto_solicitado: Number(newPrestamo.monto_solicitado),
+        numero_plazos: Number(newPrestamo.numero_plazos),
+        tipo_plazo: newPrestamo.tipo_plazo,        // mensual | quincenal | semanal
+        interes: Number(newPrestamo.interes),      // % por periodo
+        fecha_solicitud: fechaSolicitud,
+        pago_requerido: pagoRequerido,
+        estatus: 'activo'
+      };
+
+      const rPrest = await fetch(`${SUPABASE_URL}/rest/v1/prestamos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=representation'
+        },
+        body: JSON.stringify(bodyPrestamo)
+      });
+      if (!rPrest.ok) throw new Error('No se pudo registrar el préstamo.');
+      const prestInsert = await rPrest.json();
+      const prestamo = prestInsert[0];
+      const id_prestamo = prestamo?.id_prestamo;
+
+      // 2) Generar corrida (pagos programados)
+      const pagos = [];
+      for (let k = 1; k <= Number(newPrestamo.numero_plazos); k++) {
+        const fecha_programada = addPeriod(fechaSolicitud, newPrestamo.tipo_plazo, k);
+        pagos.push({
+          id_prestamo,
+          numero_pago: k,
+          fecha_programada,
+          monto_pago: pagoRequerido,
+          // inicializar en blanco
+          fecha_pago: null,
+          fecha_hora_pago: null,
+          monto_pagado: null,
+          interes_pagado: null,
+          capital_pagado: null,
+          estatus: 'pendiente'
+        });
+      }
+
+      // Insert masivo (chunk si se requiere, aquí asumimos tamaño razonable)
+      const rPagos = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=minimal'
+        },
+        body: JSON.stringify(pagos)
+      });
+      if (!rPagos.ok) throw new Error('Préstamo creado, pero no se pudo generar la corrida.');
+
+      // 3) Actualizar vistas
+      setToastMessage('Préstamo creado correctamente.');
+      setShowAddPrestamoModal(false);
+      resetNuevoPrestamo();
+
+      fetchGlobalPrestamoStats();
+      if (!idSocio) fetchAllSociosConPrestamoActivo();
+      else fetchPrestamosForUser(idSocio);
+    } catch (e) {
+      alert(e.message || 'Error al crear el préstamo.');
+    } finally {
+      setSubmitting(false);
+      setTimeout(() => setToastMessage(''), 3000);
+    }
+  };
 
   // ============================
   // Render
@@ -738,6 +875,147 @@ const PrestamosModule = ({ idSocio }) => {
               <button onClick={handleBackToListadoPrestamos} className="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium">
                 Volver
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === MODAL: Registrar nuevo préstamo (HABILITADO) === */}
+      {showAddPrestamoModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">Registrar nuevo préstamo</h3>
+              <button
+                className="px-3 py-1 rounded-lg bg-slate-100"
+                onClick={() => { setShowAddPrestamoModal(false); resetNuevoPrestamo(); }}
+                disabled={submitting}
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Socio */}
+              <div>
+                <label className="block text-sm text-slate-700 mb-1">Socio</label>
+                <select
+                  className="w-full px-3 py-2 border rounded-lg"
+                  value={newPrestamo.id_socio}
+                  onChange={(e) => setNewPrestamo((p) => ({ ...p, id_socio: e.target.value }))}
+                  disabled={!!idSocio}
+                >
+                  <option value="">Selecciona un socio…</option>
+                  {(sociosList || []).map(s => (
+                    <option key={s.id_socio} value={s.id_socio}>
+                      #{s.id_socio} — {s.nombre} {s.apellido_paterno} {s.apellido_materno}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Monto */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-slate-700 mb-1">Monto solicitado</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    value={newPrestamo.monto_solicitado}
+                    onChange={(e) => setNewPrestamo((p) => ({ ...p, monto_solicitado: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-slate-700 mb-1">Número de plazos</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    value={newPrestamo.numero_plazos}
+                    onChange={(e) => setNewPrestamo((p) => ({ ...p, numero_plazos: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* Tipo de plazo + Interés por periodo */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-slate-700 mb-1">Tipo de plazo</label>
+                  <select
+                    className="w-full px-3 py-2 border rounded-lg"
+                    value={newPrestamo.tipo_plazo}
+                    onChange={(e) => setNewPrestamo((p) => ({ ...p, tipo_plazo: e.target.value }))}
+                  >
+                    <option value="mensual">Mensual</option>
+                    <option value="quincenal">Quincenal</option>
+                    <option value="semanal">Semanal</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-slate-700 mb-1">
+                    Interés por periodo (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    value={newPrestamo.interes}
+                    onChange={(e) => setNewPrestamo((p) => ({ ...p, interes: e.target.value }))}
+                    placeholder={
+                      newPrestamo.tipo_plazo === 'mensual'
+                        ? 'Ej. 3 = 3% mensual'
+                        : newPrestamo.tipo_plazo === 'quincenal'
+                        ? 'Ej. 2 = 2% por quincena'
+                        : 'Ej. 0.5 = 0.5% semanal'
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Fecha de solicitud */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-slate-700 mb-1">Fecha de solicitud</label>
+                  <input
+                    type="date"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    value={newPrestamo.fecha_solicitud || ''}
+                    onChange={(e) => setNewPrestamo((p) => ({ ...p, fecha_solicitud: e.target.value }))}
+                  />
+                </div>
+
+                {/* Resumen de cálculo */}
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                  <div className="text-sm text-slate-700">
+                    <div><span className="font-medium">Pago por periodo:</span> {formatCurrency(pagoPeriodo)}</div>
+                    <div><span className="font-medium">Interés (1er periodo aprox.):</span> {formatCurrency(interesPeriodoEstimado)}</div>
+                    <div><span className="font-medium">Abono a capital (1er periodo aprox.):</span> {formatCurrency(abonoCapitalPeriodo)}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  className="px-4 py-2 rounded-lg bg-slate-100"
+                  onClick={() => { setShowAddPrestamoModal(false); resetNuevoPrestamo(); }}
+                  disabled={submitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                  onClick={handleCreatePrestamo}
+                  disabled={submitting}
+                >
+                  {submitting ? 'Guardando…' : 'Guardar'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
