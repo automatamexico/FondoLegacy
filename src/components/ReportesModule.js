@@ -7,8 +7,8 @@ const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
-// Logo solicitado
-const LOGO_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co/storage/v1/object/public/Logos/LOGO_OK.png';
+// Logo cuadrado solicitado
+const LOGO_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co/storage/v1/object/public/Logos/logo_fondo_blanco.png';
 
 const monthNames = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -66,14 +66,11 @@ export default function ReportesModule() {
   const [activeReport, setActiveReport] = useState('control-prestamos'); // 'control-prestamos' | 'corrida-pdf'
 
   // ========= (EXISTENTE) Control de préstamos (Excel/Tabla) =========
-  // Buscador
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
-
-  // Selección socio y resultados
   const [selectedSocio, setSelectedSocio] = useState(null);
-  const [rows, setRows] = useState([]); // filas de la tabla final
+  const [rows, setRows] = useState([]);
   const [loadingRows, setLoadingRows] = useState(false);
   const [errorRows, setErrorRows] = useState('');
 
@@ -90,7 +87,6 @@ export default function ReportesModule() {
     []
   );
 
-  // Buscar socios (solo ID + nombre completo en sugerencias) — Control de préstamos
   const handleSearch = async (term) => {
     setSearchTerm(term);
     setSelectedSocio(null);
@@ -131,7 +127,6 @@ export default function ReportesModule() {
     }
   };
 
-  // Al seleccionar un socio en las sugerencias — Control de préstamos
   const handlePickSocio = async (s) => {
     setSelectedSocio(s);
     setSuggestions([]);
@@ -139,13 +134,11 @@ export default function ReportesModule() {
     await cargarControlPrestamos(s.id_socio, s);
   };
 
-  // Cargar préstamos y pagos -> armar filas — Control de préstamos
-  const cargarControlPrestamos = async (idSocio, socioObj) => {
+  const cargarControlPrestamos = async (idSocio) => {
     setLoadingRows(true);
     setErrorRows('');
     setRows([]);
     try {
-      // 1) préstamos del socio
       const rPrest = await fetch(
         `${SUPABASE_URL}/rest/v1/prestamos?select=*&id_socio=eq.${idSocio}`,
         {
@@ -174,7 +167,6 @@ export default function ReportesModule() {
         return;
       }
 
-      // 2) pagos de esos préstamos (ordenados)
       const idsIn = `(${prestIds.join(',')})`;
       const rPagos = await fetch(
         `${SUPABASE_URL}/rest/v1/pagos_prestamos?select=id_prestamo,numero_pago,fecha_programada,fecha_pago,monto_pagado,capital_pagado,estatus&order=id_prestamo.asc&order=numero_pago.asc&id_prestamo=in.${idsIn}`,
@@ -189,7 +181,6 @@ export default function ReportesModule() {
       if (!rPagos.ok) throw new Error('No se pudieron cargar los pagos de los préstamos');
       const pagos = await rPagos.json();
 
-      // 3) agrupar pagos por préstamo para calcular saldos y acumulados
       const pagosByPrestamo = new Map();
       pagos.forEach((p) => {
         if (!pagosByPrestamo.has(p.id_prestamo)) pagosByPrestamo.set(p.id_prestamo, []);
@@ -248,7 +239,6 @@ export default function ReportesModule() {
   };
 
   // ========= NUEVO: Corrida de préstamo (PDF) =========
-  // Búsqueda y selección (independiente para no tocar lo anterior)
   const [termPdf, setTermPdf] = useState('');
   const [sugPdf, setSugPdf] = useState([]);
   const [socioPdf, setSocioPdf] = useState(null);
@@ -258,7 +248,6 @@ export default function ReportesModule() {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [errPdf, setErrPdf] = useState('');
 
-  // Sugerencias de socios — PDF
   useEffect(() => {
     const run = async () => {
       const t = (termPdf || '').trim().toLowerCase();
@@ -281,16 +270,11 @@ export default function ReportesModule() {
     setSocioPdf(s);
     setTermPdf(`ID: ${s.id_socio} — ${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`);
     setSugPdf([]);
+    const prs = await fetchJSON(`/rest/v1/prestamos?id_socio=eq.${s.id_socio}&select=id_prestamo,monto_solicitado,numero_plazos,interes,tipo_plazo,fecha_solicitud,estatus&order=id_prestamo.desc`).catch(() => []);
+    setPrestamosPdf(prs || []);
     setPrestamoSelPdf(null);
     setPagosPdf([]);
     setErrPdf('');
-    try {
-      const prs = await fetchJSON(`/rest/v1/prestamos?id_socio=eq.${s.id_socio}&select=id_prestamo,monto_solicitado,numero_plazos,interes,tipo_plazo,fecha_solicitud,estatus&order=id_prestamo.desc`);
-      setPrestamosPdf(prs || []);
-    } catch (e) {
-      setPrestamosPdf([]);
-      setErrPdf('No se pudieron cargar los préstamos del socio.');
-    }
   };
 
   const cargarPagosPdf = async (id_prestamo) => {
@@ -336,9 +320,11 @@ export default function ReportesModule() {
     doc.setFillColor(primary);
     doc.rect(0, 0, 595, 80, 'F');
 
+    // Logo cuadrado (ancho=alto para no deformar)
     try {
       const dataUrl = await getLogoDataURL();
-      if (dataUrl) doc.addImage(dataUrl, 'PNG', 30, 20, 140, 42);
+      const LOGO_SIZE = 50; // cuadrado, se ve bien en el header
+      if (dataUrl) doc.addImage(dataUrl, 'PNG', 30, 15, LOGO_SIZE, LOGO_SIZE);
       else {
         doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor('#FFFFFF');
         doc.text('TU LOGO', 30, 50);
@@ -371,15 +357,13 @@ export default function ReportesModule() {
     doc.text(`Fecha de solicitud: ${p.fecha_solicitud ? fmtFechaLarga(p.fecha_solicitud) : ''}`, 30, y); y += 16;
     doc.text(`Monto solicitado: ${fmtMoney(p.monto_solicitado)}  ·  Plazo: ${p.numero_plazos} ${p.tipo_plazo || 'plazos'}  ·  Interés: ${p.interes}%`, 30, y); y += 24;
 
-    // Tabla (ajustes solicitados: blanks y columna Firma)
+    // === Tabla (sin "Interés" ni "Capital") + Firma ===
     const columns = [
       { header: 'No', dataKey: 'no' },
       { header: 'F. Programada', dataKey: 'fp' },
       { header: 'F. Pago', dataKey: 'fpago' },
       { header: 'Estatus', dataKey: 'st' },
       { header: 'Monto', dataKey: 'monto' },
-      { header: 'Interés', dataKey: 'interes' },
-      { header: 'Capital', dataKey: 'capital' },
       { header: 'Pagado', dataKey: 'pagado' },
       { header: 'Firma', dataKey: 'firma' },
     ];
@@ -387,11 +371,9 @@ export default function ReportesModule() {
     const rowsPdf = (pagosPdf || []).map(r => {
       const estatus = String(r.estatus || '').toUpperCase();
       const fpProg = r.fecha_programada ? fmtFechaLarga(r.fecha_programada) : '';
-      const fpago = r.fecha_hora_pago ? fmtFechaLarga(r.fecha_hora_pago) : (r.fecha_pago ? fmtFechaLarga(r.fecha_pago) : '');
-      const interes = (r.interes_pagado != null) ? fmtMoney(r.interes_pagado) : '';
-      const capital  = (r.capital_pagado  != null) ? fmtMoney(r.capital_pagado)  : '';
-      const pagado  = (r.monto_pagado     != null) ? fmtMoney(r.monto_pagado)     : '';
-      const firma = (estatus === 'PAGADO') ? 'VALIDADO' : '';
+      const fpago  = r.fecha_hora_pago ? fmtFechaLarga(r.fecha_hora_pago) : (r.fecha_pago ? fmtFechaLarga(r.fecha_pago) : '');
+      const pagado = (r.monto_pagado != null) ? fmtMoney(r.monto_pagado) : '';
+      const firma  = (estatus === 'PAGADO') ? 'VALIDADO' : '';
 
       return {
         no: r.numero_pago ?? '',
@@ -399,8 +381,6 @@ export default function ReportesModule() {
         fpago,
         st: estatus,
         monto: fmtMoney(r.monto_pago),
-        interes,
-        capital,
         pagado,
         firma
       };
@@ -418,7 +398,7 @@ export default function ReportesModule() {
 
     const endY = doc.lastAutoTable.finalY || (y + 20);
 
-    // Totales
+    // Totales (se conservan)
     doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor('#0F172A');
     doc.text('Totales', 30, endY + 24);
     doc.setDrawColor(primary); doc.setLineWidth(1); doc.line(30, endY + 28, 100, endY + 28);
@@ -428,14 +408,11 @@ export default function ReportesModule() {
     doc.text(`Intereses pagados: ${fmtMoney(totalesPdf.totInteres)}`, 30, endY + 64);
     doc.text(`Capital pagado: ${fmtMoney(totalesPdf.totCapital)}`, 30, endY + 82);
 
-    // (Eliminado) Firma del socio — se pidió quitar esta sección
-
     // Pie
     doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor('#94A3B8');
     const hoy = new Date();
     doc.text(`Generado el ${fmtFechaLarga(hoy)} · ${ymd(hoy)}`, 30, 820);
 
-    // Descargar
     doc.save(`Corrida_Socio_${socioPdf.id_socio}_Prestamo_${p.id_prestamo}.pdf`);
   };
 
