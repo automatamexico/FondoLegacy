@@ -7,8 +7,8 @@ const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
-// Cambia por tu logo (PNG recomendado, fondo transparente)
-const LOGO_URL = 'https://via.placeholder.com/200x60.png?text=TU+LOGO';
+// Logo solicitado
+const LOGO_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co/storage/v1/object/public/Logos/LOGO_OK.png';
 
 const monthNames = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -328,7 +328,7 @@ export default function ReportesModule() {
     if (!socioPdf || !prestamoSelPdf) { alert('Selecciona socio y préstamo.'); return; }
 
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-    const primary = '#0EA5E9';  // sky-500
+    const primary = '#0ea15a';  // verde solicitado
     const dark = '#0F172A';     // slate-900
     const gray = '#64748B';     // slate-500
 
@@ -368,10 +368,10 @@ export default function ReportesModule() {
     const p = prestamoSelPdf;
     doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(gray);
     doc.text(`Préstamo #${p.id_prestamo} — Estatus: ${String(p.estatus || '').toUpperCase()}`, 30, y); y += 16;
-    doc.text(`Fecha de solicitud: ${p.fecha_solicitud ? fmtFechaLarga(p.fecha_solicitud) : '—'}`, 30, y); y += 16;
+    doc.text(`Fecha de solicitud: ${p.fecha_solicitud ? fmtFechaLarga(p.fecha_solicitud) : ''}`, 30, y); y += 16;
     doc.text(`Monto solicitado: ${fmtMoney(p.monto_solicitado)}  ·  Plazo: ${p.numero_plazos} ${p.tipo_plazo || 'plazos'}  ·  Interés: ${p.interes}%`, 30, y); y += 24;
 
-    // Tabla
+    // Tabla (ajustes solicitados: blanks y columna Firma)
     const columns = [
       { header: 'No', dataKey: 'no' },
       { header: 'F. Programada', dataKey: 'fp' },
@@ -381,22 +381,35 @@ export default function ReportesModule() {
       { header: 'Interés', dataKey: 'interes' },
       { header: 'Capital', dataKey: 'capital' },
       { header: 'Pagado', dataKey: 'pagado' },
+      { header: 'Firma', dataKey: 'firma' },
     ];
-    const rowsPdf = (pagosPdf || []).map(r => ({
-      no: r.numero_pago ?? '',
-      fp: r.fecha_programada ? fmtFechaLarga(r.fecha_programada) : '—',
-      fpago: r.fecha_hora_pago ? fmtFechaLarga(r.fecha_hora_pago) : (r.fecha_pago ? fmtFechaLarga(r.fecha_pago) : '—'),
-      st: String(r.estatus || '').toUpperCase(),
-      monto: fmtMoney(r.monto_pago),
-      interes: r.interes_pagado != null ? fmtMoney(r.interes_pagado) : '—',
-      capital: r.capital_pagado != null ? fmtMoney(r.capital_pagado) : '—',
-      pagado: r.monto_pagado != null ? fmtMoney(r.monto_pagado) : '—',
-    }));
+
+    const rowsPdf = (pagosPdf || []).map(r => {
+      const estatus = String(r.estatus || '').toUpperCase();
+      const fpProg = r.fecha_programada ? fmtFechaLarga(r.fecha_programada) : '';
+      const fpago = r.fecha_hora_pago ? fmtFechaLarga(r.fecha_hora_pago) : (r.fecha_pago ? fmtFechaLarga(r.fecha_pago) : '');
+      const interes = (r.interes_pagado != null) ? fmtMoney(r.interes_pagado) : '';
+      const capital  = (r.capital_pagado  != null) ? fmtMoney(r.capital_pagado)  : '';
+      const pagado  = (r.monto_pagado     != null) ? fmtMoney(r.monto_pagado)     : '';
+      const firma = (estatus === 'PAGADO') ? 'VALIDADO' : '';
+
+      return {
+        no: r.numero_pago ?? '',
+        fp: fpProg,
+        fpago,
+        st: estatus,
+        monto: fmtMoney(r.monto_pago),
+        interes,
+        capital,
+        pagado,
+        firma
+      };
+    });
 
     doc.autoTable({
       startY: y,
       headStyles: { fillColor: primary, textColor: '#ffffff', fontStyle: 'bold' },
-      bodyStyles: { textColor: dark },
+      bodyStyles: { textColor: '#0F172A' },
       alternateRowStyles: { fillColor: '#F8FAFC' },
       styles: { fontSize: 10, cellPadding: 6 },
       columns,
@@ -406,7 +419,7 @@ export default function ReportesModule() {
     const endY = doc.lastAutoTable.finalY || (y + 20);
 
     // Totales
-    doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(dark);
+    doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor('#0F172A');
     doc.text('Totales', 30, endY + 24);
     doc.setDrawColor(primary); doc.setLineWidth(1); doc.line(30, endY + 28, 100, endY + 28);
 
@@ -415,12 +428,7 @@ export default function ReportesModule() {
     doc.text(`Intereses pagados: ${fmtMoney(totalesPdf.totInteres)}`, 30, endY + 64);
     doc.text(`Capital pagado: ${fmtMoney(totalesPdf.totCapital)}`, 30, endY + 82);
 
-    // Firma
-    const firmaY = endY + 140;
-    doc.setDrawColor('#CBD5E1');
-    doc.line(360, firmaY, 560, firmaY);
-    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor('#64748B');
-    doc.text('Firma del Socio', 460, firmaY + 14, { align: 'center' });
+    // (Eliminado) Firma del socio — se pidió quitar esta sección
 
     // Pie
     doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor('#94A3B8');
