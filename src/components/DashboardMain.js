@@ -1,3 +1,4 @@
+// src/components/DashboardMain.js
 import React, { useState, useEffect } from 'react';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
@@ -9,6 +10,7 @@ const DashboardMain = () => {
     ahorrosAcumulados: 0,
     prestamosActivos: 0,
     montoTotalPrestado: 0,
+    interesesAcumulados: 0, // NUEVO
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -58,11 +60,16 @@ const DashboardMain = () => {
       const totalCapitalPagado = pagos.reduce((s, r) => s + (parseFloat(r.capital_pagado) || 0), 0);
       const montoTotalPrestado = Math.max(0, totalSolicitado - totalCapitalPagado);
 
+      // 4) NUEVO: Intereses acumulados al día de hoy (suma de interes_pagado > 0)
+      const interesesRows = await fetchJSON(`${SUPABASE_URL}/rest/v1/pagos_prestamos?select=interes_pagado&interes_pagado=gt.0`);
+      const interesesAcumulados = interesesRows.reduce((s, r) => s + (parseFloat(r.interes_pagado) || 0), 0);
+
       setStats({
         totalSocios,
         ahorrosAcumulados,
         prestamosActivos,
         montoTotalPrestado,
+        interesesAcumulados, // NUEVO
       });
     } catch (e) {
       setError(e.message);
@@ -118,6 +125,18 @@ const DashboardMain = () => {
       ),
       bgColor: 'bg-purple-100',
       textColor: 'text-purple-800',
+    },
+    // NUEVA TARJETA
+    {
+      title: 'Intereses acumulados al día de hoy',
+      value: formatCurrency(stats.interesesAcumulados),
+      icon: (
+        <svg className="w-8 h-8 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-2.21 0-4 1.343-4 3s1.79 3 4 3 4 1.343 4 3-1.79 3-4 3m0-12c1.11 0 2.08.402 2.6 1M12 8V7m0 1v8" />
+        </svg>
+      ),
+      bgColor: 'bg-sky-100',
+      textColor: 'text-sky-800',
     },
   ];
 
