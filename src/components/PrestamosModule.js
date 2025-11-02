@@ -37,36 +37,67 @@ const PrestamosModule = ({ idSocio }) => {
     ? (JSON.parse(localStorage.getItem('currentUser')).role || 'admin')
     : 'admin';
 
-  const weeklyRateOptions = Array.from({ length: 12 }, (_, i) => 0.5 * (i + 1));
-  const biweeklyRateOptions = Array.from({ length: 13 }, (_, i) => 2 + 0.5 * i);
-
   const [newPrestamo, setNewPrestamo] = useState({
     id_socio: '',
     monto_solicitado: '',
     numero_plazos: '',
-    tipo_plazo: 'mensual', // mensual | semanal | quincenal
-    interes: '',           // interés por periodo (%) según tipo_plazo
-    fecha_solicitud: ''    // ISO (yyyy-mm-dd)
+    tipo_plazo: 'mensual', // mensual | quincenal | semanal
+    interes: '',           // % por periodo
+    fecha_solicitud: ''    // puede venir dd/mm/yyyy o yyyy-mm-dd
   });
 
   const [pagoPeriodo, setPagoPeriodo] = useState(0);
   const [abonoCapitalPeriodo, setAbonoCapitalPeriodo] = useState(0);
   const [interesPeriodoEstimado, setInteresPeriodoEstimado] = useState(0);
 
-  const plazoOpciones = Array.from({ length: 48 }, (_, i) => i + 1);
-  const tasaOpciones = Array.from({ length: 7 }, (_, i) => i + 2);
-
   useEffect(() => {
     fetchGlobalPrestamoStats();
     fetchSocios();
-    if (!idSocio) {
-      fetchAllSociosConPrestamoActivo();
-    } else {
-      fetchPrestamosForUser(idSocio);
-    }
+    if (!idSocio) fetchAllSociosConPrestamoActivo();
+    else fetchPrestamosForUser(idSocio);
   }, [idSocio]);
 
-  // Marcar LIQUIDADO si todos sus pagos están 'pagado'
+  // --- Utils ---
+  const formatCurrency = (value) =>
+    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
+
+  const calcularPagoRequerido = (monto, tasaPctPorPeriodo, nPlazos) => {
+    const P = Number(monto) || 0;
+    const i = (Number(tasaPctPorPeriodo) || 0) / 100;
+    const n = Number(nPlazos) || 0;
+    if (P <= 0 || n <= 0) return 0;
+    if (i <= 0) return P / n; // sin interés
+    return (P * i) / (1 - Math.pow(1 + i, -n));
+  };
+
+  // Normaliza string fecha a YYYY-MM-DD para Supabase
+  const toISODate = (val) => {
+    if (!val) return new Date().toISOString().slice(0, 10);
+    // ya viene ISO
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+    // dd/mm/yyyy o d/m/yyyy
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(val)) {
+      const [d, m, y] = val.split('/').map(n => parseInt(n, 10));
+      const dt = new Date(y, (m - 1), d);
+      const mm = String(dt.getMonth() + 1).padStart(2, '0');
+      const dd = String(dt.getDate()).padStart(2, '0');
+      return `${dt.getFullYear()}-${mm}-${dd}`;
+    }
+    // fallback: Date parseable
+    const dt = new Date(val);
+    if (!isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
+    return new Date().toISOString().slice(0, 10);
+  };
+
+  const addPeriod = (dateISO, tipo, k) => {
+    const d = new Date(dateISO);
+    if (tipo === 'semanal') d.setDate(d.getDate() + 7 * k);
+    else if (tipo === 'quincenal') d.setDate(d.getDate() + 14 * k);
+    else d.setMonth(d.getMonth() + k); // mensual
+    return d.toISOString().slice(0, 10);
+  };
+
+  // --- RLS helper: marcar liquidado si corresponde ---
   const checkAndMarkLiquidado = async (id_prestamo) => {
     try {
       const totalResp = await fetch(
@@ -101,7 +132,7 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // KPIs
+  // --- Fetches ---
   const fetchGlobalPrestamoStats = async () => {
     try {
       const sociosConPrestamoResponse = await fetch(
@@ -135,7 +166,6 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // Listado usuario
   const fetchPrestamosForUser = async (socioId) => {
     setLoading(true);
     setError(null);
@@ -155,7 +185,6 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // Catálogo de socios
   const fetchSocios = async () => {
     try {
       const response = await fetch(
@@ -170,7 +199,6 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // Socios con préstamos activos
   const fetchAllSociosConPrestamoActivo = async () => {
     setLoading(true);
     setError(null);
@@ -203,7 +231,7 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // VER HISTORIAL (restaurado)
+  // --- Navegación/acciones ---
   const handleVerHistorialPrestamosSocio = async (socio) => {
     setSelectedSocioForHistorial(socio);
     setShowEditPrestamosModal(false);
@@ -246,7 +274,6 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // EDITAR (restaurado)
   const handleEditarPrestamosSocio = async (socio) => {
     setSelectedSocioForHistorial(socio);
     setShowPrestamoHistorial(false);
@@ -287,7 +314,6 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  // Ver detalles (y verificar LIQUIDADO)
   const handleVerDetallesPrestamo = async (prestamo) => {
     setSelectedPrestamo(prestamo);
     setShowDetailsModal(true);
@@ -301,7 +327,6 @@ const PrestamosModule = ({ idSocio }) => {
       if (!response.ok) throw new Error('Error al cargar historial de pagos del préstamo');
       const data = await response.json();
       setHistorialPagosPrestamo(data);
-
       await checkAndMarkLiquidado(prestamo.id_prestamo);
     } catch (err) {
       setError(err.message);
@@ -360,64 +385,24 @@ const PrestamosModule = ({ idSocio }) => {
     }
   };
 
-  const handleSearch = (e) => {
-    const term = e.target.value.toLowerCase();
-    setSearchTerm(term);
-    if (sociosList) {
-      const results = sociosList.filter(
-        (socio) =>
-          socio.id_socio.toString().includes(term) ||
-          `${socio.nombre} ${socio.apellido_paterno} ${socio.apellido_materno}`.toLowerCase().includes(term)
-      );
-      setSearchResults(results);
-    } else {
-      setSearchResults([]);
-    }
-  };
-
-  const formatCurrency = (value) =>
-    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
-
-  // ===== Helpers de cálculo y fechas (para el modal de nuevo préstamo) =====
-  const calcularPagoRequerido = (monto, tasaPctPorPeriodo, nPlazos) => {
-    const P = Number(monto) || 0;
-    const i = (Number(tasaPctPorPeriodo) || 0) / 100;
-    const n = Number(nPlazos) || 0;
-    if (P <= 0 || n <= 0) return 0;
-    if (i <= 0) return P / n;
-    // Fórmula PMT de amortización francesa
-    return (P * i) / (1 - Math.pow(1 + i, -n));
-  };
-
-  const addPeriod = (dateISO, tipo, k) => {
-    const d = new Date(dateISO);
-    if (tipo === 'semanal') d.setDate(d.getDate() + 7 * k);
-    else if (tipo === 'quincenal') d.setDate(d.getDate() + 14 * k);
-    else d.setMonth(d.getMonth() + k); // mensual
-    return d.toISOString().slice(0, 10);
-  };
-
-  // ===== Manejo del modal (nuevo préstamo) =====
+  // --- Modal: reacciones/calculadora ---
   useEffect(() => {
-    // si viene idSocio como prop, lo prefijamos
-    if (idSocio && sociosList && sociosList.length) {
-      setNewPrestamo((prev) => ({ ...prev, id_socio: idSocio }));
-    }
-  }, [idSocio, sociosList]);
-
-  useEffect(() => {
-    // cálculo en vivo de pago / interés estimado / abono capital
     const pago = calcularPagoRequerido(
       newPrestamo.monto_solicitado,
       newPrestamo.interes,
       newPrestamo.numero_plazos
     );
     setPagoPeriodo(pago);
-    // estimaciones simples (primer periodo):
     const interesEst = (Number(newPrestamo.monto_solicitado || 0) * (Number(newPrestamo.interes || 0) / 100));
     setInteresPeriodoEstimado(interesEst);
     setAbonoCapitalPeriodo(Math.max(0, pago - interesEst));
   }, [newPrestamo.monto_solicitado, newPrestamo.interes, newPrestamo.numero_plazos]);
+
+  useEffect(() => {
+    if (idSocio && sociosList && sociosList.length) {
+      setNewPrestamo((prev) => ({ ...prev, id_socio: idSocio }));
+    }
+  }, [idSocio, sociosList]);
 
   const resetNuevoPrestamo = () => {
     setNewPrestamo({
@@ -434,24 +419,27 @@ const PrestamosModule = ({ idSocio }) => {
   };
 
   const handleCreatePrestamo = async () => {
-    // Validaciones mínimas
     if (!newPrestamo.id_socio) return alert('Selecciona un socio.');
     if (!newPrestamo.monto_solicitado || Number(newPrestamo.monto_solicitado) <= 0) return alert('Monto inválido.');
     if (!newPrestamo.numero_plazos || Number(newPrestamo.numero_plazos) <= 0) return alert('Plazos inválidos.');
     if (newPrestamo.interes === '' || Number(newPrestamo.interes) < 0) return alert('Interés por periodo inválido.');
-    const fechaSolicitud = newPrestamo.fecha_solicitud || new Date().toISOString().slice(0,10);
+
+    const fechaSolicitudISO = toISODate(newPrestamo.fecha_solicitud);
+    const nPlazos = Number(newPrestamo.numero_plazos);
+    const pagoRequerido = Number(pagoPeriodo.toFixed(2));
+    const fechaVencimientoISO = addPeriod(fechaSolicitudISO, newPrestamo.tipo_plazo, nPlazos);
 
     setSubmitting(true);
     try {
-      // 1) Insertar préstamo
-      const pagoRequerido = Number(pagoPeriodo.toFixed(2));
+      // 1) Insert préstamo (incluye fecha_vencimiento si tu tabla la usa)
       const bodyPrestamo = {
         id_socio: Number(newPrestamo.id_socio),
         monto_solicitado: Number(newPrestamo.monto_solicitado),
-        numero_plazos: Number(newPrestamo.numero_plazos),
-        tipo_plazo: newPrestamo.tipo_plazo,        // mensual | quincenal | semanal
-        interes: Number(newPrestamo.interes),      // % por periodo
-        fecha_solicitud: fechaSolicitud,
+        numero_plazos: nPlazos,
+        tipo_plazo: newPrestamo.tipo_plazo,
+        interes: Number(newPrestamo.interes),
+        fecha_solicitud: fechaSolicitudISO,
+        fecha_vencimiento: fechaVencimientoISO,
         pago_requerido: pagoRequerido,
         estatus: 'activo'
       };
@@ -466,21 +454,25 @@ const PrestamosModule = ({ idSocio }) => {
         },
         body: JSON.stringify(bodyPrestamo)
       });
-      if (!rPrest.ok) throw new Error('No se pudo registrar el préstamo.');
+
+      if (!rPrest.ok) {
+        const msg = await rPrest.text();
+        throw new Error(`No se pudo registrar el préstamo. Detalle: ${msg}`);
+      }
+
       const prestInsert = await rPrest.json();
       const prestamo = prestInsert[0];
       const id_prestamo = prestamo?.id_prestamo;
 
-      // 2) Generar corrida (pagos programados)
+      // 2) Generar corrida
       const pagos = [];
-      for (let k = 1; k <= Number(newPrestamo.numero_plazos); k++) {
-        const fecha_programada = addPeriod(fechaSolicitud, newPrestamo.tipo_plazo, k);
+      for (let k = 1; k <= nPlazos; k++) {
+        const fecha_programada = addPeriod(fechaSolicitudISO, newPrestamo.tipo_plazo, k);
         pagos.push({
           id_prestamo,
           numero_pago: k,
           fecha_programada,
           monto_pago: pagoRequerido,
-          // inicializar en blanco
           fecha_pago: null,
           fecha_hora_pago: null,
           monto_pagado: null,
@@ -490,7 +482,6 @@ const PrestamosModule = ({ idSocio }) => {
         });
       }
 
-      // Insert masivo (chunk si se requiere, aquí asumimos tamaño razonable)
       const rPagos = await fetch(`${SUPABASE_URL}/rest/v1/pagos_prestamos`, {
         method: 'POST',
         headers: {
@@ -501,9 +492,11 @@ const PrestamosModule = ({ idSocio }) => {
         },
         body: JSON.stringify(pagos)
       });
-      if (!rPagos.ok) throw new Error('Préstamo creado, pero no se pudo generar la corrida.');
+      if (!rPagos.ok) {
+        const msg = await rPagos.text();
+        throw new Error(`Préstamo creado, pero no se pudo generar la corrida. Detalle: ${msg}`);
+      }
 
-      // 3) Actualizar vistas
       setToastMessage('Préstamo creado correctamente.');
       setShowAddPrestamoModal(false);
       resetNuevoPrestamo();
@@ -577,12 +570,18 @@ const PrestamosModule = ({ idSocio }) => {
           type="text"
           placeholder="Buscar por ID de Socio o Nombre Completo..."
           value={searchTerm}
-          onChange={handleSearch}
+          onChange={e => setSearchTerm(e.target.value.toLowerCase())}
           className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
-        {searchTerm && sociosList && searchResults.length > 0 && (
+        {searchTerm && sociosList && (sociosList.filter(
+          s => s.id_socio.toString().includes(searchTerm) ||
+          `${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`.toLowerCase().includes(searchTerm)
+        )).length > 0 && (
           <div className="mt-4 space-y-2">
-            {searchResults.map((socio) => (
+            {sociosList.filter(
+              s => s.id_socio.toString().includes(searchTerm) ||
+              `${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`.toLowerCase().includes(searchTerm)
+            ).map((socio) => (
               <div key={socio.id_socio} className="flex justify-between items-center p-3 bg-slate-100 rounded-lg">
                 <span className="text-slate-800">
                   ID: {socio.id_socio} - {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}
@@ -605,7 +604,10 @@ const PrestamosModule = ({ idSocio }) => {
             ))}
           </div>
         )}
-        {searchTerm && sociosList && searchResults.length === 0 && (
+        {searchTerm && sociosList && (sociosList.filter(
+          s => s.id_socio.toString().includes(searchTerm) ||
+          `${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`.toLowerCase().includes(searchTerm)
+        )).length === 0 && (
           <p className="text-center text-slate-600 mt-4">No se encontraron resultados.</p>
         )}
       </div>
@@ -664,7 +666,7 @@ const PrestamosModule = ({ idSocio }) => {
           </div>
         )}
 
-      {/* Tabla de préstamos del socio (cuando idSocio viene) */}
+      {/* Tabla de préstamos del socio */}
       {!showPrestamoHistorial && !showEditPrestamosModal && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           {loading && <p className="text-center text-slate-600">Cargando préstamos...</p>}
@@ -730,7 +732,7 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* Vista: Historial de préstamos del socio (restaurada) */}
+      {/* Historial de préstamos del socio */}
       {showPrestamoHistorial && selectedSocioForHistorial && !showEditPrestamosModal && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h3 className="text-xl font-bold text-slate-900 mb-4">
@@ -774,7 +776,7 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* Vista: Edición de préstamos del socio (restaurada) */}
+      {/* Edición de préstamos del socio */}
       {showEditPrestamosModal && selectedSocioForHistorial && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h3 className="text-xl font-bold text-slate-900 mb-4">
@@ -880,7 +882,7 @@ const PrestamosModule = ({ idSocio }) => {
         </div>
       )}
 
-      {/* === MODAL: Registrar nuevo préstamo (HABILITADO) === */}
+      {/* === MODAL: Registrar nuevo préstamo === */}
       {showAddPrestamoModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl">
@@ -914,7 +916,7 @@ const PrestamosModule = ({ idSocio }) => {
                 </select>
               </div>
 
-              {/* Monto */}
+              {/* Monto / Plazos */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-slate-700 mb-1">Monto solicitado</label>
@@ -927,7 +929,6 @@ const PrestamosModule = ({ idSocio }) => {
                     onChange={(e) => setNewPrestamo((p) => ({ ...p, monto_solicitado: e.target.value }))}
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm text-slate-700 mb-1">Número de plazos</label>
                   <input
@@ -941,7 +942,7 @@ const PrestamosModule = ({ idSocio }) => {
                 </div>
               </div>
 
-              {/* Tipo de plazo + Interés por periodo */}
+              {/* Tipo de plazo / Interés */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-slate-700 mb-1">Tipo de plazo</label>
@@ -955,11 +956,8 @@ const PrestamosModule = ({ idSocio }) => {
                     <option value="semanal">Semanal</option>
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-sm text-slate-700 mb-1">
-                    Interés por periodo (%)
-                  </label>
+                  <label className="block text-sm text-slate-700 mb-1">Interés por periodo (%)</label>
                   <input
                     type="number"
                     min="0"
@@ -967,30 +965,25 @@ const PrestamosModule = ({ idSocio }) => {
                     className="w-full px-3 py-2 border rounded-lg"
                     value={newPrestamo.interes}
                     onChange={(e) => setNewPrestamo((p) => ({ ...p, interes: e.target.value }))}
-                    placeholder={
-                      newPrestamo.tipo_plazo === 'mensual'
-                        ? 'Ej. 3 = 3% mensual'
-                        : newPrestamo.tipo_plazo === 'quincenal'
-                        ? 'Ej. 2 = 2% por quincena'
-                        : 'Ej. 0.5 = 0.5% semanal'
-                    }
                   />
                 </div>
               </div>
 
-              {/* Fecha de solicitud */}
+              {/* Fecha de solicitud + Resumen */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-slate-700 mb-1">Fecha de solicitud</label>
                   <input
                     type="date"
                     className="w-full px-3 py-2 border rounded-lg"
-                    value={newPrestamo.fecha_solicitud || ''}
+                    value={
+                      /^\d{4}-\d{2}-\d{2}$/.test(newPrestamo.fecha_solicitud)
+                        ? newPrestamo.fecha_solicitud
+                        : ''
+                    }
                     onChange={(e) => setNewPrestamo((p) => ({ ...p, fecha_solicitud: e.target.value }))}
                   />
                 </div>
-
-                {/* Resumen de cálculo */}
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
                   <div className="text-sm text-slate-700">
                     <div><span className="font-medium">Pago por periodo:</span> {formatCurrency(pagoPeriodo)}</div>
