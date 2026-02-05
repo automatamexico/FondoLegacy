@@ -2,9 +2,6 @@ import React from 'react';
 
 const DashboardSidebar = ({ activeSection, onSectionChange, workMode }) => {
 
-  // =========================
-  // MENÚ ORIGINAL (INTOCABLE)
-  // =========================
   const menuItems = [
     {
       id: 'dashboard',
@@ -106,13 +103,17 @@ const DashboardSidebar = ({ activeSection, onSectionChange, workMode }) => {
     <aside className="w-64 bg-white border-r border-slate-200 h-full">
       <nav className="p-4 space-y-2">
         {menuItems
-          // 🔥 SOLO AQUÍ aplicamos la diferencia
           .filter(item => workMode === 'afore' ? item.id === 'dashboard' : true)
           .map((item) => (
             <button
               key={item.id}
-              onClick={() => onSectionChange(item.id)}
+              onClick={() =>
+                onSectionChange(
+                  workMode === 'afore' ? 'afore-dashboard' : item.id
+                )
+              }
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all ${
+                (workMode === 'afore' && activeSection === 'afore-dashboard') ||
                 activeSection === item.id
                   ? 'bg-blue-50 text-blue-700 border border-blue-200'
                   : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -120,9 +121,7 @@ const DashboardSidebar = ({ activeSection, onSectionChange, workMode }) => {
             >
               {item.icon}
               <span className="font-medium">
-                {workMode === 'afore' && item.id === 'dashboard'
-                  ? 'Control de AFORE'
-                  : item.name}
+                {workMode === 'afore' ? 'Control de AFORE' : item.name}
               </span>
             </button>
           ))}
