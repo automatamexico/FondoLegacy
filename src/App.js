@@ -157,8 +157,9 @@ function App() {
       <div className="flex h-[calc(100vh-80px)]">
         <DashboardSidebar
           activeSection={activeSection}
-          onSectionChange={setActiveSection}
-          currentUser={currentUser}
+  onSectionChange={setActiveSection}
+  currentUser={currentUser}
+  workMode={workMode}
         />
         <main className="flex-1 overflow-y-auto">
           {renderActiveSection()}
