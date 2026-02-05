@@ -2,6 +2,10 @@ import React from 'react';
 
 const DashboardSidebar = ({ activeSection, onSectionChange, workMode }) => {
 
+  // 🔹 Ruta del selector de sistemas (Inicio)
+  // Si tu selector está en otra ruta, cambia SOLO este valor.
+  const HOME_PATH = '/';
+
   const menuItems = [
     {
       id: 'dashboard',
@@ -102,6 +106,20 @@ const DashboardSidebar = ({ activeSection, onSectionChange, workMode }) => {
   return (
     <aside className="w-64 bg-white border-r border-slate-200 h-full">
       <nav className="p-4 space-y-2">
+
+        {/* ✅ SOLO EN AFORE: Botón Regresar al Inicio */}
+        {workMode === 'afore' && (
+          <button
+            onClick={() => { window.location.href = HOME_PATH; }}
+            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            <span className="font-medium">Regresar al Inicio</span>
+          </button>
+        )}
+
         {menuItems
           .filter(item => workMode === 'afore' ? item.id === 'dashboard' : true)
           .map((item) => (
