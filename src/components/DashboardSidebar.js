@@ -1,6 +1,10 @@
 import React from 'react';
 
 const DashboardSidebar = ({ activeSection, onSectionChange, workMode }) => {
+
+  // =========================
+  // MENÚ ORIGINAL (INTOCABLE)
+  // =========================
   const menuItems = [
     {
       id: 'dashboard',
@@ -21,20 +25,16 @@ const DashboardSidebar = ({ activeSection, onSectionChange, workMode }) => {
         </svg>
       )
     },
-
-    // NUEVO: Multas y Renovaciones (debajo de Socios)
     {
       id: 'multas-renovaciones',
       name: 'Multas y Renovaciones',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          {/* Calendario + moneda (renovaciones/afiliaciones/multas/moras) */}
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2" />
         </svg>
       )
     },
-
     {
       id: 'ahorros',
       name: 'Ahorros',
@@ -105,20 +105,27 @@ const DashboardSidebar = ({ activeSection, onSectionChange, workMode }) => {
   return (
     <aside className="w-64 bg-white border-r border-slate-200 h-full">
       <nav className="p-4 space-y-2">
-        {menuItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => onSectionChange(item.id)}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all ${
-              activeSection === item.id
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-            }`}
-          >
-            {item.icon}
-            <span className="font-medium">{item.name}</span>
-          </button>
-        ))}
+        {menuItems
+          // 🔥 SOLO AQUÍ aplicamos la diferencia
+          .filter(item => workMode === 'afore' ? item.id === 'dashboard' : true)
+          .map((item) => (
+            <button
+              key={item.id}
+              onClick={() => onSectionChange(item.id)}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all ${
+                activeSection === item.id
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              {item.icon}
+              <span className="font-medium">
+                {workMode === 'afore' && item.id === 'dashboard'
+                  ? 'Control de AFORE'
+                  : item.name}
+              </span>
+            </button>
+          ))}
       </nav>
     </aside>
   );
