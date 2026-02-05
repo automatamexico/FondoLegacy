@@ -13,25 +13,23 @@ import ReportesModule from './components/ReportesModule';
 import RetirosModule from './components/RetirosModule';
 import MultasRenovacionesModule from './components/MultasRenovacionesModule';
 
-// ⬇️ NUEVO
-import SeleccionModulo from './components/SeleccionModulo';
+// ⬇️ NUEVO dashboard exclusivo AFORE
+import AforeDashboardMain from './components/AforeDashboardMain';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [activeSection, setActiveSection] = useState('dashboard');
-  const [workModule, setWorkModule] = useState(null); // ⬅️ NUEVO
+
+  // ⬇️ NUEVO: modo de trabajo
+  const [workMode, setWorkMode] = useState(null); // 'fondo' | 'afore'
 
   useEffect(() => {
     const storedUser = localStorage.getItem('currentUser');
-    const storedModule = localStorage.getItem('workModule');
-
     if (storedUser) {
       const user = JSON.parse(storedUser);
       setCurrentUser(user);
       setIsAuthenticated(true);
-      setWorkModule(storedModule);
-
       if (user.role === 'usuario' && user.id_socio) {
         localStorage.setItem('id_socio', user.id_socio);
       }
@@ -49,38 +47,21 @@ function App() {
       localStorage.removeItem('id_socio');
     }
 
-    // ⬇️ NO seleccionamos módulo aquí, se fuerza pantalla de selección
+    // ⚠️ NO se define sección aquí, se elige después
     setActiveSection('dashboard');
-    setWorkModule(null);
-    localStorage.removeItem('workModule');
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
+    setWorkMode(null); // ⬅️ clave
     localStorage.removeItem('currentUser');
     localStorage.removeItem('id_socio');
-    localStorage.removeItem('workModule');
     setActiveSection('dashboard');
-    setWorkModule(null);
-  };
-
-  const handleSelectModule = (module) => {
-    localStorage.setItem('workModule', module);
-    setWorkModule(module);
-
-    // comportamiento inicial
-    if (module === 'fondo') {
-      setActiveSection(currentUser?.role === 'usuario' ? 'ahorros' : 'dashboard');
-    }
-
-    if (module === 'afore') {
-      setActiveSection('dashboard'); // después aquí entra tu módulo AFORE
-    }
   };
 
   const renderActiveSection = () => {
-    // Vista de USUARIO
+    // Vista de USUARIO (socio)
     if (currentUser && currentUser.role === 'usuario') {
       const idSocio = localStorage.getItem('id_socio');
       if (!idSocio) {
@@ -104,10 +85,12 @@ function App() {
       }
     }
 
-    // Vista ADMIN
+    // Vista de ADMIN
     switch (activeSection) {
       case 'dashboard':
         return <DashboardMain />;
+      case 'afore-dashboard':
+        return <AforeDashboardMain />;
       case 'socios':
         return <SociosModule />;
       case 'ahorros':
@@ -131,13 +114,41 @@ function App() {
     }
   };
 
-  if (!isAuthenticated) {
-    return <LoginForm onLogin={handleLogin} />;
+  // ⬇️ PANTALLA DE SELECCIÓN (ANTES DEL DASHBOARD)
+  if (isAuthenticated && !workMode) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+        <h1 className="text-4xl font-extrabold mb-12 text-black text-center">
+          SELECCIONA EL MÓDULO DE<br />TRABAJO
+        </h1>
+
+        <div className="flex gap-20">
+          <button
+            onClick={() => {
+              setWorkMode('afore');
+              setActiveSection('afore-dashboard');
+            }}
+            className="w-80 h-44 bg-green-300 rounded-3xl text-4xl font-extrabold hover:scale-105 transition"
+          >
+            AFORE
+          </button>
+
+          <button
+            onClick={() => {
+              setWorkMode('fondo');
+              setActiveSection('dashboard');
+            }}
+            className="w-80 h-44 bg-green-300 rounded-3xl text-4xl font-extrabold hover:scale-105 transition"
+          >
+            FONDO<br />DE AHORRO
+          </button>
+        </div>
+      </div>
+    );
   }
 
-  // ⬇️ NUEVO: si ya inició sesión pero NO eligió módulo
-  if (!workModule) {
-    return <SeleccionModulo onSelect={handleSelectModule} />;
+  if (!isAuthenticated) {
+    return <LoginForm onLogin={handleLogin} />;
   }
 
   return (
