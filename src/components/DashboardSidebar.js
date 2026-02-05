@@ -1,6 +1,6 @@
 import React from 'react';
 
-const DashboardSidebar = ({ activeSection, onSectionChange }) => {
+const DashboardSidebar = ({ activeSection, onSectionChange, workMode }) => {
   const menuItems = [
     {
       id: 'dashboard',
