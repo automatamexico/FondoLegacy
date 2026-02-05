@@ -11,21 +11,27 @@ import UsuariosModule from './components/UsuariosModule';
 import PagosModule from './components/PagosModule';
 import ReportesModule from './components/ReportesModule';
 import RetirosModule from './components/RetirosModule';
-
-// ⬇️ NUEVO: importa el módulo de Multas y Renovaciones
 import MultasRenovacionesModule from './components/MultasRenovacionesModule';
+
+// ⬇️ NUEVO
+import SeleccionModulo from './components/SeleccionModulo';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [activeSection, setActiveSection] = useState('dashboard');
+  const [workModule, setWorkModule] = useState(null); // ⬅️ NUEVO
 
   useEffect(() => {
     const storedUser = localStorage.getItem('currentUser');
+    const storedModule = localStorage.getItem('workModule');
+
     if (storedUser) {
       const user = JSON.parse(storedUser);
       setCurrentUser(user);
       setIsAuthenticated(true);
+      setWorkModule(storedModule);
+
       if (user.role === 'usuario' && user.id_socio) {
         localStorage.setItem('id_socio', user.id_socio);
       }
@@ -43,11 +49,10 @@ function App() {
       localStorage.removeItem('id_socio');
     }
 
-    if (user.role === 'admin') {
-      setActiveSection('dashboard');
-    } else if (user.role === 'usuario') {
-      setActiveSection('ahorros');
-    }
+    // ⬇️ NO seleccionamos módulo aquí, se fuerza pantalla de selección
+    setActiveSection('dashboard');
+    setWorkModule(null);
+    localStorage.removeItem('workModule');
   };
 
   const handleLogout = () => {
@@ -55,11 +60,27 @@ function App() {
     setCurrentUser(null);
     localStorage.removeItem('currentUser');
     localStorage.removeItem('id_socio');
+    localStorage.removeItem('workModule');
     setActiveSection('dashboard');
+    setWorkModule(null);
+  };
+
+  const handleSelectModule = (module) => {
+    localStorage.setItem('workModule', module);
+    setWorkModule(module);
+
+    // comportamiento inicial
+    if (module === 'fondo') {
+      setActiveSection(currentUser?.role === 'usuario' ? 'ahorros' : 'dashboard');
+    }
+
+    if (module === 'afore') {
+      setActiveSection('dashboard'); // después aquí entra tu módulo AFORE
+    }
   };
 
   const renderActiveSection = () => {
-    // Vista de USUARIO (socio)
+    // Vista de USUARIO
     if (currentUser && currentUser.role === 'usuario') {
       const idSocio = localStorage.getItem('id_socio');
       if (!idSocio) {
@@ -76,7 +97,6 @@ function App() {
           return <CentroDigitalModule idSocio={idSocio} />;
         case 'pagos':
           return <PagosModule idSocio={idSocio} />;
-        // (Opcional) habilitar para usuarios si en el futuro agregas el ítem al sidebar de usuarios:
         case 'multas-renovaciones':
           return <MultasRenovacionesModule idSocio={idSocio} />;
         default:
@@ -84,7 +104,7 @@ function App() {
       }
     }
 
-    // Vista de ADMIN
+    // Vista ADMIN
     switch (activeSection) {
       case 'dashboard':
         return <DashboardMain />;
@@ -104,7 +124,6 @@ function App() {
         return <RetirosModule />;
       case 'reportes':
         return <ReportesModule />;
-      // ⬇️ NUEVO: ruta para Multas y Renovaciones (admin)
       case 'multas-renovaciones':
         return <MultasRenovacionesModule />;
       default:
@@ -114,6 +133,11 @@ function App() {
 
   if (!isAuthenticated) {
     return <LoginForm onLogin={handleLogin} />;
+  }
+
+  // ⬇️ NUEVO: si ya inició sesión pero NO eligió módulo
+  if (!workModule) {
+    return <SeleccionModulo onSelect={handleSelectModule} />;
   }
 
   return (
