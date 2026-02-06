@@ -6,15 +6,13 @@ const SUPABASE_ANON_KEY = 'TU_ANON_KEY_AQUI';
 const AforeDashboardMain = () => {
   const [stats, setStats] = useState({
     afiliados: 0,
-    ahorroAcumulado: 0,
-    interesDia: 0,
-    interesAcumulado: 0,
+    ahorro: 0,
   });
 
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchStats();
+    cargarDatos();
   }, []);
 
   const fetchJSON = async (url) => {
@@ -27,7 +25,7 @@ const AforeDashboardMain = () => {
     return res.json();
   };
 
-  const fetchStats = async () => {
+  const cargarDatos = async () => {
     setLoading(true);
 
     const afiliados = await fetchJSON(
@@ -39,48 +37,33 @@ const AforeDashboardMain = () => {
     );
 
     const totalAhorro = ahorros.reduce(
-      (sum, row) => sum + (parseFloat(row.ahorro_aportado) || 0),
+      (s, r) => s + Number(r.ahorro_aportado || 0),
       0
     );
 
     setStats({
       afiliados: afiliados.length,
-      ahorroAcumulado: totalAhorro,
-      interesDia: 0,
-      interesAcumulado: 0,
+      ahorro: totalAhorro,
     });
 
     setLoading(false);
   };
 
-  const formatCurrency = (value) =>
-    new Intl.NumberFormat('es-MX', {
-      style: 'currency',
-      currency: 'MXN',
-    }).format(value || 0);
-
   return (
-    <div className="p-6 space-y-8 bg-slate-50 min-h-full">
-      <div className="text-center">
-        <h1 className="text-4xl font-extrabold text-slate-900 mb-2">
-          Control de Afore
-        </h1>
-        <p className="text-xl text-slate-600">
+    <div className="p-6 bg-slate-50 min-h-full">
+      <div className="text-center mb-10">
+        <h1 className="text-4xl font-bold">Control de AFORE</h1>
+        <p className="text-slate-600 text-lg">
           Tablero general de ahorro para el futuro
         </p>
       </div>
 
       {loading ? (
-        <div className="text-center">Cargando...</div>
+        <div className="text-center text-lg">Cargando...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card title="Afiliados al Afore" value={stats.afiliados} />
-          <Card
-            title="Ahorro acumulado"
-            value={formatCurrency(stats.ahorroAcumulado)}
-          />
-          <Card title="Interés al día" value={formatCurrency(0)} />
-          <Card title="Interés acumulado" value={formatCurrency(0)} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+          <Card title="Afiliados registrados" value={stats.afiliados} />
+          <Card title="Ahorro acumulado" value={`$${stats.ahorro.toLocaleString()}`} />
         </div>
       )}
     </div>
@@ -88,7 +71,7 @@ const AforeDashboardMain = () => {
 };
 
 const Card = ({ title, value }) => (
-  <div className="bg-white rounded-2xl shadow p-6">
+  <div className="bg-white p-6 rounded-2xl shadow">
     <h3 className="text-lg font-semibold">{title}</h3>
     <p className="text-3xl font-bold mt-2">{value}</p>
   </div>
