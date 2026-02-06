@@ -13,15 +13,15 @@ import ReportesModule from './components/ReportesModule';
 import RetirosModule from './components/RetirosModule';
 import MultasRenovacionesModule from './components/MultasRenovacionesModule';
 
-// ⬇️ NUEVO dashboard exclusivo AFORE
+// AFORE
 import AforeDashboardMain from './components/AforeDashboardMain';
+import AforeSidebar from './components/afore/AforeSidebar';
+import AforeAfiliadosView from './components/afore/AforeAfiliadosView';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [activeSection, setActiveSection] = useState('dashboard');
-
-  // ⬇️ NUEVO: modo de trabajo
   const [workMode, setWorkMode] = useState(null); // 'fondo' | 'afore'
 
   useEffect(() => {
@@ -47,16 +47,21 @@ function App() {
       localStorage.removeItem('id_socio');
     }
 
-    // ⚠️ NO se define sección aquí, se elige después
+    setWorkMode(null);
     setActiveSection('dashboard');
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
-    setWorkMode(null); // ⬅️ clave
+    setWorkMode(null);
     localStorage.removeItem('currentUser');
     localStorage.removeItem('id_socio');
+    setActiveSection('dashboard');
+  };
+
+  const backToHomeSelect = () => {
+    setWorkMode(null);
     setActiveSection('dashboard');
   };
 
@@ -89,8 +94,14 @@ function App() {
     switch (activeSection) {
       case 'dashboard':
         return <DashboardMain />;
+
+      // AFORE (aislado)
       case 'afore-dashboard':
         return <AforeDashboardMain />;
+      case 'afore-afiliados':
+        return <AforeAfiliadosView />;
+
+      // Fondo (intacto)
       case 'socios':
         return <SociosModule />;
       case 'ahorros':
@@ -109,12 +120,18 @@ function App() {
         return <ReportesModule />;
       case 'multas-renovaciones':
         return <MultasRenovacionesModule />;
+
       default:
         return <DashboardMain />;
     }
   };
 
-  // ⬇️ PANTALLA DE SELECCIÓN (ANTES DEL DASHBOARD)
+  // Login
+  if (!isAuthenticated) {
+    return <LoginForm onLogin={handleLogin} />;
+  }
+
+  // Pantalla de selección de módulo
   if (isAuthenticated && !workMode) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white">
@@ -128,7 +145,7 @@ function App() {
               setWorkMode('afore');
               setActiveSection('afore-dashboard');
             }}
-            className="w-80 h-44 bg-green-300 rounded-3xl text-4xl font-extrabold hover:scale-105 transition"
+            className="px-10 py-6 rounded-2xl bg-green-600 text-white text-2xl font-bold hover:bg-green-700"
           >
             AFORE
           </button>
@@ -138,29 +155,34 @@ function App() {
               setWorkMode('fondo');
               setActiveSection('dashboard');
             }}
-            className="w-80 h-44 bg-green-300 rounded-3xl text-4xl font-extrabold hover:scale-105 transition"
+            className="px-10 py-6 rounded-2xl bg-blue-600 text-white text-2xl font-bold hover:bg-blue-700"
           >
-            FONDO<br />DE AHORRO
+            FONDO DE AHORRO
           </button>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
-    return <LoginForm onLogin={handleLogin} />;
-  }
-
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="h-screen flex flex-col">
       <DashboardHeader user={currentUser} onLogout={handleLogout} />
+
       <div className="flex h-[calc(100vh-80px)]">
-        <DashboardSidebar
-          activeSection={activeSection}
-  onSectionChange={setActiveSection}
-  currentUser={currentUser}
-  workMode={workMode}
-        />
+        {workMode === 'afore' ? (
+          <AforeSidebar
+            activeSection={activeSection}
+            onSectionChange={setActiveSection}
+            onBackToHome={backToHomeSelect}
+          />
+        ) : (
+          <DashboardSidebar
+            activeSection={activeSection}
+            onSectionChange={setActiveSection}
+            currentUser={currentUser}
+          />
+        )}
+
         <main className="flex-1 overflow-y-auto">
           {renderActiveSection()}
         </main>
