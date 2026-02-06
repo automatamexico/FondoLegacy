@@ -1,190 +1,97 @@
 import React, { useEffect, useState } from 'react';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
+const SUPABASE_ANON_KEY = 'TU_ANON_KEY_AQUI';
 
 const AforeDashboardMain = () => {
-  const [openModal, setOpenModal] = useState(false);
-  const [foto, setFoto] = useState(null);
-  const [errors, setErrors] = useState([]);
-
-  const [form, setForm] = useState({
-    nombre: '',
-    apellido_paterno: '',
-    apellido_materno: '',
-    correo: '',
-    contraseña: '',
-    telefono: '',
-    direccion: '',
-    codigo_postal: '',
-    fecha_nacimiento: '',
-    miembro_desde: '',
+  const [stats, setStats] = useState({
+    afiliados: 0,
+    ahorroAcumulado: 0,
+    interesDia: 0,
+    interesAcumulado: 0,
   });
 
-  const camposObligatorios = {
-    nombre: 'Nombre',
-    apellido_paterno: 'Apellido paterno',
-    apellido_materno: 'Apellido materno',
-    correo: 'Correo electrónico',
-    telefono: 'Teléfono',
-    direccion: 'Dirección',
-    codigo_postal: 'Código Postal',
-    fecha_nacimiento: 'Fecha de nacimiento',
-    miembro_desde: 'Fecha de registro',
-    foto: 'Foto del afiliado',
-  };
+  const [loading, setLoading] = useState(true);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
-  };
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
-  const validar = () => {
-    const faltantes = [];
-
-    Object.keys(camposObligatorios).forEach((key) => {
-      if (key === 'foto') {
-        if (!foto) faltantes.push(camposObligatorios[key]);
-      } else if (!form[key]) {
-        faltantes.push(camposObligatorios[key]);
-      }
-    });
-
-    setErrors(faltantes);
-    return faltantes.length === 0;
-  };
-
-  const guardarAfiliado = async (e) => {
-    e.preventDefault();
-    if (!validar()) return;
-
-    let foto_url = null;
-
-    if (foto) {
-      const fileName = `${Date.now()}-${foto.name}`;
-      const upload = await fetch(
-        `${SUPABASE_URL}/storage/v1/object/Fotos Afiliados/${fileName}`,
-        {
-          method: 'POST',
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-          body: foto,
-        }
-      );
-
-      if (upload.ok) {
-        foto_url = `${SUPABASE_URL}/storage/v1/object/public/Fotos Afiliados/${fileName}`;
-      }
-    }
-
-    await fetch(`${SUPABASE_URL}/rest/v1/afore_afiliados`, {
-      method: 'POST',
+  const fetchJSON = async (url) => {
+    const res = await fetch(url, {
       headers: {
-        'Content-Type': 'application/json',
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        Prefer: 'return=minimal',
       },
-      body: JSON.stringify({
-        nombre: form.nombre,
-        apellido_paterno: form.apellido_paterno,
-        apellido_materno: form.apellido_materno,
-        email: form.correo,
-        contraseña: form.contraseña || 'temporal123',
-        telefono: form.telefono,
-        direccion: form.direccion,
-        cp: form.codigo_postal,
-        fecha_nacimiento: form.fecha_nacimiento,
-        miembro_desde: form.miembro_desde,
-        estatus: 'activo',
-        foto_url,
-      }),
     });
-
-    setOpenModal(false);
-    setErrors([]);
+    return res.json();
   };
 
-  const inputClass = (name) =>
-    `border rounded px-3 py-2 w-full ${
-      errors.includes(camposObligatorios[name]) ? 'border-red-500' : 'border-slate-300'
-    }`;
+  const fetchStats = async () => {
+    setLoading(true);
+
+    const afiliados = await fetchJSON(
+      `${SUPABASE_URL}/rest/v1/afore_afiliados?select=id_afiliado`
+    );
+
+    const ahorros = await fetchJSON(
+      `${SUPABASE_URL}/rest/v1/ahorro_afore?select=ahorro_aportado`
+    );
+
+    const totalAhorro = ahorros.reduce(
+      (sum, row) => sum + (parseFloat(row.ahorro_aportado) || 0),
+      0
+    );
+
+    setStats({
+      afiliados: afiliados.length,
+      ahorroAcumulado: totalAhorro,
+      interesDia: 0,
+      interesAcumulado: 0,
+    });
+
+    setLoading(false);
+  };
+
+  const formatCurrency = (value) =>
+    new Intl.NumberFormat('es-MX', {
+      style: 'currency',
+      currency: 'MXN',
+    }).format(value || 0);
 
   return (
-    <div className="p-6">
-      <button
-        onClick={() => setOpenModal(true)}
-        className="px-4 py-2 bg-blue-600 text-white rounded-lg"
-      >
-        + Registrar nuevo afiliado
-      </button>
+    <div className="p-6 space-y-8 bg-slate-50 min-h-full">
+      <div className="text-center">
+        <h1 className="text-4xl font-extrabold text-slate-900 mb-2">
+          Control de Afore
+        </h1>
+        <p className="text-xl text-slate-600">
+          Tablero general de ahorro para el futuro
+        </p>
+      </div>
 
-      {openModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-3xl p-6">
-            <h2 className="text-xl font-bold mb-4">Registrar nuevo afiliado</h2>
-
-            {errors.length > 0 && (
-              <div className="mb-4 border border-red-400 bg-red-50 text-red-700 p-3 rounded">
-                <strong>Estos campos son obligatorios:</strong>
-                <ul className="list-disc list-inside">
-                  {errors.map((e, i) => (
-                    <li key={i}>{e}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <form onSubmit={guardarAfiliado} className="grid grid-cols-2 gap-4">
-              <input className={inputClass('nombre')} name="nombre" placeholder="Nombre" onChange={handleChange} />
-              <input className={inputClass('apellido_paterno')} name="apellido_paterno" placeholder="Apellido paterno" onChange={handleChange} />
-              <input className={inputClass('apellido_materno')} name="apellido_materno" placeholder="Apellido materno" onChange={handleChange} />
-              <input className={inputClass('correo')} type="email" name="correo" placeholder="Correo electrónico" onChange={handleChange} />
-
-              <input
-                className="border rounded px-3 py-2 w-full border-slate-300"
-                type="password"
-                name="contraseña"
-                placeholder="Genera una contraseña (opcional)"
-                onChange={handleChange}
-              />
-
-              <div>
-                <label className="text-sm">Fecha de nacimiento</label>
-                <input className={inputClass('fecha_nacimiento')} type="date" name="fecha_nacimiento" onChange={handleChange} />
-              </div>
-
-              <div>
-                <label className="text-sm">Fecha de registro</label>
-                <input className={inputClass('miembro_desde')} type="date" name="miembro_desde" onChange={handleChange} />
-              </div>
-
-              <input className={inputClass('telefono')} name="telefono" placeholder="Teléfono" onChange={handleChange} />
-              <input className={inputClass('direccion')} name="direccion" placeholder="Dirección" onChange={handleChange} />
-              <input className={inputClass('codigo_postal')} name="codigo_postal" placeholder="Código Postal" onChange={handleChange} />
-
-              <input
-                type="file"
-                className={`col-span-2 ${errors.includes('Foto del afiliado') ? 'text-red-600' : ''}`}
-                onChange={(e) => setFoto(e.target.files[0])}
-              />
-
-              <div className="col-span-2 flex justify-end gap-3 mt-4">
-                <button type="button" onClick={() => setOpenModal(false)} className="px-4 py-2 border rounded">
-                  Cancelar
-                </button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">
-                  Guardar afiliado
-                </button>
-              </div>
-            </form>
-          </div>
+      {loading ? (
+        <div className="text-center">Cargando...</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card title="Afiliados al Afore" value={stats.afiliados} />
+          <Card
+            title="Ahorro acumulado"
+            value={formatCurrency(stats.ahorroAcumulado)}
+          />
+          <Card title="Interés al día" value={formatCurrency(0)} />
+          <Card title="Interés acumulado" value={formatCurrency(0)} />
         </div>
       )}
     </div>
   );
 };
+
+const Card = ({ title, value }) => (
+  <div className="bg-white rounded-2xl shadow p-6">
+    <h3 className="text-lg font-semibold">{title}</h3>
+    <p className="text-3xl font-bold mt-2">{value}</p>
+  </div>
+);
 
 export default AforeDashboardMain;
