@@ -1,190 +1,53 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 
-const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
+const DashboardSidebar = ({ activeSection, onSectionChange }) => {
+  const menuItems = [
+    {
+      id: 'dashboard',
+      name: 'Tablero',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5a2 2 0 012-2h4a2 2 0 012 2v6a2 2 0 01-2 2H10a2 2 0 01-2-2V5z" />
+        </svg>
+      )
+    },
+    {
+      id: 'socios',
+      name: 'Socios',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      )
+    },
 
-const AforeDashboardMain = () => {
-  const [openModal, setOpenModal] = useState(false);
-  const [foto, setFoto] = useState(null);
-  const [errors, setErrors] = useState([]);
+    // Multas y Renovaciones
+    {
+      id: 'multas-renovaciones',
+      name: 'Multas y Renovaciones',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2" />
+        </svg>
+      )
+    },
 
-  const [form, setForm] = useState({
-    nombre: '',
-    apellido_paterno: '',
-    apellido_materno: '',
-    correo: '',
-    contraseña: '',
-    telefono: '',
-    direccion: '',
-    codigo_postal: '',
-    fecha_nacimiento: '',
-    miembro_desde: '',
-  });
-
-  const camposObligatorios = {
-    nombre: 'Nombre',
-    apellido_paterno: 'Apellido paterno',
-    apellido_materno: 'Apellido materno',
-    correo: 'Correo electrónico',
-    telefono: 'Teléfono',
-    direccion: 'Dirección',
-    codigo_postal: 'Código Postal',
-    fecha_nacimiento: 'Fecha de nacimiento',
-    miembro_desde: 'Fecha de registro',
-    foto: 'Foto del afiliado',
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
-  };
-
-  const validar = () => {
-    const faltantes = [];
-
-    Object.keys(camposObligatorios).forEach((key) => {
-      if (key === 'foto') {
-        if (!foto) faltantes.push(camposObligatorios[key]);
-      } else if (!form[key]) {
-        faltantes.push(camposObligatorios[key]);
-      }
-    });
-
-    setErrors(faltantes);
-    return faltantes.length === 0;
-  };
-
-  const guardarAfiliado = async (e) => {
-    e.preventDefault();
-    if (!validar()) return;
-
-    let foto_url = null;
-
-    if (foto) {
-      const fileName = `${Date.now()}-${foto.name}`;
-      const upload = await fetch(
-        `${SUPABASE_URL}/storage/v1/object/Fotos Afiliados/${fileName}`,
-        {
-          method: 'POST',
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-          body: foto,
-        }
-      );
-
-      if (upload.ok) {
-        foto_url = `${SUPABASE_URL}/storage/v1/object/public/Fotos Afiliados/${fileName}`;
-      }
-    }
-
-    await fetch(`${SUPABASE_URL}/rest/v1/afore_afiliados`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        Prefer: 'return=minimal',
-      },
-      body: JSON.stringify({
-        nombre: form.nombre,
-        apellido_paterno: form.apellido_paterno,
-        apellido_materno: form.apellido_materno,
-        email: form.correo,
-        contraseña: form.contraseña || 'temporal123',
-        telefono: form.telefono,
-        direccion: form.direccion,
-        cp: form.codigo_postal,
-        fecha_nacimiento: form.fecha_nacimiento,
-        miembro_desde: form.miembro_desde,
-        estatus: 'activo',
-        foto_url,
-      }),
-    });
-
-    setOpenModal(false);
-    setErrors([]);
-  };
-
-  const inputClass = (name) =>
-    `border rounded px-3 py-2 w-full ${
-      errors.includes(camposObligatorios[name]) ? 'border-red-500' : 'border-slate-300'
-    }`;
-
-  return (
-    <div className="p-6">
-      <button
-        onClick={() => setOpenModal(true)}
-        className="px-4 py-2 bg-blue-600 text-white rounded-lg"
-      >
-        + Registrar nuevo afiliado
-      </button>
-
-      {openModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-3xl p-6">
-            <h2 className="text-xl font-bold mb-4">Registrar nuevo afiliado</h2>
-
-            {errors.length > 0 && (
-              <div className="mb-4 border border-red-400 bg-red-50 text-red-700 p-3 rounded">
-                <strong>Estos campos son obligatorios:</strong>
-                <ul className="list-disc list-inside">
-                  {errors.map((e, i) => (
-                    <li key={i}>{e}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <form onSubmit={guardarAfiliado} className="grid grid-cols-2 gap-4">
-              <input className={inputClass('nombre')} name="nombre" placeholder="Nombre" onChange={handleChange} />
-              <input className={inputClass('apellido_paterno')} name="apellido_paterno" placeholder="Apellido paterno" onChange={handleChange} />
-              <input className={inputClass('apellido_materno')} name="apellido_materno" placeholder="Apellido materno" onChange={handleChange} />
-              <input className={inputClass('correo')} type="email" name="correo" placeholder="Correo electrónico" onChange={handleChange} />
-
-              <input
-                className="border rounded px-3 py-2 w-full border-slate-300"
-                type="password"
-                name="contraseña"
-                placeholder="Genera una contraseña (opcional)"
-                onChange={handleChange}
-              />
-
-              <div>
-                <label className="text-sm">Fecha de nacimiento</label>
-                <input className={inputClass('fecha_nacimiento')} type="date" name="fecha_nacimiento" onChange={handleChange} />
-              </div>
-
-              <div>
-                <label className="text-sm">Fecha de registro</label>
-                <input className={inputClass('miembro_desde')} type="date" name="miembro_desde" onChange={handleChange} />
-              </div>
-
-              <input className={inputClass('telefono')} name="telefono" placeholder="Teléfono" onChange={handleChange} />
-              <input className={inputClass('direccion')} name="direccion" placeholder="Dirección" onChange={handleChange} />
-              <input className={inputClass('codigo_postal')} name="codigo_postal" placeholder="Código Postal" onChange={handleChange} />
-
-              <input
-                type="file"
-                className={`col-span-2 ${errors.includes('Foto del afiliado') ? 'text-red-600' : ''}`}
-                onChange={(e) => setFoto(e.target.files[0])}
-              />
-
-              <div className="col-span-2 flex justify-end gap-3 mt-4">
-                <button type="button" onClick={() => setOpenModal(false)} className="px-4 py-2 border rounded">
-                  Cancelar
-                </button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">
-                  Guardar afiliado
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default AforeDashboardMain;
+    {
+      id: 'ahorros',
+      name: 'Ahorros',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      )
+    },
+    {
+      id: 'prestamos',
+      name: 'Préstamos',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+        </svg>
+      )
