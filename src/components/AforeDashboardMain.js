@@ -134,18 +134,29 @@ const AforeDashboardMain = () => {
       }
     }
 
-    await fetch(`${SUPABASE_URL}/rest/v1/afore_afiliados`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({
-        ...form,
-        foto_url,
-      }),
-    });
+   await fetch(`${SUPABASE_URL}/rest/v1/afore_afiliados`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    Prefer: 'return=minimal',
+  },
+  body: JSON.stringify({
+    nombre: form.nombre,
+    apellido_paterno: form.apellido_paterno,
+    apellido_materno: form.apellido_materno,
+    email: form.correo,                 // 🔥 correo → email
+    contraseña: form.contraseña || 'temporal123', // 🔥 requerido
+    telefono: form.telefono || null,
+    direccion: form.direccion || null,
+    cp: form.codigo_postal || null,     // 🔥 codigo_postal → cp
+    fecha_nacimiento: form.fecha_nacimiento || null,
+    estatus: form.activo ? 'activo' : 'inactivo', // 🔥 boolean → texto
+    foto_url: foto_url,
+  }),
+});
+
 
     setOpenModal(false);
     fetchAforeStats();
