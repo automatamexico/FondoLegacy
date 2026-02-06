@@ -1,23 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
+import AforeAfiliadoModal from "./AforeAfiliadoModal";
 
 const AforeAfiliadosView = () => {
-  const [open, setOpen] = useState(false);
+  const [openModal, setOpenModal] = useState(false);
 
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold mb-6">Afiliados AFORE</h1>
+    <div className="p-6 bg-slate-50 min-h-full">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-slate-800">
+          Afiliados AFORE
+        </h1>
 
-      <button
-        onClick={() => setOpen(true)}
-        className="px-4 py-2 bg-blue-600 text-white rounded-lg"
-      >
-        + Registrar nuevo afiliado
-      </button>
+        <button
+          onClick={() => setOpenModal(true)}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl font-medium shadow"
+        >
+          + Registrar nuevo afiliado
+        </button>
+      </div>
 
-      {open && (
-        <div className="mt-6 p-6 border rounded-lg bg-white">
-          <p>Aquí va el modal que ya construimos.</p>
-        </div>
+      {/* Aquí luego irá la tabla/listado de afiliados */}
+      <div className="bg-white rounded-xl shadow p-6 text-slate-500">
+        Aquí se mostrará el listado de afiliados AFORE.
+      </div>
+
+      {/* Modal */}
+      {openModal && (
+        <AforeAfiliadoModal
+          onClose={() => setOpenModal(false)}
+        />
       )}
     </div>
   );
