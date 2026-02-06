@@ -45,40 +45,24 @@ const AforeAfiliadosView = () => {
 
   const validar = () => {
     const faltantes = [];
-
     Object.keys(camposObligatorios).forEach((k) => {
       if (k === 'foto') {
         if (!foto) faltantes.push(camposObligatorios[k]);
         return;
       }
-
-      // contraseña NO es obligatoria
-      if (k === 'contraseña') return;
-
       if (!form[k] || String(form[k]).trim() === '') {
         faltantes.push(camposObligatorios[k]);
       }
     });
-
     setErrors(faltantes);
     return faltantes.length === 0;
   };
 
-  const inputClass = (key) =>
-    `border rounded px-3 py-2 w-full ${
-      errors.includes(camposObligatorios[key]) ? 'border-red-500' : 'border-slate-300'
-    }`;
-
   const subirFotoASupabase = async (file) => {
-    // Nombre de archivo seguro
-    const safeName = (file.name || 'foto')
-      .replace(/\s+/g, '-')
-      .replace(/[^a-zA-Z0-9.\-_]/g, '');
+    const safeName = file.name.replace(/\s+/g, '-');
+    const filePath = `${Date.now()}-${safeName}`;
 
-    const fileName = `${Date.now()}-${safeName}`;
-
-    // ✅ URL CORRECTA DE SUBIDA (bucket = Foros-Afiliados)
-    const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${BUCKET_ID}/${fileName}`;
+    const uploadUrl = `${SUPABASE_URL}/storage/v1/object/upload/${BUCKET_ID}/${filePath}`;
 
     const uploadRes = await fetch(uploadUrl, {
       method: 'POST',
@@ -90,13 +74,11 @@ const AforeAfiliadosView = () => {
     });
 
     if (!uploadRes.ok) {
-      const t = await uploadRes.text().catch(() => '');
-      throw new Error(`No se pudo subir la imagen. (${uploadRes.status}) ${t}`);
+      const t = await uploadRes.text();
+      throw new Error(`No se pudo subir la imagen (${uploadRes.status}): ${t}`);
     }
 
-    // ✅ URL PÚBLICA CORRECTA
-    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_ID}/${fileName}`;
-    return publicUrl;
+    return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_ID}/${filePath}`;
   };
 
   const guardarAfiliado = async (e) => {
@@ -106,26 +88,7 @@ const AforeAfiliadosView = () => {
     setSaving(true);
 
     try {
-      let foto_url = null;
-
-      if (foto) {
-        foto_url = await subirFotoASupabase(foto);
-      }
-
-      const payload = {
-        nombre: form.nombre.trim(),
-        apellido_paterno: form.apellido_paterno.trim(),
-        apellido_materno: form.apellido_materno.trim(),
-        email: form.correo.trim(),
-        contraseña: form.contraseña && form.contraseña.trim() ? form.contraseña.trim() : 'temporal123',
-        telefono: form.telefono.trim(),
-        direccion: form.direccion.trim(),
-        cp: form.codigo_postal.trim(),
-        fecha_nacimiento: form.fecha_nacimiento || null,
-        miembro_desde: form.miembro_desde, // requerido por tu tabla
-        estatus: 'activo',
-        foto_url,
-      };
+      const foto_url = await subirFotoASupabase(foto);
 
       const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/afore_afiliados`, {
         method: 'POST',
@@ -135,58 +98,54 @@ const AforeAfiliadosView = () => {
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           Prefer: 'return=minimal',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          nombre: form.nombre,
+          apellido_paterno: form.apellido_paterno,
+          apellido_materno: form.apellido_materno,
+          email: form.correo,
+          contraseña: form.contraseña || 'temporal123',
+          telefono: form.telefono,
+          direccion: form.direccion,
+          cp: form.codigo_postal,
+          fecha_nacimiento: form.fecha_nacimiento,
+          miembro_desde: form.miembro_desde,
+          estatus: 'activo',
+          foto_url,
+        }),
       });
 
       if (!insertRes.ok) {
-        const t = await insertRes.text().catch(() => '');
-        throw new Error(`No se pudo guardar el afiliado. (${insertRes.status}) ${t}`);
+        const t = await insertRes.text();
+        throw new Error(`Error al guardar afiliado: ${t}`);
       }
 
-      // Reset y cerrar
       setOpenModal(false);
       setErrors([]);
       setFoto(null);
-      setForm({
-        nombre: '',
-        apellido_paterno: '',
-        apellido_materno: '',
-        correo: '',
-        contraseña: '',
-        telefono: '',
-        direccion: '',
-        codigo_postal: '',
-        fecha_nacimiento: '',
-        miembro_desde: '',
-      });
     } catch (err) {
-      console.error('❌ Error guardando afiliado:', err);
-      setErrors([err.message || 'Error desconocido al guardar']);
+      console.error(err);
+      setErrors([err.message]);
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="p-6 space-y-6 bg-slate-50 min-h-full">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-slate-900">Afiliados AFORE</h1>
-
-        <button
-          onClick={() => setOpenModal(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          + Registrar nuevo afiliado
-        </button>
-      </div>
+    <div className="p-6">
+      <button
+        onClick={() => setOpenModal(true)}
+        className="bg-blue-600 text-white px-4 py-2 rounded"
+      >
+        + Registrar nuevo afiliado
+      </button>
 
       {openModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-3xl p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center">
+          <div className="bg-white p-6 rounded-xl w-full max-w-3xl">
             <h2 className="text-xl font-bold mb-4">Registrar nuevo afiliado</h2>
 
             {errors.length > 0 && (
-              <div className="mb-4 border border-red-400 bg-red-50 text-red-700 p-3 rounded">
+              <div className="bg-red-50 border border-red-400 text-red-700 p-3 mb-4 rounded">
                 <strong>Estos campos son obligatorios:</strong>
                 <ul className="list-disc list-inside">
                   {errors.map((e, i) => (
@@ -197,128 +156,33 @@ const AforeAfiliadosView = () => {
             )}
 
             <form onSubmit={guardarAfiliado} className="grid grid-cols-2 gap-4">
-              <input
-                className={inputClass('nombre')}
-                name="nombre"
-                placeholder="Nombre"
-                value={form.nombre}
-                onChange={handleChange}
-              />
+              <input name="nombre" placeholder="Nombre" onChange={handleChange} />
+              <input name="apellido_paterno" placeholder="Apellido paterno" onChange={handleChange} />
+              <input name="apellido_materno" placeholder="Apellido materno" onChange={handleChange} />
+              <input name="correo" placeholder="Correo electrónico" onChange={handleChange} />
+              <input type="password" name="contraseña" placeholder="Contraseña opcional" onChange={handleChange} />
 
-              <input
-                className={inputClass('apellido_paterno')}
-                name="apellido_paterno"
-                placeholder="Apellido paterno"
-                value={form.apellido_paterno}
-                onChange={handleChange}
-              />
+              <input type="date" name="fecha_nacimiento" onChange={handleChange} />
+              <input type="date" name="miembro_desde" onChange={handleChange} />
 
-              <input
-                className={inputClass('apellido_materno')}
-                name="apellido_materno"
-                placeholder="Apellido materno"
-                value={form.apellido_materno}
-                onChange={handleChange}
-              />
+              <input name="telefono" placeholder="Teléfono" onChange={handleChange} />
+              <input name="direccion" placeholder="Dirección" onChange={handleChange} />
+              <input name="codigo_postal" placeholder="Código Postal" onChange={handleChange} />
 
-              <input
-                className={inputClass('correo')}
-                type="email"
-                name="correo"
-                placeholder="Correo electrónico"
-                value={form.correo}
-                onChange={handleChange}
-              />
+              <input type="file" accept="image/*" onChange={(e) => setFoto(e.target.files[0])} />
 
-              <input
-                className="border rounded px-3 py-2 w-full border-slate-300 col-span-2"
-                type="password"
-                name="contraseña"
-                placeholder="Genera una contraseña (opcional)"
-                value={form.contraseña}
-                onChange={handleChange}
-              />
-
-              <div>
-                <label className="text-sm text-slate-700">Fecha de nacimiento</label>
-                <input
-                  className={inputClass('fecha_nacimiento')}
-                  type="date"
-                  name="fecha_nacimiento"
-                  value={form.fecha_nacimiento}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm text-slate-700">Fecha de registro</label>
-                <input
-                  className={inputClass('miembro_desde')}
-                  type="date"
-                  name="miembro_desde"
-                  value={form.miembro_desde}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <input
-                className={inputClass('telefono')}
-                name="telefono"
-                placeholder="Teléfono"
-                value={form.telefono}
-                onChange={handleChange}
-              />
-
-              <input
-                className={inputClass('direccion')}
-                name="direccion"
-                placeholder="Dirección"
-                value={form.direccion}
-                onChange={handleChange}
-              />
-
-              <input
-                className={inputClass('codigo_postal')}
-                name="codigo_postal"
-                placeholder="Código Postal"
-                value={form.codigo_postal}
-                onChange={handleChange}
-              />
-
-              <div className="col-span-2">
-                <label className="text-sm text-slate-700 block mb-1">
-                  Foto del afiliado
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className={`w-full ${errors.includes('Foto del afiliado') ? 'text-red-600' : ''}`}
-                  onChange={(e) => setFoto(e.target.files?.[0] || null)}
-                />
-              </div>
-
-              <div className="col-span-2 flex justify-end gap-3 mt-4">
-                <button
-                  type="button"
-                  onClick={() => setOpenModal(false)}
-                  className="px-4 py-2 border rounded"
-                  disabled={saving}
-                >
+              <div className="col-span-2 flex justify-end gap-2">
+                <button type="button" onClick={() => setOpenModal(false)}>
                   Cancelar
                 </button>
-
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-60"
-                  disabled={saving}
-                >
+                <button type="submit" disabled={saving}>
                   {saving ? 'Guardando…' : 'Guardar afiliado'}
                 </button>
               </div>
             </form>
 
-            <p className="text-xs text-slate-500 mt-4">
-              Bucket usado para fotos: <strong>{BUCKET_ID}</strong>
+            <p className="text-xs text-slate-500 mt-2">
+              Bucket usado: <strong>{BUCKET_ID}</strong>
             </p>
           </div>
         </div>
