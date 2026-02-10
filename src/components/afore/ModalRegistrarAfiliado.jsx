@@ -1,113 +1,163 @@
 import React, { useState } from "react";
-import { supabase } from "../../supabaseClient";
 
-const ModalRegistrarAfiliado = ({ open, onClose }) => {
-  const [loading, setLoading] = useState(false);
-  const [foto, setFoto] = useState(null);
+const SUPABASE_URL = "https://ubfkhtkmlvutwdivmoff.supabase.co";
+const SUPABASE_ANON_KEY = "PEGA_AQUI_TU_ANON_PUBLIC_KEY";
+const BUCKET_NAME = "Fotos-Afiliados";
 
+const ModalRegistrarAfiliado = ({ onClose }) => {
   const [form, setForm] = useState({
     nombre: "",
     apellido_paterno: "",
     apellido_materno: "",
+    email: "",
+    contraseña: "",
     fecha_nacimiento: "",
-    correo: "",
+    miembro_desde: "",
     telefono: "",
     direccion: "",
-    codigo_postal: "",
-    activo: true,
+    cp: "",
   });
 
-  if (!open) return null;
+  const [foto, setFoto] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm({ ...form, [name]: type === "checkbox" ? checked : value });
+    setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
+    setError("");
+
+    const required = [
+      "nombre",
+      "apellido_paterno",
+      "apellido_materno",
+      "email",
+      "fecha_nacimiento",
+      "miembro_desde",
+      "telefono",
+      "direccion",
+      "cp",
+    ];
+
+    const missing = required.filter((f) => !form[f]);
+    if (missing.length > 0) {
+      setError("Estos campos son obligatorios");
+      return;
+    }
+
     setLoading(true);
 
-    let foto_url = null;
+    try {
+      let foto_url = null;
 
-    if (foto) {
-      const fileName = `${Date.now()}-${foto.name}`;
-      const { error } = await supabase.storage
-        .from("Fotos Afiliados")
-        .upload(fileName, foto);
+      // 🔹 SUBIR FOTO (SIN AUTHORIZATION)
+      if (foto) {
+        const fileName = `${Date.now()}-${foto.name}`;
 
-      if (error) {
-        alert("Error al subir foto");
-        setLoading(false);
-        return;
+        const upload = await fetch(
+          `${SUPABASE_URL}/storage/v1/object/${BUCKET_NAME}/${fileName}`,
+          {
+            method: "PUT",
+            headers: {
+              apikey: SUPABASE_ANON_KEY,
+              "Content-Type": foto.type,
+            },
+            body: foto,
+          }
+        );
+
+        if (!upload.ok) {
+          const err = await upload.text();
+          throw new Error(err);
+        }
+
+        foto_url = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}/${fileName}`;
       }
 
-      const { data } = supabase.storage
-        .from("Fotos Afiliados")
-        .getPublicUrl(fileName);
+      // 🔹 INSERTAR AFILIADO (SIN AUTHORIZATION)
+      const insert = await fetch(
+        `${SUPABASE_URL}/rest/v1/afore_afiliados`,
+        {
+          method: "POST",
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify({
+            ...form,
+            foto_url,
+            estatus: "activo",
+          }),
+        }
+      );
 
-      foto_url = data.publicUrl;
-    }
+      if (!insert.ok) {
+        const err = await insert.text();
+        throw new Error(err);
+      }
 
-    const { error } = await supabase.from("afore_afiliados").insert([
-      {
-        ...form,
-        foto_url,
-      },
-    ]);
-
-    if (error) {
-      alert("Error al guardar afiliado");
-    } else {
-      alert("Afiliado registrado correctamente");
       onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl w-full max-w-3xl p-6">
-        <h2 className="text-xl font-bold mb-4">Registrar nuevo afiliado</h2>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl w-full max-w-3xl p-6">
+        <h2 className="text-2xl font-bold mb-4">
+          Registrar nuevo afiliado
+        </h2>
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-          <input name="nombre" placeholder="Nombre" onChange={handleChange} required />
-          <input name="apellido_paterno" placeholder="Apellido paterno" onChange={handleChange} required />
+        {error && (
+          <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input name="nombre" placeholder="Nombre" onChange={handleChange} />
+          <input name="apellido_paterno" placeholder="Apellido paterno" onChange={handleChange} />
           <input name="apellido_materno" placeholder="Apellido materno" onChange={handleChange} />
-          <input type="date" name="fecha_nacimiento" onChange={handleChange} />
-          <input type="email" name="correo" placeholder="Correo electrónico" onChange={handleChange} />
+          <input name="email" placeholder="Correo electrónico" onChange={handleChange} />
+          <input type="password" name="contraseña" placeholder="Genera una contraseña" onChange={handleChange} />
+
+          <div>
+            <label className="text-sm">Fecha de nacimiento</label>
+            <input type="date" name="fecha_nacimiento" onChange={handleChange} />
+          </div>
+
+          <div>
+            <label className="text-sm">Fecha de registro</label>
+            <input type="date" name="miembro_desde" onChange={handleChange} />
+          </div>
+
           <input name="telefono" placeholder="Teléfono" onChange={handleChange} />
           <input name="direccion" placeholder="Dirección" onChange={handleChange} />
-          <input name="codigo_postal" placeholder="Código Postal" onChange={handleChange} />
+          <input name="cp" placeholder="Código Postal" onChange={handleChange} />
 
-          <div className="col-span-2">
-            <label className="flex items-center gap-2">
-              <input type="checkbox" name="activo" checked={form.activo} onChange={handleChange} />
-              Afiliado activo
-            </label>
+          <div className="md:col-span-2">
+            <label className="block text-sm mb-1">Foto del afiliado</label>
+            <input type="file" onChange={(e) => setFoto(e.target.files[0])} />
+            <p className="text-xs text-slate-500 mt-1">
+              Bucket usado para fotos: {BUCKET_NAME}
+            </p>
           </div>
+        </div>
 
-          <div className="col-span-2">
-            <input type="file" accept="image/*" onChange={(e) => setFoto(e.target.files[0])} />
-          </div>
-
-          <div className="col-span-2 flex justify-end gap-3 mt-4">
-            <button type="button" onClick={onClose} className="px-4 py-2 border rounded">
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded"
-            >
-              {loading ? "Guardando..." : "Guardar afiliado"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-export default ModalRegistrarAfiliado;
+        <div className="flex justify-end gap-3 mt-6">
+          <button onClick={onClose} className="px-4 py-2 border rounded">
+            Cancelar
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded"
+          >
+            {loading ? "Guardando..." : "Guardar afiliado"}
+          </bu
