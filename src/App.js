@@ -16,7 +16,7 @@ import MultasRenovacionesModule from './components/MultasRenovacionesModule';
 // AFORE
 import AforeDashboardMain from './components/AforeDashboardMain';
 import AforeSidebar from './components/afore/AforeSidebar';
-import AforeAfiliadosView from './components/afore/AforeAfiliadosView';
+import AforeAfiliadosModule from './components/afore/AforeAfiliadosModule';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -99,7 +99,7 @@ function App() {
       case 'afore-dashboard':
         return <AforeDashboardMain />;
       case 'afore-afiliados':
-        return <AforeAfiliadosView />;
+        return <AforeAfiliadosModule />;
 
       // Fondo (intacto)
       case 'socios':
