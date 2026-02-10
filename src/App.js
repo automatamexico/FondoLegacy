@@ -16,7 +16,7 @@ import MultasRenovacionesModule from './components/MultasRenovacionesModule';
 // AFORE
 import AforeDashboardMain from './components/AforeDashboardMain';
 import AforeSidebar from './components/afore/AforeSidebar';
-import AforeAfiliadosView from './components/afore/AforeAfiliadosView';
+//import AforeAfiliadosView from './components/afore/AforeAfiliadosView';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
