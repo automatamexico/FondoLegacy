@@ -1,3 +1,5 @@
+console.log("🔥 MODAL REGISTRAR AFILIADO - VERSION NUEVA 🔥");
+
 import React, { useState } from "react";
 import { supabase } from "../../supabaseClient";
 
