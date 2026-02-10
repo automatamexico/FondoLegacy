@@ -1,7 +1,6 @@
 import React, { useState } from "react";
+import { supabase } from "../../supabaseClient";
 
-const SUPABASE_URL = "https://ubfkhtkmlvutwdivmoff.supabase.co";
-const SUPABASE_ANON_KEY = "PEGA_AQUI_TU_ANON_PUBLIC_KEY";
 const BUCKET_NAME = "Fotos-Afiliados";
 
 const ModalRegistrarAfiliado = ({ onClose }) => {
@@ -22,9 +21,8 @@ const ModalRegistrarAfiliado = ({ onClose }) => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleChange = (e) => {
+  const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
-  };
 
   const handleSubmit = async () => {
     setError("");
@@ -42,7 +40,7 @@ const ModalRegistrarAfiliado = ({ onClose }) => {
     ];
 
     const missing = required.filter((f) => !form[f]);
-    if (missing.length > 0) {
+    if (missing.length) {
       setError("Estos campos son obligatorios");
       return;
     }
@@ -52,52 +50,38 @@ const ModalRegistrarAfiliado = ({ onClose }) => {
     try {
       let foto_url = null;
 
-      // 🔹 SUBIR FOTO (SIN AUTHORIZATION)
+      // 🔹 SUBIR FOTO CORRECTAMENTE
       if (foto) {
         const fileName = `${Date.now()}-${foto.name}`;
 
-        const upload = await fetch(
-          `${SUPABASE_URL}/storage/v1/object/${BUCKET_NAME}/${fileName}`,
-          {
-            method: "PUT",
-            headers: {
-              apikey: SUPABASE_ANON_KEY,
-              "Content-Type": foto.type,
-            },
-            body: foto,
-          }
-        );
+        const { error: uploadError } = await supabase.storage
+          .from(BUCKET_NAME)
+          .upload(fileName, foto, {
+            cacheControl: "3600",
+            upsert: false,
+          });
 
-        if (!upload.ok) {
-          const err = await upload.text();
-          throw new Error(err);
-        }
+        if (uploadError) throw uploadError;
 
-        foto_url = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}/${fileName}`;
+        const { data } = supabase.storage
+          .from(BUCKET_NAME)
+          .getPublicUrl(fileName);
+
+        foto_url = data.publicUrl;
       }
 
-      // 🔹 INSERTAR AFILIADO (SIN AUTHORIZATION)
-      const insert = await fetch(
-        `${SUPABASE_URL}/rest/v1/afore_afiliados`,
-        {
-          method: "POST",
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            "Content-Type": "application/json",
-            Prefer: "return=minimal",
-          },
-          body: JSON.stringify({
+      // 🔹 INSERTAR AFILIADO
+      const { error: insertError } = await supabase
+        .from("afore_afiliados")
+        .insert([
+          {
             ...form,
             foto_url,
             estatus: "activo",
-          }),
-        }
-      );
+          },
+        ]);
 
-      if (!insert.ok) {
-        const err = await insert.text();
-        throw new Error(err);
-      }
+      if (insertError) throw insertError;
 
       onClose();
     } catch (err) {
@@ -110,9 +94,7 @@ const ModalRegistrarAfiliado = ({ onClose }) => {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl w-full max-w-3xl p-6">
-        <h2 className="text-2xl font-bold mb-4">
-          Registrar nuevo afiliado
-        </h2>
+        <h2 className="text-2xl font-bold mb-4">Registrar nuevo afiliado</h2>
 
         {error && (
           <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
