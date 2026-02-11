@@ -66,7 +66,7 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
     try {
       // REFERENCIAS
       const { data: refsData, error: refsErr } = await supabase
-        .from("Refs_Afore")
+        .from("refs_Afore")
         .select("*")
         .eq("id_afiliado", afiliado.id_afiliado)
         .order("created_at", { ascending: false });
@@ -75,7 +75,7 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
 
       // BENEFICIARIOS
       const { data: benData, error: benErr } = await supabase
-        .from("Beneficiarios_Afore")
+        .from("beneficiarios_afore")
         .select("*")
         .eq("id_afiliado", afiliado.id_afiliado)
         .order("created_at", { ascending: false });
