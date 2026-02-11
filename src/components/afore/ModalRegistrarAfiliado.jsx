@@ -1,7 +1,17 @@
-import React, { useMemo, useState } from "react";
+console.log("🔥 MODAL REGISTRAR/EDITAR AFILIADO (AFORE) 🔥");
+
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../supabaseClient";
 
-const ModalRegistrarAfiliado = ({ onClose, onSaved, bucketName }) => {
+const ModalRegistrarAfiliado = ({
+  onClose,
+  onSaved,
+  bucketName = "Fotos-Afiliados",
+  modo = "new", // "new" | "edit"
+  afiliado = null,
+}) => {
+  const isEdit = modo === "edit" && afiliado?.id_afiliado;
+
   const [form, setForm] = useState({
     nombre: "",
     apellido_paterno: "",
@@ -17,66 +27,54 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, bucketName }) => {
   });
 
   const [foto, setFoto] = useState(null);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const fields = useMemo(
-    () => [
-      { key: "nombre", label: "Nombre" },
-      { key: "apellido_paterno", label: "Apellido Paterno" },
-      { key: "apellido_materno", label: "Apellido Materno" },
-      { key: "email", label: "Correo electrónico" },
-      { key: "contraseña", label: "Contraseña" },
-      { key: "telefono", label: "Teléfono" },
-      { key: "direccion", label: "Dirección" },
-      { key: "cp", label: "Código Postal" },
-      { key: "fecha_nacimiento", label: "Fecha de nacimiento" },
-      { key: "miembro_desde", label: "Fecha de registro (miembro desde)" },
-      { key: "estatus", label: "Estatus" },
-      { key: "foto", label: "Foto del afiliado" },
-    ],
-    []
-  );
-
-  const handleChange = (e) => {
-    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+  // Normaliza fecha desde Supabase a YYYY-MM-DD para input type="date"
+  const toDateInput = (v) => {
+    if (!v) return "";
+    const s = String(v);
+    // Si ya viene YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // Si viene con hora
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return "";
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
   };
 
-  const sanitizeFileName = (name) => {
-    return (name || "foto")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^\w.\-]+/g, "_");
-  };
+  // Precarga en modo editar
+  useEffect(() => {
+    if (!isEdit) return;
 
-  const uploadFoto = async (file) => {
-    const safe = sanitizeFileName(file.name);
-    const path = `afiliados/${Date.now()}-${safe}`;
+    setForm({
+      nombre: afiliado.nombre || "",
+      apellido_paterno: afiliado.apellido_paterno || "",
+      apellido_materno: afiliado.apellido_materno || "",
+      email: afiliado.email || "",
+      contraseña: afiliado.contraseña || "", // si no quieres mostrarla, dime y lo ocultamos
+      telefono: afiliado.telefono || "",
+      direccion: afiliado.direccion || "",
+      cp: afiliado.cp || "",
+      fecha_nacimiento: toDateInput(afiliado.fecha_nacimiento),
+      miembro_desde: toDateInput(afiliado.miembro_desde),
+      estatus: afiliado.estatus || "activo",
+    });
 
-    const { error: uploadError } = await supabase.storage
-      .from(bucketName)
-      .upload(path, file, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: file.type || "image/jpeg",
-      });
+    setFoto(null);
+    setError("");
+  }, [isEdit, afiliado]);
 
-    if (uploadError) throw uploadError;
-
-    const { data } = supabase.storage.from(bucketName).getPublicUrl(path);
-    return data?.publicUrl || null;
-  };
-
-  const validate = () => {
-    const missing = [];
-
-    // Todos obligatorios (incluida foto)
-    const requiredKeys = [
+  const requiredFields = useMemo(() => {
+    // En tu tabla contraseña es NOT NULL
+    // En edición, si el usuario borra el campo, conservamos la existente.
+    return [
       "nombre",
       "apellido_paterno",
       "apellido_materno",
       "email",
-      "contraseña",
       "telefono",
       "direccion",
       "cp",
@@ -84,94 +82,136 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, bucketName }) => {
       "miembro_desde",
       "estatus",
     ];
+  }, []);
 
-    requiredKeys.forEach((k) => {
-      if (!String(form[k] ?? "").trim()) missing.push(k);
-    });
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-    if (!foto) missing.push("foto");
+  const validate = () => {
+    const missing = requiredFields.filter((f) => !String(form[f] || "").trim());
 
-    if (missing.length) {
-      const msg = missing
-        .map((k) => fields.find((f) => f.key === k)?.label || k)
-        .join(", ");
-      return `Te faltan campos obligatorios: ${msg}`;
+    // contraseña:
+    // - new: obligatoria
+    // - edit: si está vacía, mantenemos la que ya existe en BD (afiliado.contraseña)
+    if (!isEdit && !String(form.contraseña || "").trim()) {
+      missing.push("contraseña");
     }
 
-    // Mini sanity
-    if (!form.email.includes("@")) return "El correo electrónico no parece válido.";
-    if (String(form.contraseña).trim().length < 4) return "La contraseña debe tener al menos 4 caracteres.";
+    if (missing.length) {
+      setError("Faltan campos obligatorios. Revisa los que tienen *.");
+      return false;
+    }
+    return true;
+  };
 
-    return "";
+  const subirFotoSiAplica = async () => {
+    if (!foto) return null;
+
+    const fileName = `${Date.now()}-${foto.name}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(bucketName)
+      .upload(fileName, foto, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from(bucketName).getPublicUrl(fileName);
+    return data?.publicUrl || null;
   };
 
   const handleSubmit = async () => {
     setError("");
-    const v = validate();
-    if (v) {
-      setError(v);
-      return;
-    }
+    if (!validate()) return;
 
-    setSaving(true);
+    setLoading(true);
 
     try {
-      let foto_url = null;
+      const foto_url = await subirFotoSiAplica();
 
-      if (foto) {
-        foto_url = await uploadFoto(foto);
+      // En edit: si contraseña está vacía, conserva la anterior
+      const contraseñaFinal =
+        isEdit && !String(form.contraseña || "").trim()
+          ? afiliado.contraseña
+          : form.contraseña;
+
+      if (!contraseñaFinal) {
+        throw new Error("La contraseña es obligatoria.");
       }
 
+      if (isEdit) {
+        // UPDATE
+        const payload = {
+          nombre: form.nombre,
+          apellido_paterno: form.apellido_paterno,
+          apellido_materno: form.apellido_materno,
+          email: form.email,
+          contraseña: contraseñaFinal,
+          telefono: form.telefono,
+          direccion: form.direccion,
+          cp: form.cp,
+          fecha_nacimiento: form.fecha_nacimiento,
+          miembro_desde: form.miembro_desde,
+          estatus: form.estatus,
+        };
+
+        // Si subieron nueva foto, actualizamos foto_url; si no, NO tocamos foto_url
+        if (foto_url) payload.foto_url = foto_url;
+
+        const { error: updErr } = await supabase
+          .from("afore_afiliados")
+          .update(payload)
+          .eq("id_afiliado", afiliado.id_afiliado);
+
+        if (updErr) throw updErr;
+
+        onSaved?.();
+        return;
+      }
+
+      // INSERT (NEW)
       const payload = {
-        nombre: form.nombre.trim(),
-        apellido_paterno: form.apellido_paterno.trim(),
-        apellido_materno: form.apellido_materno.trim(),
-        email: form.email.trim(),
-        contraseña: form.contraseña,
-        telefono: form.telefono.trim(),
-        direccion: form.direccion.trim(),
-        cp: form.cp.trim(),
+        nombre: form.nombre,
+        apellido_paterno: form.apellido_paterno,
+        apellido_materno: form.apellido_materno,
+        email: form.email,
+        contraseña: contraseñaFinal,
+        telefono: form.telefono,
+        direccion: form.direccion,
+        cp: form.cp,
         fecha_nacimiento: form.fecha_nacimiento,
         miembro_desde: form.miembro_desde,
-        estatus: form.estatus,
-        foto_url,
+        estatus: form.estatus || "activo",
+        foto_url: foto_url || null,
       };
 
-      const { error: insertError } = await supabase.from("afore_afiliados").insert([payload]);
-
-      if (insertError) throw insertError;
+      const { error: insErr } = await supabase.from("afore_afiliados").insert([payload]);
+      if (insErr) throw insErr;
 
       onSaved?.();
     } catch (err) {
-      setError(err?.message || "Error desconocido al guardar.");
+      setError(err?.message || "Ocurrió un error.");
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-5xl">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-2xl font-bold text-slate-900">Registrar Afiliado AFORE</h3>
-            <p className="text-slate-600 text-sm mt-1">Todos los campos son obligatorios, incluida la foto.</p>
-          </div>
-
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-900">
-            Cerrar
-          </button>
-        </div>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl w-full max-w-3xl p-6">
+        <h2 className="text-2xl font-bold mb-4">
+          {isEdit ? "Editar Afiliado AFORE" : "Registrar Afiliado AFORE"}
+        </h2>
 
         {error && (
-          <div className="bg-red-100 text-red-700 p-3 rounded-xl border border-red-200 mb-4">
+          <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
             {error}
           </div>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <input
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             name="nombre"
             placeholder="Nombre *"
             value={form.nombre}
@@ -179,23 +219,20 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, bucketName }) => {
           />
 
           <input
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             name="apellido_paterno"
-            placeholder="Apellido Paterno *"
+            placeholder="Apellido paterno *"
             value={form.apellido_paterno}
             onChange={handleChange}
           />
 
           <input
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             name="apellido_materno"
-            placeholder="Apellido Materno *"
+            placeholder="Apellido materno *"
             value={form.apellido_materno}
             onChange={handleChange}
           />
 
           <input
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             name="email"
             placeholder="Correo electrónico *"
             value={form.email}
@@ -203,16 +240,15 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, bucketName }) => {
           />
 
           <input
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="password"
             name="contraseña"
-            placeholder="Contraseña *"
+            placeholder={isEdit ? "Contraseña (deja vacío para conservar)" : "Contraseña *"}
             value={form.contraseña}
             onChange={handleChange}
+            autoComplete="current-password"
           />
 
           <input
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             name="telefono"
             placeholder="Teléfono *"
             value={form.telefono}
@@ -220,7 +256,6 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, bucketName }) => {
           />
 
           <input
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             name="direccion"
             placeholder="Dirección *"
             value={form.direccion}
@@ -228,7 +263,6 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, bucketName }) => {
           />
 
           <input
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             name="cp"
             placeholder="Código Postal *"
             value={form.cp}
@@ -236,9 +270,18 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, bucketName }) => {
           />
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Fecha de nacimiento *</label>
+            <label className="text-sm">Fecha de registro (Miembro desde) *</label>
             <input
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              type="date"
+              name="miembro_desde"
+              value={form.miembro_desde}
+              onChange={handleChange}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm">Fecha de nacimiento *</label>
+            <input
               type="date"
               name="fecha_nacimiento"
               value={form.fecha_nacimiento}
@@ -247,23 +290,12 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, bucketName }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Fecha de registro (Miembro desde) *</label>
-            <input
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-              type="date"
-              name="miembro_desde"
-              value={form.miembro_desde}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-slate-700 mb-2">Estatus *</label>
+            <label className="text-sm">Estatus *</label>
             <select
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               name="estatus"
               value={form.estatus}
               onChange={handleChange}
+              className="w-full border rounded px-3 py-2"
             >
               <option value="activo">activo</option>
               <option value="inactivo">inactivo</option>
@@ -271,55 +303,22 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, bucketName }) => {
             </select>
           </div>
 
-          {/* Foto look&feel tipo Socios */}
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-slate-700 mb-2">Foto del afiliado (JPG o PNG) *</label>
-
-            <div className="w-full border-2 border-dashed border-slate-300 rounded-2xl p-4 bg-slate-50">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
-                  AF
-                </div>
-
-                <div className="flex-1">
-                  <div className="text-slate-700 font-medium">Arrastra y suelta la foto aquí</div>
-                  <div className="text-slate-500 text-sm">o</div>
-
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setFoto(e.target.files?.[0] || null)}
-                    className="mt-2 block"
-                  />
-
-                  <div className="text-xs text-slate-500 mt-2">
-                    Bucket: <span className="font-medium">{bucketName}</span>
-                    {foto?.name ? (
-                      <>
-                        {" · "}Archivo: <span className="font-medium">{foto.name}</span>
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <label className="block text-sm mb-1">Foto del afiliado (JPG o PNG)</label>
+            <input type="file" accept="image/*" onChange={(e) => setFoto(e.target.files?.[0] || null)} />
           </div>
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
-          <button
-            onClick={onClose}
-            className="px-5 py-2 border border-slate-200 rounded-xl hover:bg-slate-50"
-          >
+          <button onClick={onClose} className="px-4 py-2 border rounded">
             Cancelar
           </button>
-
           <button
             onClick={handleSubmit}
-            disabled={saving}
-            className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 disabled:opacity-60"
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded"
           >
-            {saving ? "Guardando..." : "Guardar Afiliado"}
+            {loading ? "Guardando..." : isEdit ? "Guardar cambios" : "Guardar afiliado"}
           </button>
         </div>
       </div>
