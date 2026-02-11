@@ -46,6 +46,9 @@ const ModalRegistrarAfiliado = ({
 
   const [beneficiarioFoto, setBeneficiarioFoto] = useState(null);
   const [beneficiarioDoc, setBeneficiarioDoc] = useState(null);
+  const [cobroAfiliacion, setCobroAfiliacion] = useState(false);
+  const [montoAfiliacion, setMontoAfiliacion] = useState("");
+
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -218,6 +221,22 @@ const ModalRegistrarAfiliado = ({
         if (benError) throw benError;
       }
 
+      // 🔹 Guardar pago de afiliación
+      if (cobroAfiliacion && montoAfiliacion) {
+        const { error: pagoError } = await supabase
+          .from("pago_afiliaciones")
+          .insert([
+            {
+              id_socio: afiliadoId,
+              afiliacion_papeleria: true,
+              monto_afiliacion_papeleria: parseFloat(montoAfiliacion),
+              fecha_hora: new Date().toISOString(),
+              estatus: "PENDIENTE",
+            },
+          ]);
+
+        if (pagoError) throw pagoError;
+      }
 
       if (onSaved) await onSaved();
       onClose();
@@ -326,6 +345,45 @@ const ModalRegistrarAfiliado = ({
           </div>
         </div>
 
+        {/* COBRO AFILIACION */}
+<div className="mt-6 border-t-4 border-blue-600 pt-4">
+  <div className="font-bold mb-3">Cobro Afiliación</div>
+
+  <div className="flex gap-6 mb-3">
+    <label>
+      <input
+        type="radio"
+        checked={cobroAfiliacion}
+        onChange={() => setCobroAfiliacion(true)}
+      />{" "}
+      Sí
+    </label>
+
+    <label>
+      <input
+        type="radio"
+        checked={!cobroAfiliacion}
+        onChange={() => {
+          setCobroAfiliacion(false);
+          setMontoAfiliacion("");
+        }}
+      />{" "}
+      No
+    </label>
+  </div>
+
+  {cobroAfiliacion && (
+    <input
+      type="number"
+      step="0.01"
+      placeholder="Monto cobrado"
+      value={montoAfiliacion}
+      onChange={(e) => setMontoAfiliacion(e.target.value)}
+      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+    />
+  )}
+</div>
+        
         <div className="flex justify-end gap-3 mt-8">
           <button onClick={onClose} className="px-5 py-2 border rounded-xl">Cancelar</button>
           <button onClick={handleSubmit} disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded-xl">
