@@ -9,20 +9,21 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
   const [refs, setRefs] = useState([]);
   const [beneficiarios, setBeneficiarios] = useState([]);
 
-  // ===============================
-  // CARGAR DATOS RELACIONADOS
-  // ===============================
-  useEffect(() => {
-    cargarReferencias();
-    cargarBeneficiarios();
-  }, [afiliado]);
+  const [refForm, setRefForm] = useState(null);
+  const [benForm, setBenForm] = useState(null);
+
+  const [fotoBen, setFotoBen] = useState(null);
+  const [docBen, setDocBen] = useState(null);
+
+  // ============================
+  // CARGAR DATOS
+  // ============================
 
   const cargarReferencias = async () => {
     const { data } = await supabase
       .from("refs_afore")
       .select("*")
       .eq("id_afiliado", afiliado.id_afiliado);
-
     setRefs(data || []);
   };
 
@@ -31,244 +32,242 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
       .from("beneficiarios_afore")
       .select("*")
       .eq("id_afiliado", afiliado.id_afiliado);
-
     setBeneficiarios(data || []);
   };
 
-  // ===============================
-  // UTILIDADES EXISTENTES (NO TOCADAS)
-  // ===============================
+  useEffect(() => {
+    cargarReferencias();
+    cargarBeneficiarios();
+  }, [afiliado]);
 
-  const avatarFallback = (a) => {
-    const n1 = (a?.nombre || "A").trim().charAt(0).toUpperCase();
-    const n2 = (a?.apellido_paterno || "F").trim().charAt(0).toUpperCase();
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80">
-        <rect width="100%" height="100%" rx="16" ry="16" fill="#2563eb"/>
-        <text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle"
-              font-family="Arial" font-size="28" fill="#ffffff" font-weight="700">
-          ${n1}${n2}
-        </text>
-      </svg>
-    `.trim();
-    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-  };
+  // ============================
+  // REFERENCIAS
+  // ============================
 
-  const fmtFecha = (isoDate) => {
-    if (!isoDate) return "-";
-    if (/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
-      const [y, m, d] = isoDate.split("-").map(Number);
-      const dt = new Date(y, m - 1, d);
-      return dt.toLocaleDateString("es-MX", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
+  const guardarReferencia = async () => {
+    if (!refForm.nombre) return;
+
+    if (refForm.id_ref) {
+      await supabase
+        .from("refs_afore")
+        .update(refForm)
+        .eq("id_ref", refForm.id_ref);
+    } else {
+      await supabase.from("refs_afore").insert([
+        { ...refForm, id_afiliado: afiliado.id_afiliado },
+      ]);
     }
-    const dt = new Date(isoDate);
-    if (Number.isNaN(dt.getTime())) return String(isoDate);
-    return dt.toLocaleDateString("es-MX", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+
+    setRefForm(null);
+    cargarReferencias();
   };
 
-  const fmtDateTime = (iso) => {
-    if (!iso) return "-";
-    const dt = new Date(iso);
-    if (Number.isNaN(dt.getTime())) return String(iso);
-    return dt.toLocaleString("es-MX");
+  const eliminarReferencia = async (r) => {
+    if (!window.confirm("¿Eliminar esta referencia?")) return;
+    await supabase
+      .from("refs_afore")
+      .delete()
+      .eq("id_ref", r.id_ref);
+    cargarReferencias();
   };
+
+  // ============================
+  // BENEFICIARIOS
+  // ============================
+
+  const guardarBeneficiario = async () => {
+    let foto_url = benForm?.foto_url || null;
+    let documento_url = benForm?.documento_url || null;
+
+    if (fotoBen) {
+      const fileName = `foto-${Date.now()}-${fotoBen.name}`;
+      await supabase.storage
+        .from(BUCKET_BENEFICIARIOS)
+        .upload(fileName, fotoBen);
+      const { data } = supabase.storage
+        .from(BUCKET_BENEFICIARIOS)
+        .getPublicUrl(fileName);
+      foto_url = data.publicUrl;
+    }
+
+    if (docBen) {
+      const fileName = `doc-${Date.now()}-${docBen.name}`;
+      await supabase.storage
+        .from(BUCKET_BENEFICIARIOS)
+        .upload(fileName, docBen);
+      const { data } = supabase.storage
+        .from(BUCKET_BENEFICIARIOS)
+        .getPublicUrl(fileName);
+      documento_url = data.publicUrl;
+    }
+
+    if (benForm.id_beneficiario) {
+      await supabase
+        .from("beneficiarios_afore")
+        .update({ ...benForm, foto_url, documento_url })
+        .eq("id_beneficiario", benForm.id_beneficiario);
+    } else {
+      await supabase.from("beneficiarios_afore").insert([
+        {
+          ...benForm,
+          foto_url,
+          documento_url,
+          id_afiliado: afiliado.id_afiliado,
+        },
+      ]);
+    }
+
+    setBenForm(null);
+    setFotoBen(null);
+    setDocBen(null);
+    cargarBeneficiarios();
+  };
+
+  const eliminarBeneficiario = async (b) => {
+    if (!window.confirm("¿Eliminar beneficiario?")) return;
+    await supabase
+      .from("beneficiarios_afore")
+      .delete()
+      .eq("id_beneficiario", b.id_beneficiario);
+    cargarBeneficiarios();
+  };
+
+  // ============================
+  // UI
+  // ============================
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-3xl">
 
-        {/* HEADER */}
-        <div className="flex items-start justify-between mb-4">
-          <h3 className="text-xl font-bold text-slate-900">
-            Ficha del afiliado
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-slate-500 hover:text-slate-900"
-          >
-            Cerrar
-          </button>
+        <div className="flex justify-between mb-6">
+          <h2 className="text-xl font-bold">Ficha del Afiliado</h2>
+          <button onClick={onClose}>Cerrar</button>
         </div>
 
-        {/* DATOS PRINCIPALES */}
-        <div className="flex items-center space-x-4 mb-4">
-          <img
-            src={afiliado.foto_url || avatarFallback(afiliado)}
-            alt="foto"
-            className="w-20 h-20 rounded-xl object-cover border"
-            onError={(e) => {
-              e.currentTarget.src = avatarFallback(afiliado);
-            }}
-          />
-          <div>
-            <div className="text-sm text-slate-500">ID Afiliado</div>
-            <div className="text-lg font-semibold">
-              {afiliado.id_afiliado}
-            </div>
+        {/* ================= REFERENCIAS ================= */}
 
-            <div className="text-slate-900 font-medium">
-              {afiliado.nombre} {afiliado.apellido_paterno}{" "}
-              {afiliado.apellido_materno}
-            </div>
+        <div className="h-1 bg-blue-600 rounded-full mt-6"></div>
+        <h3 className="font-bold mt-4 mb-3">Referencias Personales</h3>
 
-            <div className="text-sm text-slate-600 mt-1">
-              Teléfono:{" "}
-              <span className="font-medium text-slate-900">
-                {afiliado.telefono || "-"}
-              </span>
-            </div>
-
-            <div className="text-xs text-slate-500 mt-1">
-              Bucket:{" "}
-              <span className="font-medium">{bucketName}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* GRID PRINCIPAL */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-          <div className="p-3 bg-slate-50 rounded-lg">
-            <div className="text-xs text-slate-500">Correo</div>
-            <div className="font-medium break-all">
-              {afiliado.email || "-"}
-            </div>
-          </div>
-
-          <div className="p-3 bg-slate-50 rounded-lg">
-            <div className="text-xs text-slate-500">Estatus</div>
-            <div className="font-medium">
-              {afiliado.estatus || "-"}
-            </div>
-          </div>
-
-          <div className="p-3 bg-slate-50 rounded-lg">
-            <div className="text-xs text-slate-500">
-              Fecha de nacimiento
-            </div>
-            <div className="font-medium">
-              {fmtFecha(afiliado.fecha_nacimiento)}
-            </div>
-          </div>
-
-          <div className="p-3 bg-slate-50 rounded-lg">
-            <div className="text-xs text-slate-500">
-              Miembro desde
-            </div>
-            <div className="font-medium">
-              {fmtFecha(afiliado.miembro_desde)}
-            </div>
-          </div>
-
-        </div>
-
-        {/* =============================== */}
-        {/* REFERENCIAS */}
-        {/* =============================== */}
-
-        <div className="h-1 bg-blue-600 rounded-full mt-8"></div>
-
-        <h3 className="text-lg font-bold mt-4 mb-3">
-          Referencias Personales
-        </h3>
-
-        {refs.length === 0 && (
-          <p className="text-slate-500 text-sm">
-            No hay referencias registradas.
-          </p>
-        )}
+        <button
+          className="mb-3 px-3 py-1 bg-blue-600 text-white rounded"
+          onClick={() =>
+            setRefForm({
+              nombre: "",
+              apellido_paterno: "",
+              apellido_materno: "",
+              telefono: "",
+              direccion: "",
+            })
+          }
+        >
+          + Agregar Referencia
+        </button>
 
         {refs.map((r) => (
-          <div
-            key={r.id_ref}
-            className="p-3 bg-slate-50 rounded-lg mb-2"
-          >
+          <div key={r.id_ref} className="bg-slate-50 p-3 rounded mb-2">
             <div className="font-medium">
-              {r.nombre} {r.apellido_paterno}{" "}
-              {r.apellido_materno}
+              {r.nombre} {r.apellido_paterno}
             </div>
-            <div className="text-sm text-slate-600">
-              Tel: {r.telefono || "-"}
-            </div>
-            <div className="text-sm text-slate-600">
-              Dir: {r.direccion || "-"}
+            <div className="text-sm">{r.telefono}</div>
+            <div className="flex gap-3 mt-2">
+              <button onClick={() => setRefForm(r)}>Editar</button>
+              <button onClick={() => eliminarReferencia(r)} className="text-red-600">
+                Eliminar
+              </button>
             </div>
           </div>
         ))}
 
-        {/* =============================== */}
-        {/* BENEFICIARIOS */}
-        {/* =============================== */}
-
-        <div className="h-1 bg-blue-600 rounded-full mt-8"></div>
-
-        <h3 className="text-lg font-bold mt-4 mb-3">
-          Beneficiarios
-        </h3>
-
-        {beneficiarios.length === 0 && (
-          <p className="text-slate-500 text-sm">
-            No hay beneficiarios registrados.
-          </p>
+        {refForm && (
+          <div className="bg-slate-100 p-4 rounded mt-3">
+            <input
+              placeholder="Nombre"
+              value={refForm.nombre}
+              onChange={(e) =>
+                setRefForm({ ...refForm, nombre: e.target.value })
+              }
+              className="border p-2 w-full mb-2"
+            />
+            <button
+              onClick={guardarReferencia}
+              className="px-3 py-1 bg-green-600 text-white rounded"
+            >
+              Guardar
+            </button>
+          </div>
         )}
 
+        {/* ================= BENEFICIARIOS ================= */}
+
+        <div className="h-1 bg-blue-600 rounded-full mt-8"></div>
+        <h3 className="font-bold mt-4 mb-3">Beneficiarios</h3>
+
+        <button
+          className="mb-3 px-3 py-1 bg-blue-600 text-white rounded"
+          onClick={() =>
+            setBenForm({
+              nombre: "",
+              apellido_paterno: "",
+              apellido_materno: "",
+              telefono: "",
+              direccion: "",
+            })
+          }
+        >
+          + Agregar Beneficiario
+        </button>
+
         {beneficiarios.map((b) => (
-          <div
-            key={b.id_beneficiario}
-            className="p-3 bg-slate-50 rounded-lg mb-2"
-          >
+          <div key={b.id_beneficiario} className="bg-slate-50 p-3 rounded mb-2">
             <div className="font-medium">
-              {b.nombre} {b.apellido_paterno}{" "}
-              {b.apellido_materno}
+              {b.nombre} {b.apellido_paterno}
             </div>
-            <div className="text-sm text-slate-600">
-              Tel: {b.telefono || "-"}
-            </div>
-            <div className="text-sm text-slate-600">
-              Dir: {b.direccion || "-"}
-            </div>
-
-            {b.foto_url && (
-              <a
-                href={b.foto_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-600 text-sm block mt-1"
+            <div className="text-sm">{b.telefono}</div>
+            <div className="flex gap-3 mt-2">
+              <button onClick={() => setBenForm(b)}>Editar</button>
+              <button
+                onClick={() => eliminarBeneficiario(b)}
+                className="text-red-600"
               >
-                Ver Foto
-              </a>
-            )}
-
-            {b.documento_url && (
-              <a
-                href={b.documento_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-green-600 text-sm block"
-              >
-                Ver Documento
-              </a>
-            )}
+                Eliminar
+              </button>
+            </div>
           </div>
         ))}
 
-        {/* BOTÓN FINAL */}
-        <div className="flex justify-end mt-6">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Cerrar
-          </button>
-        </div>
+        {benForm && (
+          <div className="bg-slate-100 p-4 rounded mt-3">
+            <input
+              placeholder="Nombre"
+              value={benForm.nombre}
+              onChange={(e) =>
+                setBenForm({ ...benForm, nombre: e.target.value })
+              }
+              className="border p-2 w-full mb-2"
+            />
+
+            <input
+              type="file"
+              onChange={(e) => setFotoBen(e.target.files[0])}
+              className="mb-2"
+            />
+
+            <input
+              type="file"
+              onChange={(e) => setDocBen(e.target.files[0])}
+              className="mb-2"
+            />
+
+            <button
+              onClick={guardarBeneficiario}
+              className="px-3 py-1 bg-green-600 text-white rounded"
+            >
+              Guardar
+            </button>
+          </div>
+        )}
 
       </div>
     </div>
