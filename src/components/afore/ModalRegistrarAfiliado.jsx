@@ -153,47 +153,71 @@ const ModalRegistrarAfiliado = ({
         if (error) throw error;
       }
 
+            // 🔹 Guardar referencia personal
       if (referencia.nombre) {
-        await supabase.from("Refs_Afore").insert([
-          { ...referencia, id_afiliado: afiliadoId },
-        ]);
+        const { error: refError } = await supabase
+          .from("refs_afore")
+          .insert([
+            {
+              ...referencia,
+              id_afiliado: afiliadoId,
+              created_at: new Date().toISOString(),
+            },
+          ]);
+
+        if (refError) throw refError;
       }
 
+      // 🔹 Guardar beneficiario
       if (beneficiario.nombre) {
         let foto_url = null;
         let doc_url = null;
 
         if (beneficiarioFoto) {
           const fileName = `${Date.now()}-${beneficiarioFoto.name}`;
-          await supabase.storage
+          const { error: uploadFotoError } = await supabase.storage
             .from(BUCKET_BENEFICIARIOS)
             .upload(fileName, beneficiarioFoto);
+
+          if (uploadFotoError) throw uploadFotoError;
+
           const { data } = supabase.storage
             .from(BUCKET_BENEFICIARIOS)
             .getPublicUrl(fileName);
+
           foto_url = data.publicUrl;
         }
 
         if (beneficiarioDoc) {
           const fileName = `${Date.now()}-${beneficiarioDoc.name}`;
-          await supabase.storage
+          const { error: uploadDocError } = await supabase.storage
             .from(BUCKET_BENEFICIARIOS)
             .upload(fileName, beneficiarioDoc);
+
+          if (uploadDocError) throw uploadDocError;
+
           const { data } = supabase.storage
             .from(BUCKET_BENEFICIARIOS)
             .getPublicUrl(fileName);
+
           doc_url = data.publicUrl;
         }
 
-        await supabase.from("Beneficiarios_Afore").insert([
-          {
-            ...beneficiario,
-            id_afiliado: afiliadoId,
-            foto_url,
-            documento_url: doc_url,
-          },
-        ]);
+        const { error: benError } = await supabase
+          .from("beneficiarios_afore")
+          .insert([
+            {
+              ...beneficiario,
+              id_afiliado: afiliadoId,
+              foto_url,
+              documento_url: doc_url,
+              created_at: new Date().toISOString(),
+            },
+          ]);
+
+        if (benError) throw benError;
       }
+
 
       if (onSaved) await onSaved();
       onClose();
