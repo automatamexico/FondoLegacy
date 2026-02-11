@@ -25,6 +25,7 @@ const ModalRegistrarAfiliado = ({
 
   const [foto, setFoto] = useState(null);
   const [error, setError] = useState("");
+  const [camposError, setCamposError] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -45,20 +46,38 @@ const ModalRegistrarAfiliado = ({
     }
   }, [modo, afiliado]);
 
-  const handleChange = (e) =>
+  const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+    setCamposError(camposError.filter(c => c !== e.target.name));
+  };
+
+  const validarCampos = () => {
+    const obligatorios = [
+      "nombre",
+      "apellido_paterno",
+      "apellido_materno",
+      "email",
+      "contraseña",
+      "telefono",
+      "direccion",
+      "cp",
+      "fecha_nacimiento",
+      "miembro_desde",
+    ];
+
+    const faltantes = obligatorios.filter(
+      campo => !form[campo] || form[campo].trim() === ""
+    );
+
+    setCamposError(faltantes);
+    return faltantes.length === 0;
+  };
 
   const handleSubmit = async () => {
     setError("");
 
-    if (
-      !form.nombre ||
-      !form.apellido_paterno ||
-      !form.apellido_materno ||
-      !form.email ||
-      !form.contraseña
-    ) {
-      setError("Completa los campos obligatorios.");
+    if (!validarCampos()) {
+      setError("Por favor completa todos los campos obligatorios.");
       return;
     }
 
@@ -118,8 +137,15 @@ const ModalRegistrarAfiliado = ({
     }
   };
 
-  const inputStyle =
-    "w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
+  const inputBase =
+    "w-full px-4 py-3 bg-slate-50 border rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500";
+
+  const inputStyle = (name) =>
+    `${inputBase} ${
+      camposError.includes(name)
+        ? "border-red-500 bg-red-50"
+        : "border-slate-200"
+    }`;
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
@@ -132,7 +158,7 @@ const ModalRegistrarAfiliado = ({
         </h2>
 
         <p className="text-slate-500 mb-6">
-          Completa la información del afiliado.
+          Todos los campos son obligatorios.
         </p>
 
         {error && (
@@ -143,32 +169,21 @@ const ModalRegistrarAfiliado = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-          <input name="nombre" value={form.nombre} placeholder="Nombre" onChange={handleChange} className={inputStyle} />
-          <input name="apellido_paterno" value={form.apellido_paterno} placeholder="Apellido paterno" onChange={handleChange} className={inputStyle} />
-          <input name="apellido_materno" value={form.apellido_materno} placeholder="Apellido materno" onChange={handleChange} className={inputStyle} />
-          <input name="email" value={form.email} placeholder="Correo electrónico" onChange={handleChange} className={inputStyle} />
-          <input type="password" name="contraseña" value={form.contraseña} placeholder="Contraseña" onChange={handleChange} className={inputStyle} />
-          <input name="telefono" value={form.telefono} placeholder="Teléfono" onChange={handleChange} className={inputStyle} />
-          <input name="direccion" value={form.direccion} placeholder="Dirección" onChange={handleChange} className={inputStyle} />
-          <input name="cp" value={form.cp} placeholder="Código Postal" onChange={handleChange} className={inputStyle} />
+          <input name="nombre" value={form.nombre} placeholder="Nombre *" onChange={handleChange} className={inputStyle("nombre")} />
+          <input name="apellido_paterno" value={form.apellido_paterno} placeholder="Apellido paterno *" onChange={handleChange} className={inputStyle("apellido_paterno")} />
+          <input name="apellido_materno" value={form.apellido_materno} placeholder="Apellido materno *" onChange={handleChange} className={inputStyle("apellido_materno")} />
+          <input name="email" value={form.email} placeholder="Correo electrónico *" onChange={handleChange} className={inputStyle("email")} />
+          <input type="password" name="contraseña" value={form.contraseña} placeholder="Contraseña *" onChange={handleChange} className={inputStyle("contraseña")} />
+          <input name="telefono" value={form.telefono} placeholder="Teléfono *" onChange={handleChange} className={inputStyle("telefono")} />
+          <input name="direccion" value={form.direccion} placeholder="Dirección *" onChange={handleChange} className={inputStyle("direccion")} />
+          <input name="cp" value={form.cp} placeholder="Código Postal *" onChange={handleChange} className={inputStyle("cp")} />
 
-          <div>
-            <label className="text-sm text-slate-600 mb-1 block">
-              Fecha de nacimiento
-            </label>
-            <input type="date" name="fecha_nacimiento" value={form.fecha_nacimiento} onChange={handleChange} className={inputStyle} />
-          </div>
-
-          <div>
-            <label className="text-sm text-slate-600 mb-1 block">
-              Fecha de registro
-            </label>
-            <input type="date" name="miembro_desde" value={form.miembro_desde} onChange={handleChange} className={inputStyle} />
-          </div>
+          <input type="date" name="fecha_nacimiento" value={form.fecha_nacimiento} onChange={handleChange} className={inputStyle("fecha_nacimiento")} />
+          <input type="date" name="miembro_desde" value={form.miembro_desde} onChange={handleChange} className={inputStyle("miembro_desde")} />
 
           <div className="md:col-span-2">
             <label className="block text-sm text-slate-600 mb-2">
-              Foto del afiliado
+              Foto del afiliado *
             </label>
             <input
               type="file"
