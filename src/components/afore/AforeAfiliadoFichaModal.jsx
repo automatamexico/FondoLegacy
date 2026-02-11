@@ -107,7 +107,7 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg">
+     <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-4xl max-h-[85vh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <h3 className="text-xl font-bold text-slate-900">Ficha del Afiliado</h3>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-900">
