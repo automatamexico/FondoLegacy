@@ -27,7 +27,6 @@ const ModalRegistrarAfiliado = ({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 🔥 PRECARGAR DATOS SI ES EDICIÓN
   useEffect(() => {
     if (modo === "edit" && afiliado) {
       setForm({
@@ -63,12 +62,17 @@ const ModalRegistrarAfiliado = ({
       return;
     }
 
+    // 🔥 CONFIRMACIÓN ANTES DE GUARDAR
+    const confirmar = window.confirm(
+      "¿Estás seguro de guardar los cambios realizados?"
+    );
+    if (!confirmar) return;
+
     setLoading(true);
 
     try {
       let foto_url = afiliado?.foto_url || null;
 
-      // SUBIR FOTO NUEVA SI SE CAMBIÓ
       if (foto) {
         const fileName = `${Date.now()}-${foto.name}`;
 
@@ -85,7 +89,6 @@ const ModalRegistrarAfiliado = ({
         foto_url = data.publicUrl;
       }
 
-      // 🔥 NUEVO REGISTRO
       if (modo === "new") {
         const { error: insertError } = await supabase
           .from("afore_afiliados")
@@ -100,7 +103,6 @@ const ModalRegistrarAfiliado = ({
         if (insertError) throw insertError;
       }
 
-      // 🔥 EDICIÓN REAL
       if (modo === "edit") {
         const { error: updateError } = await supabase
           .from("afore_afiliados")
