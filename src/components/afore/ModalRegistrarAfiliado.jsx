@@ -1,15 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../../supabaseClient";
 
-const BUCKET_NAME = "Fotos-Afiliados";
-const BENEFICIARIOS_BUCKET = "Beneficiarios-Afore";
+const BUCKET_AFILIADOS = "Fotos-Afiliados";
+const BUCKET_BENEFICIARIOS = "Beneficiarios-Afore";
 
-const ModalRegistrarAfiliado = ({
-  onClose,
-  onSaved,
-  afiliado,
-  modo = "new",
-}) => {
+const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) => {
   const [form, setForm] = useState({
     nombre: "",
     apellido_paterno: "",
@@ -22,11 +17,16 @@ const ModalRegistrarAfiliado = ({
     fecha_nacimiento: "",
     miembro_desde: "",
     estatus: "activo",
-    referido: false,
+
+    // ✅ en BD es es_referido + nombre_referido
+    es_referido: false,
     nombre_referido: "",
   });
 
-  // 🔹 REFERENCIAS
+  // Foto afiliado
+  const [foto, setFoto] = useState(null);
+
+  // Referencias (1 opcional)
   const [referencia, setReferencia] = useState({
     nombre: "",
     apellido_paterno: "",
@@ -35,7 +35,7 @@ const ModalRegistrarAfiliado = ({
     direccion: "",
   });
 
-  // 🔹 BENEFICIARIO
+  // Beneficiario (1 opcional)
   const [beneficiario, setBeneficiario] = useState({
     nombre: "",
     apellido_paterno: "",
@@ -47,27 +47,46 @@ const ModalRegistrarAfiliado = ({
   const [beneficiarioFoto, setBeneficiarioFoto] = useState(null);
   const [beneficiarioDoc, setBeneficiarioDoc] = useState(null);
 
-  const [foto, setFoto] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // ✅ Precargar si es edición
   useEffect(() => {
     if (modo === "edit" && afiliado) {
       setForm({
-        ...form,
-        ...afiliado,
-        referido: afiliado.es_referido || false,
+        nombre: afiliado.nombre || "",
+        apellido_paterno: afiliado.apellido_paterno || "",
+        apellido_materno: afiliado.apellido_materno || "",
+        email: afiliado.email || "",
+        contraseña: afiliado.contraseña || "",
+        telefono: afiliado.telefono || "",
+        direccion: afiliado.direccion || "",
+        cp: afiliado.cp || "",
+        fecha_nacimiento: afiliado.fecha_nacimiento || "",
+        miembro_desde: afiliado.miembro_desde || "",
+        estatus: afiliado.estatus || "activo",
+
+        // ✅ leer de BD
+        es_referido: afiliado.es_referido ?? false,
         nombre_referido: afiliado.nombre_referido || "",
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modo, afiliado]);
 
   const handleChange = (e) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const inputBase =
+    "w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl " +
+    "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
+
+  const labelBase = "text-sm font-medium text-slate-700 mb-1";
 
   const handleSubmit = async () => {
     setError("");
 
+    // ✅ obligatorios (mantengo tu criterio actual)
     if (
       !form.nombre ||
       !form.apellido_paterno ||
@@ -76,130 +95,172 @@ const ModalRegistrarAfiliado = ({
       !form.contraseña ||
       !form.telefono ||
       !form.direccion ||
-      !form.cp
+      !form.cp ||
+      !form.fecha_nacimiento ||
+      !form.miembro_desde
     ) {
       setError("Todos los campos obligatorios deben completarse.");
       return;
     }
 
-    if (form.referido && !form.nombre_referido) {
+    if (form.es_referido && !form.nombre_referido) {
       setError("Debes ingresar el nombre completo de quien refiere.");
       return;
     }
 
-    const confirmar = window.confirm(
-      "¿Estas seguro de guardar los cambios realizados?"
-    );
+    const confirmar = window.confirm("¿Estas seguro de guardar los cambios realizados?");
     if (!confirmar) return;
 
     setLoading(true);
 
     try {
+      // =========================
+      // SUBIR FOTO AFILIADO (si hay)
+      // =========================
       let foto_url = afiliado?.foto_url || null;
 
       if (foto) {
         const fileName = `${Date.now()}-${foto.name}`;
         const { error: uploadError } = await supabase.storage
-          .from(BUCKET_NAME)
-          .upload(fileName, foto);
+          .from(BUCKET_AFILIADOS)
+          .upload(fileName, foto, { upsert: false });
 
         if (uploadError) throw uploadError;
 
-        const { data } = supabase.storage
-          .from(BUCKET_NAME)
-          .getPublicUrl(fileName);
-
+        const { data } = supabase.storage.from(BUCKET_AFILIADOS).getPublicUrl(fileName);
         foto_url = data.publicUrl;
       }
 
+      // ✅ Payload EXACTO a tu tabla (NO existe 'referido')
       const payload = {
-        ...form,
+        nombre: form.nombre,
+        apellido_paterno: form.apellido_paterno,
+        apellido_materno: form.apellido_materno,
+        email: form.email,
+        contraseña: form.contraseña,
+        telefono: form.telefono,
+        direccion: form.direccion,
+        cp: form.cp,
+        fecha_nacimiento: form.fecha_nacimiento,
+        miembro_desde: form.miembro_desde,
+        estatus: form.estatus,
+
         foto_url,
-        es_referido: form.referido,
-        nombre_referido: form.referido
-          ? form.nombre_referido
-          : "Nuevo",
+
+        // ✅ BD
+        es_referido: !!form.es_referido,
+        nombre_referido: form.es_referido ? form.nombre_referido : "Nuevo",
       };
 
-      let afiliadoId;
+      let afiliadoId = afiliado?.id_afiliado || null;
 
+      // =========================
+      // INSERT / UPDATE AFILIADO
+      // =========================
       if (modo === "new") {
-        const { data, error } = await supabase
+        const { data, error: insErr } = await supabase
           .from("afore_afiliados")
           .insert([payload])
-          .select();
+          .select("id_afiliado")
+          .single();
 
-        if (error) throw error;
-        afiliadoId = data[0].id_afiliado;
+        if (insErr) throw insErr;
+        afiliadoId = data?.id_afiliado;
       } else {
-        const { error } = await supabase
+        const { error: updErr } = await supabase
           .from("afore_afiliados")
-          .update({
-            ...payload,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id_afiliado", afiliado.id_afiliado);
+          .update({ ...payload, updated_at: new Date().toISOString() })
+          .eq("id_afiliado", afiliadoId);
 
-        if (error) throw error;
-        afiliadoId = afiliado.id_afiliado;
+        if (updErr) throw updErr;
       }
 
-      // 🔹 GUARDAR REFERENCIA (SI LLENÓ ALGO)
-      if (referencia.nombre) {
-        await supabase.from("Refs_Afore").insert([
+      // =========================
+      // GUARDAR REFERENCIA (si llenó algo)
+      // =========================
+      const refTieneAlgo =
+        referencia.nombre ||
+        referencia.apellido_paterno ||
+        referencia.apellido_materno ||
+        referencia.telefono ||
+        referencia.direccion;
+
+      if (refTieneAlgo) {
+        const { error: refErr } = await supabase.from("Refs_Afore").insert([
           {
             id_afiliado: afiliadoId,
-            ...referencia,
+            nombre: referencia.nombre || null,
+            apellido_paterno: referencia.apellido_paterno || null,
+            apellido_materno: referencia.apellido_materno || null,
+            telefono: referencia.telefono || null,
+            direccion: referencia.direccion || null,
           },
         ]);
+        if (refErr) throw refErr;
       }
 
-      // 🔹 SUBIR ARCHIVOS BENEFICIARIO
-      let fotoBenefUrl = null;
-      let docBenefUrl = null;
+      // =========================
+      // SUBIR ARCHIVOS BENEFICIARIO
+      // =========================
+      let beneficiario_foto_url = null;
+      let beneficiario_documento_url = null;
 
       if (beneficiarioFoto) {
-        const fileName = `${Date.now()}-${beneficiarioFoto.name}`;
-        await supabase.storage
-          .from(BENEFICIARIOS_BUCKET)
-          .upload(fileName, beneficiarioFoto);
+        const fName = `${Date.now()}-${beneficiarioFoto.name}`;
+        const { error: bFotoErr } = await supabase.storage
+          .from(BUCKET_BENEFICIARIOS)
+          .upload(fName, beneficiarioFoto, { upsert: false });
 
-        const { data } = supabase.storage
-          .from(BENEFICIARIOS_BUCKET)
-          .getPublicUrl(fileName);
+        if (bFotoErr) throw bFotoErr;
 
-        fotoBenefUrl = data.publicUrl;
+        const { data } = supabase.storage.from(BUCKET_BENEFICIARIOS).getPublicUrl(fName);
+        beneficiario_foto_url = data.publicUrl;
       }
 
       if (beneficiarioDoc) {
-        const fileName = `${Date.now()}-${beneficiarioDoc.name}`;
-        await supabase.storage
-          .from(BENEFICIARIOS_BUCKET)
-          .upload(fileName, beneficiarioDoc);
+        const dName = `${Date.now()}-${beneficiarioDoc.name}`;
+        const { error: bDocErr } = await supabase.storage
+          .from(BUCKET_BENEFICIARIOS)
+          .upload(dName, beneficiarioDoc, { upsert: false });
 
-        const { data } = supabase.storage
-          .from(BENEFICIARIOS_BUCKET)
-          .getPublicUrl(fileName);
+        if (bDocErr) throw bDocErr;
 
-        docBenefUrl = data.publicUrl;
+        const { data } = supabase.storage.from(BUCKET_BENEFICIARIOS).getPublicUrl(dName);
+        beneficiario_documento_url = data.publicUrl;
       }
 
-      // 🔹 GUARDAR BENEFICIARIO
-      if (beneficiario.nombre) {
-        await supabase.from("Beneficiarios_Afore").insert([
+      // =========================
+      // GUARDAR BENEFICIARIO (si llenó algo)
+      // =========================
+      const benTieneAlgo =
+        beneficiario.nombre ||
+        beneficiario.apellido_paterno ||
+        beneficiario.apellido_materno ||
+        beneficiario.telefono ||
+        beneficiario.direccion ||
+        beneficiarioFoto ||
+        beneficiarioDoc;
+
+      if (benTieneAlgo) {
+        const { error: benErr } = await supabase.from("Beneficiarios_Afore").insert([
           {
             id_afiliado: afiliadoId,
-            ...beneficiario,
-            foto_url: fotoBenefUrl,
-            documento_url: docBenefUrl,
+            nombre: beneficiario.nombre || null,
+            apellido_paterno: beneficiario.apellido_paterno || null,
+            apellido_materno: beneficiario.apellido_materno || null,
+            telefono: beneficiario.telefono || null,
+            direccion: beneficiario.direccion || null,
+            foto_url: beneficiario_foto_url,
+            documento_url: beneficiario_documento_url,
           },
         ]);
+        if (benErr) throw benErr;
       }
 
-      await onSaved();
+      if (onSaved) await onSaved();
       onClose();
     } catch (err) {
-      setError(err.message);
+      setError(err?.message || "Error al guardar.");
     } finally {
       setLoading(false);
     }
@@ -207,96 +268,215 @@ const ModalRegistrarAfiliado = ({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-50">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-4xl">
-
-        <h2 className="text-2xl font-bold mb-2">
-          {modo === "edit"
-            ? "Editar Afiliado AFORE"
-            : "Registrar Nuevo Afiliado AFORE"}
-        </h2>
+      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-5xl">
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h2 className="text-3xl font-bold text-slate-900">
+              {modo === "edit" ? "Editar Afiliado AFORE" : "Registrar Nuevo Afiliado AFORE"}
+            </h2>
+            <p className="text-slate-500 mt-1">Todos los campos son obligatorios.</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="px-5 py-2 bg-slate-200 text-slate-800 rounded-xl hover:bg-slate-300 transition"
+          >
+            Cancelar
+          </button>
+        </div>
 
         {error && (
-          <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
+          <div className="bg-red-100 text-red-700 p-3 rounded-xl border border-red-200 mb-6">
             {error}
           </div>
         )}
 
-        {/* ----------- CAMPOS ACTUALES (NO TOCADOS) ----------- */}
+        {/* =========================
+            DATOS AFILIADO + FOTO
+           ========================= */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input name="nombre" placeholder="Nombre *" value={form.nombre} onChange={handleChange} />
-          <input name="apellido_paterno" placeholder="Apellido paterno *" value={form.apellido_paterno} onChange={handleChange} />
-          <input name="apellido_materno" placeholder="Apellido materno *" value={form.apellido_materno} onChange={handleChange} />
-          <input name="email" placeholder="Correo electrónico *" value={form.email} onChange={handleChange} />
-          <input type="password" name="contraseña" placeholder="Contraseña *" value={form.contraseña} onChange={handleChange} />
-          <input name="telefono" placeholder="Teléfono *" value={form.telefono} onChange={handleChange} />
-          <input name="direccion" placeholder="Dirección *" value={form.direccion} onChange={handleChange} />
-          <input name="cp" placeholder="Código Postal *" value={form.cp} onChange={handleChange} />
+          <input className={inputBase} name="nombre" placeholder="Nombre *" value={form.nombre} onChange={handleChange} />
+          <input className={inputBase} name="apellido_paterno" placeholder="Apellido paterno *" value={form.apellido_paterno} onChange={handleChange} />
+          <input className={inputBase} name="apellido_materno" placeholder="Apellido materno *" value={form.apellido_materno} onChange={handleChange} />
+          <input className={inputBase} name="email" placeholder="Correo electrónico *" value={form.email} onChange={handleChange} />
+          <input className={inputBase} type="password" name="contraseña" placeholder="Contraseña *" value={form.contraseña} onChange={handleChange} />
+          <input className={inputBase} name="telefono" placeholder="Teléfono *" value={form.telefono} onChange={handleChange} />
+          <input className={inputBase} name="direccion" placeholder="Dirección *" value={form.direccion} onChange={handleChange} />
+          <input className={inputBase} name="cp" placeholder="Código Postal *" value={form.cp} onChange={handleChange} />
+
+          <div>
+            <div className={labelBase}>Fecha de nacimiento *</div>
+            <input className={inputBase} type="date" name="fecha_nacimiento" value={form.fecha_nacimiento} onChange={handleChange} />
+          </div>
+
+          <div>
+            <div className={labelBase}>Fecha de registro *</div>
+            <input className={inputBase} type="date" name="miembro_desde" value={form.miembro_desde} onChange={handleChange} />
+          </div>
+
+          <div className="md:col-span-2">
+            <div className={`${labelBase} font-semibold`}>Foto del afiliado *</div>
+            <input
+              className="block w-full"
+              type="file"
+              accept="image/*"
+              onChange={(e) => setFoto(e.target.files?.[0] || null)}
+            />
+            {modo === "edit" && afiliado?.foto_url && (
+              <p className="text-xs text-slate-500 mt-2">
+                Si no eliges foto nueva, se conserva la actual.
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* ---------------- REFERIDO ---------------- */}
-        <div className="mt-6 border-t pt-4">
-          <div className="font-semibold mb-2">Referido</div>
-          <label>
-            <input type="radio" checked={form.referido} onChange={() => setForm({ ...form, referido: true })} /> Sí
-          </label>
-          <label className="ml-4">
-            <input type="radio" checked={!form.referido} onChange={() => setForm({ ...form, referido: false, nombre_referido: "" })} /> No
-          </label>
+        {/* =========================
+            REFERIDO
+           ========================= */}
+        <div className="mt-6 border-t pt-6">
+          <div className="font-semibold mb-3">Referido</div>
 
-          {form.referido && (
+          <div className="flex gap-6 mb-3">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                checked={form.es_referido === true}
+                onChange={() => setForm((p) => ({ ...p, es_referido: true }))}
+              />
+              Sí
+            </label>
+
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                checked={form.es_referido === false}
+                onChange={() =>
+                  setForm((p) => ({ ...p, es_referido: false, nombre_referido: "" }))
+                }
+              />
+              No
+            </label>
+          </div>
+
+          {form.es_referido && (
             <input
-              className="mt-2 w-full"
+              className={inputBase}
               placeholder="Ingresa el Nombre completo de quien refiere"
+              name="nombre_referido"
               value={form.nombre_referido}
-              onChange={(e) =>
-                setForm({ ...form, nombre_referido: e.target.value })
-              }
+              onChange={handleChange}
             />
           )}
         </div>
 
-        {/* ----------- REFERENCIAS PERSONALES ----------- */}
+        {/* =========================
+            REFERENCIAS PERSONALES
+           ========================= */}
         <div className="mt-6 border-t pt-6">
-          <div className="font-bold mb-4">Referencias Personales</div>
+          <div className="font-bold text-slate-900 mb-4">Referencias Personales</div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input placeholder="Nombre" onChange={(e)=>setReferencia({...referencia,nombre:e.target.value})}/>
-            <input placeholder="Apellido Paterno" onChange={(e)=>setReferencia({...referencia,apellido_paterno:e.target.value})}/>
-            <input placeholder="Apellido Materno" onChange={(e)=>setReferencia({...referencia,apellido_materno:e.target.value})}/>
-            <input placeholder="Teléfono" onChange={(e)=>setReferencia({...referencia,telefono:e.target.value})}/>
-            <input placeholder="Dirección" className="md:col-span-2" onChange={(e)=>setReferencia({...referencia,direccion:e.target.value})}/>
+            <input
+              className={inputBase}
+              placeholder="Nombre"
+              value={referencia.nombre}
+              onChange={(e) => setReferencia((p) => ({ ...p, nombre: e.target.value }))}
+            />
+            <input
+              className={inputBase}
+              placeholder="Apellido Paterno"
+              value={referencia.apellido_paterno}
+              onChange={(e) => setReferencia((p) => ({ ...p, apellido_paterno: e.target.value }))}
+            />
+            <input
+              className={inputBase}
+              placeholder="Apellido Materno"
+              value={referencia.apellido_materno}
+              onChange={(e) => setReferencia((p) => ({ ...p, apellido_materno: e.target.value }))}
+            />
+            <input
+              className={inputBase}
+              placeholder="Teléfono"
+              value={referencia.telefono}
+              onChange={(e) => setReferencia((p) => ({ ...p, telefono: e.target.value }))}
+            />
+            <input
+              className={`${inputBase} md:col-span-2`}
+              placeholder="Dirección"
+              value={referencia.direccion}
+              onChange={(e) => setReferencia((p) => ({ ...p, direccion: e.target.value }))}
+            />
           </div>
         </div>
 
-        {/* ----------- BENEFICIARIO ----------- */}
-        <div className="mt-6 border-t pt-6 border-blue-600">
-          <div className="font-bold mb-4 text-blue-600">Beneficiario</div>
+        {/* =========================
+            BENEFICIARIO
+           ========================= */}
+        <div className="mt-6 pt-6 border-t-2 border-blue-600">
+          <div className="font-bold text-blue-600 mb-4">Beneficiario</div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input placeholder="Nombre" onChange={(e)=>setBeneficiario({...beneficiario,nombre:e.target.value})}/>
-            <input placeholder="Apellido Paterno" onChange={(e)=>setBeneficiario({...beneficiario,apellido_paterno:e.target.value})}/>
-            <input placeholder="Apellido Materno" onChange={(e)=>setBeneficiario({...beneficiario,apellido_materno:e.target.value})}/>
-            <input placeholder="Teléfono" onChange={(e)=>setBeneficiario({...beneficiario,telefono:e.target.value})}/>
-            <input placeholder="Dirección" className="md:col-span-2" onChange={(e)=>setBeneficiario({...beneficiario,direccion:e.target.value})}/>
+            <input
+              className={inputBase}
+              placeholder="Nombre"
+              value={beneficiario.nombre}
+              onChange={(e) => setBeneficiario((p) => ({ ...p, nombre: e.target.value }))}
+            />
+            <input
+              className={inputBase}
+              placeholder="Apellido Paterno"
+              value={beneficiario.apellido_paterno}
+              onChange={(e) => setBeneficiario((p) => ({ ...p, apellido_paterno: e.target.value }))}
+            />
+            <input
+              className={inputBase}
+              placeholder="Apellido Materno"
+              value={beneficiario.apellido_materno}
+              onChange={(e) => setBeneficiario((p) => ({ ...p, apellido_materno: e.target.value }))}
+            />
+            <input
+              className={inputBase}
+              placeholder="Teléfono"
+              value={beneficiario.telefono}
+              onChange={(e) => setBeneficiario((p) => ({ ...p, telefono: e.target.value }))}
+            />
+            <input
+              className={`${inputBase} md:col-span-2`}
+              placeholder="Dirección"
+              value={beneficiario.direccion}
+              onChange={(e) => setBeneficiario((p) => ({ ...p, direccion: e.target.value }))}
+            />
 
-            <input type="file" onChange={(e)=>setBeneficiarioFoto(e.target.files[0])}/>
-            <input type="file" onChange={(e)=>setBeneficiarioDoc(e.target.files[0])}/>
+            <div className="md:col-span-2">
+              <div className={labelBase}>Documento (opcional)</div>
+              <input type="file" onChange={(e) => setBeneficiarioDoc(e.target.files?.[0] || null)} />
+            </div>
+
+            <div className="md:col-span-2">
+              <div className={labelBase}>Foto (opcional)</div>
+              <input type="file" accept="image/*" onChange={(e) => setBeneficiarioFoto(e.target.files?.[0] || null)} />
+            </div>
           </div>
         </div>
 
+        {/* =========================
+            FOOTER
+           ========================= */}
         <div className="flex justify-end gap-3 mt-8">
-          <button onClick={onClose} className="px-5 py-2 border rounded-xl">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition"
+          >
             Cancelar
           </button>
+
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="px-6 py-2 bg-blue-600 text-white rounded-xl"
+            className="px-6 py-2 bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 transition-all"
           >
             {loading ? "Guardando..." : "Guardar"}
           </button>
         </div>
-
       </div>
     </div>
   );
