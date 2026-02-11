@@ -93,10 +93,12 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
     }
   };
 
-  useEffect(() => {
+ useEffect(() => {
+  if (afiliado?.id_afiliado) {
     fetchExtras();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [afiliado?.id_afiliado]);
+  }
+}, [afiliado]);
+
 
   // “Referido Por:” (regla: si es_referido = false -> No Referido, si true -> nombre_referido)
   const referidoPor = afiliado?.es_referido
