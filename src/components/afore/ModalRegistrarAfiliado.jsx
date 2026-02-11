@@ -66,12 +66,12 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
   }, [modo, afiliado]);
 
   const handleChange = (e) =>
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    setForm({ ...form, [e.target.name]: e.target.value });
 
-  const inputBase =
-    "w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
+  const inputStyle =
+    "w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500";
 
-  const labelBase = "text-sm font-medium text-slate-700 mb-1";
+  const labelStyle = "text-sm font-medium text-slate-700 mb-1";
 
   const handleSubmit = async () => {
     setError("");
@@ -97,8 +97,7 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
       return;
     }
 
-    const confirmar = window.confirm("¿Estas seguro de guardar los cambios realizados?");
-    if (!confirmar) return;
+    if (!window.confirm("¿Estas seguro de guardar los cambios realizados?")) return;
 
     setLoading(true);
 
@@ -109,7 +108,7 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
         const fileName = `${Date.now()}-${foto.name}`;
         const { error: uploadError } = await supabase.storage
           .from(BUCKET_AFILIADOS)
-          .upload(fileName, foto, { upsert: false });
+          .upload(fileName, foto);
 
         if (uploadError) throw uploadError;
 
@@ -121,23 +120,13 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
       }
 
       const payload = {
-        nombre: form.nombre,
-        apellido_paterno: form.apellido_paterno,
-        apellido_materno: form.apellido_materno,
-        email: form.email,
-        contraseña: form.contraseña,
-        telefono: form.telefono,
-        direccion: form.direccion,
-        cp: form.cp,
-        fecha_nacimiento: form.fecha_nacimiento,
-        miembro_desde: form.miembro_desde,
-        estatus: form.estatus,
+        ...form,
         foto_url,
         es_referido: !!form.es_referido,
         nombre_referido: form.es_referido ? form.nombre_referido : "Nuevo",
       };
 
-      let afiliadoId = afiliado?.id_afiliado || null;
+      let afiliadoId = afiliado?.id_afiliado;
 
       if (modo === "new") {
         const { data, error } = await supabase
@@ -157,10 +146,47 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
         if (error) throw error;
       }
 
+      if (referencia.nombre) {
+        await supabase.from("Refs_Afore").insert([
+          { ...referencia, id_afiliado: afiliadoId },
+        ]);
+      }
+
+      if (beneficiario.nombre) {
+        let foto_url = null;
+        let doc_url = null;
+
+        if (beneficiarioFoto) {
+          const fileName = `${Date.now()}-${beneficiarioFoto.name}`;
+          await supabase.storage
+            .from(BUCKET_BENEFICIARIOS)
+            .upload(fileName, beneficiarioFoto);
+          const { data } = supabase.storage
+            .from(BUCKET_BENEFICIARIOS)
+            .getPublicUrl(fileName);
+          foto_url = data.publicUrl;
+        }
+
+        if (beneficiarioDoc) {
+          const fileName = `${Date.now()}-${beneficiarioDoc.name}`;
+          await supabase.storage
+            .from(BUCKET_BENEFICIARIOS)
+            .upload(fileName, beneficiarioDoc);
+          const { data } = supabase.storage
+            .from(BUCKET_BENEFICIARIOS)
+            .getPublicUrl(fileName);
+          doc_url = data.publicUrl;
+        }
+
+        await supabase.from("Beneficiarios_Afore").insert([
+          { ...beneficiario, id_afiliado: afiliadoId, foto_url, documento_url: doc_url },
+        ]);
+      }
+
       if (onSaved) await onSaved();
       onClose();
     } catch (err) {
-      setError(err?.message || "Error al guardar.");
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -168,15 +194,13 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-50">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-4xl">
-        <h2 className="text-2xl font-bold text-slate-900 mb-1">
+      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-5xl">
+        <h2 className="text-2xl font-bold mb-1">
           {modo === "edit"
             ? "Editar Afiliado AFORE"
             : "Registrar Nuevo Afiliado AFORE"}
         </h2>
-        <p className="text-slate-500 mb-6">
-          Todos los campos son obligatorios.
-        </p>
+        <p className="text-slate-500 mb-6">Todos los campos son obligatorios.</p>
 
         {error && (
           <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4">
@@ -184,9 +208,50 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
           </div>
         )}
 
-        {/* CONTINÚA TU FORMULARIO EXACTAMENTE IGUAL */}
-        {/* NO CAMBIÉ NADA MÁS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
+          <input className={inputStyle} name="nombre" placeholder="Nombre *" value={form.nombre} onChange={handleChange} />
+          <input className={inputStyle} name="apellido_paterno" placeholder="Apellido paterno *" value={form.apellido_paterno} onChange={handleChange} />
+          <input className={inputStyle} name="apellido_materno" placeholder="Apellido materno *" value={form.apellido_materno} onChange={handleChange} />
+          <input className={inputStyle} name="email" placeholder="Correo electrónico *" value={form.email} onChange={handleChange} />
+          <input className={inputStyle} type="password" name="contraseña" placeholder="Contraseña *" value={form.contraseña} onChange={handleChange} />
+          <input className={inputStyle} name="telefono" placeholder="Teléfono *" value={form.telefono} onChange={handleChange} />
+          <input className={inputStyle} name="direccion" placeholder="Dirección *" value={form.direccion} onChange={handleChange} />
+          <input className={inputStyle} name="cp" placeholder="Código Postal *" value={form.cp} onChange={handleChange} />
+
+          <input className={inputStyle} type="date" name="fecha_nacimiento" value={form.fecha_nacimiento} onChange={handleChange} />
+          <input className={inputStyle} type="date" name="miembro_desde" value={form.miembro_desde} onChange={handleChange} />
+
+        </div>
+
+        {/* FOTO */}
+        <div className="mt-4">
+          <label className={labelStyle}>Foto del afiliado *</label>
+          <input type="file" onChange={(e) => setFoto(e.target.files[0])} />
+        </div>
+
+        {/* REFERIDO */}
+        <div className="mt-6 border-t pt-4">
+          <div className="font-semibold mb-2">Referido</div>
+          <div className="flex gap-6">
+            <label>
+              <input type="radio" checked={form.es_referido} onChange={() => setForm({ ...form, es_referido: true })}/> Sí
+            </label>
+            <label>
+              <input type="radio" checked={!form.es_referido} onChange={() => setForm({ ...form, es_referido: false, nombre_referido: "" })}/> No
+            </label>
+          </div>
+          {form.es_referido && (
+            <input className={inputStyle + " mt-3"} name="nombre_referido" placeholder="Nombre completo de quien refiere" value={form.nombre_referido} onChange={handleChange} />
+          )}
+        </div>
+
+        <div className="flex justify-end gap-3 mt-8">
+          <button onClick={onClose} className="px-5 py-2 border rounded-xl">Cancelar</button>
+          <button onClick={handleSubmit} disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded-xl">
+            {loading ? "Guardando..." : "Guardar"}
+          </button>
+        </div>
       </div>
     </div>
   );
