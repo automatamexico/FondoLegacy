@@ -1,3 +1,5 @@
+console.log("🔥 AforeAfiliadosModule ACTIVO 🔥");
+
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../supabaseClient";
 import ModalRegistrarAfiliado from "./ModalRegistrarAfiliado";
