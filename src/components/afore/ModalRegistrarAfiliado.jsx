@@ -1,27 +1,7 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { supabase } from "../../supabaseClient";
 
-const BUCKET_NAME = "Fotos-Afiliados";
-
-const fieldLabels = {
-  nombre: "Nombre",
-  apellido_paterno: "Apellido paterno",
-  apellido_materno: "Apellido materno",
-  email: "Correo electrónico",
-  contraseña: "Contraseña",
-  telefono: "Teléfono",
-  direccion: "Dirección",
-  cp: "Código Postal",
-  miembro_desde: "Fecha de registro",
-  fecha_nacimiento: "Fecha de nacimiento",
-  foto: "Foto del afiliado",
-};
-
-const inputBase =
-  "w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 " +
-  "focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300";
-
-const ModalRegistrarAfiliado = ({ onClose, onSaved }) => {
+const ModalRegistrarAfiliado = ({ onClose, onSaved, bucketName }) => {
   const [form, setForm] = useState({
     nombre: "",
     apellido_paterno: "",
@@ -31,65 +11,67 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved }) => {
     telefono: "",
     direccion: "",
     cp: "",
-    miembro_desde: "",
     fecha_nacimiento: "",
+    miembro_desde: "",
+    estatus: "activo",
   });
 
-  const [fotoFile, setFotoFile] = useState(null);
-  const [fotoPreview, setFotoPreview] = useState("");
+  const [foto, setFoto] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [missingFields, setMissingFields] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const dropRef = useRef(null);
 
-  const initials = useMemo(() => {
-    const n = (form.nombre || "").trim();
-    const a = (form.apellido_paterno || "").trim();
-    const i1 = n ? n[0].toUpperCase() : "A";
-    const i2 = a ? a[0].toUpperCase() : "F";
-    return `${i1}${i2}`;
-  }, [form.nombre, form.apellido_paterno]);
-
-  const validatePhoto = (file) => {
-    if (!file) return "Selecciona una imagen.";
-    const okTypes = ["image/jpeg", "image/png"];
-    if (!okTypes.includes(file.type)) return "Solo JPG o PNG.";
-    const maxMB = 5;
-    if (file.size > maxMB * 1024 * 1024) return `Máximo ${maxMB} MB.`;
-    return "";
-  };
+  const fields = useMemo(
+    () => [
+      { key: "nombre", label: "Nombre" },
+      { key: "apellido_paterno", label: "Apellido Paterno" },
+      { key: "apellido_materno", label: "Apellido Materno" },
+      { key: "email", label: "Correo electrónico" },
+      { key: "contraseña", label: "Contraseña" },
+      { key: "telefono", label: "Teléfono" },
+      { key: "direccion", label: "Dirección" },
+      { key: "cp", label: "Código Postal" },
+      { key: "fecha_nacimiento", label: "Fecha de nacimiento" },
+      { key: "miembro_desde", label: "Fecha de registro (miembro desde)" },
+      { key: "estatus", label: "Estatus" },
+      { key: "foto", label: "Foto del afiliado" },
+    ],
+    []
+  );
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
   };
 
-  const handlePickPhoto = (file) => {
-    const msg = validatePhoto(file);
-    if (msg) {
-      setFotoFile(null);
-      setFotoPreview("");
-      setError(msg);
-      return;
-    }
-    setError("");
-    setFotoFile(file);
-    setFotoPreview(URL.createObjectURL(file));
+  const sanitizeFileName = (name) => {
+    return (name || "foto")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\w.\-]+/g, "_");
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    dropRef.current?.classList.remove("ring-2", "ring-blue-500");
-    const f = e.dataTransfer.files?.[0];
-    if (f) handlePickPhoto(f);
+  const uploadFoto = async (file) => {
+    const safe = sanitizeFileName(file.name);
+    const path = `afiliados/${Date.now()}-${safe}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(bucketName)
+      .upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || "image/jpeg",
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from(bucketName).getPublicUrl(path);
+    return data?.publicUrl || null;
   };
 
-  const handleSubmit = async () => {
-    setError("");
-    setMissingFields([]);
+  const validate = () => {
+    const missing = [];
 
-    // ✅ TODOS obligatorios (incluye foto)
-    const required = [
+    // Todos obligatorios (incluida foto)
+    const requiredKeys = [
       "nombre",
       "apellido_paterno",
       "apellido_materno",
@@ -98,125 +80,122 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved }) => {
       "telefono",
       "direccion",
       "cp",
-      "miembro_desde",
       "fecha_nacimiento",
+      "miembro_desde",
+      "estatus",
     ];
 
-    const missing = required.filter((k) => !String(form[k] || "").trim());
-    if (!fotoFile) missing.push("foto");
+    requiredKeys.forEach((k) => {
+      if (!String(form[k] ?? "").trim()) missing.push(k);
+    });
+
+    if (!foto) missing.push("foto");
 
     if (missing.length) {
-      setMissingFields(missing);
-      setError("Faltan campos obligatorios. Revisa lo marcado.");
+      const msg = missing
+        .map((k) => fields.find((f) => f.key === k)?.label || k)
+        .join(", ");
+      return `Te faltan campos obligatorios: ${msg}`;
+    }
+
+    // Mini sanity
+    if (!form.email.includes("@")) return "El correo electrónico no parece válido.";
+    if (String(form.contraseña).trim().length < 4) return "La contraseña debe tener al menos 4 caracteres.";
+
+    return "";
+  };
+
+  const handleSubmit = async () => {
+    setError("");
+    const v = validate();
+    if (v) {
+      setError(v);
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
 
     try {
-      // 1) Subir foto a Storage
-      const ext = fotoFile.type === "image/png" ? "png" : "jpg";
-      const fileNameSafe =
-        `${Date.now()}_${(form.nombre || "afiliado").trim()}`.replace(/\s+/g, "_");
-      const path = `afiliado_${fileNameSafe}.${ext}`;
+      let foto_url = null;
 
-      const { error: uploadError } = await supabase.storage
-        .from(BUCKET_NAME)
-        .upload(path, fotoFile, {
-          cacheControl: "3600",
-          upsert: true,
-          contentType: fotoFile.type,
-        });
+      if (foto) {
+        foto_url = await uploadFoto(foto);
+      }
 
-      if (uploadError) throw uploadError;
+      const payload = {
+        nombre: form.nombre.trim(),
+        apellido_paterno: form.apellido_paterno.trim(),
+        apellido_materno: form.apellido_materno.trim(),
+        email: form.email.trim(),
+        contraseña: form.contraseña,
+        telefono: form.telefono.trim(),
+        direccion: form.direccion.trim(),
+        cp: form.cp.trim(),
+        fecha_nacimiento: form.fecha_nacimiento,
+        miembro_desde: form.miembro_desde,
+        estatus: form.estatus,
+        foto_url,
+      };
 
-      const { data: pub } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
-      const foto_url = pub?.publicUrl || null;
-
-      // 2) Insertar afiliado
-      const { error: insertError } = await supabase.from("afore_afiliados").insert([
-        {
-          ...form,
-          foto_url,
-          estatus: "activo",
-        },
-      ]);
+      const { error: insertError } = await supabase.from("afore_afiliados").insert([payload]);
 
       if (insertError) throw insertError;
 
-      // refrescar tabla si tu módulo lo soporta
-      if (typeof onSaved === "function") onSaved();
-
-      onClose();
+      onSaved?.();
     } catch (err) {
-      setError(err?.message || "Error al guardar.");
+      setError(err?.message || "Error desconocido al guardar.");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const showMissing = (k) => missingFields.includes(k);
-
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-5xl p-6 md:p-8 shadow-xl">
-        <div className="flex items-start justify-between gap-4">
+    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-5xl">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">
-              Registrar Afiliado AFORE
-            </h2>
-            <p className="text-sm text-slate-500 mt-1">
-              Todos los campos son obligatorios.
-            </p>
+            <h3 className="text-2xl font-bold text-slate-900">Registrar Afiliado AFORE</h3>
+            <p className="text-slate-600 text-sm mt-1">Todos los campos son obligatorios, incluida la foto.</p>
           </div>
 
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50"
-          >
-            Cancelar
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-900">
+            Cerrar
           </button>
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-700 border border-red-200 p-3 rounded-xl mt-4">
-            <div className="font-semibold">{error}</div>
-
-            {missingFields.length > 0 && (
-              <ul className="mt-2 list-disc pl-5 text-sm">
-                {missingFields.map((k) => (
-                  <li key={k}>{fieldLabels[k] || k}</li>
-                ))}
-              </ul>
-            )}
+          <div className="bg-red-100 text-red-700 p-3 rounded-xl border border-red-200 mb-4">
+            {error}
           </div>
         )}
 
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <input
-            className={`${inputBase} ${showMissing("nombre") ? "border-red-300" : ""}`}
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             name="nombre"
             placeholder="Nombre *"
             value={form.nombre}
             onChange={handleChange}
           />
+
           <input
-            className={`${inputBase} ${showMissing("apellido_paterno") ? "border-red-300" : ""}`}
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             name="apellido_paterno"
-            placeholder="Apellido paterno *"
+            placeholder="Apellido Paterno *"
             value={form.apellido_paterno}
             onChange={handleChange}
           />
 
           <input
-            className={`${inputBase} ${showMissing("apellido_materno") ? "border-red-300" : ""}`}
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             name="apellido_materno"
-            placeholder="Apellido materno *"
+            placeholder="Apellido Materno *"
             value={form.apellido_materno}
             onChange={handleChange}
           />
+
           <input
-            className={`${inputBase} ${showMissing("email") ? "border-red-300" : ""}`}
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             name="email"
             placeholder="Correo electrónico *"
             value={form.email}
@@ -224,15 +203,16 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved }) => {
           />
 
           <input
-            className={`${inputBase} ${showMissing("contraseña") ? "border-red-300" : ""}`}
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="password"
             name="contraseña"
             placeholder="Contraseña *"
             value={form.contraseña}
             onChange={handleChange}
           />
+
           <input
-            className={`${inputBase} ${showMissing("telefono") ? "border-red-300" : ""}`}
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             name="telefono"
             placeholder="Teléfono *"
             value={form.telefono}
@@ -240,113 +220,108 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved }) => {
           />
 
           <input
-            className={`${inputBase} ${showMissing("direccion") ? "border-red-300" : ""}`}
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             name="direccion"
             placeholder="Dirección *"
             value={form.direccion}
             onChange={handleChange}
           />
+
           <input
-            className={`${inputBase} ${showMissing("cp") ? "border-red-300" : ""}`}
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             name="cp"
             placeholder="Código Postal *"
             value={form.cp}
             onChange={handleChange}
           />
 
-          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700">
-                Fecha de registro *
-              </label>
-              <input
-                className={`${inputBase} mt-2 ${showMissing("miembro_desde") ? "border-red-300" : ""}`}
-                type="date"
-                name="miembro_desde"
-                value={form.miembro_desde}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-slate-700">
-                Fecha de nacimiento *
-              </label>
-              <input
-                className={`${inputBase} mt-2 ${showMissing("fecha_nacimiento") ? "border-red-300" : ""}`}
-                type="date"
-                name="fecha_nacimiento"
-                value={form.fecha_nacimiento}
-                onChange={handleChange}
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Fecha de nacimiento *</label>
+            <input
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              type="date"
+              name="fecha_nacimiento"
+              value={form.fecha_nacimiento}
+              onChange={handleChange}
+            />
           </div>
 
-          {/* FOTO (estilo tipo Socios) */}
-          <div className="md:col-span-2 mt-2">
-            <label className="text-sm font-medium text-slate-700">
-              Foto del afiliado (JPG o PNG) *
-            </label>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Fecha de registro (Miembro desde) *</label>
+            <input
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              type="date"
+              name="miembro_desde"
+              value={form.miembro_desde}
+              onChange={handleChange}
+            />
+          </div>
 
-            <div
-              ref={dropRef}
-              onDragOver={(e) => {
-                e.preventDefault();
-                dropRef.current?.classList.add("ring-2", "ring-blue-500");
-              }}
-              onDragLeave={() => dropRef.current?.classList.remove("ring-2", "ring-blue-500")}
-              onDrop={handleDrop}
-              className={`mt-2 rounded-2xl border-2 border-dashed p-5 flex items-center gap-4 ${
-                showMissing("foto") ? "border-red-300" : "border-slate-200"
-              }`}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-slate-700 mb-2">Estatus *</label>
+            <select
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              name="estatus"
+              value={form.estatus}
+              onChange={handleChange}
             >
-              <div className="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold overflow-hidden">
-                {fotoPreview ? (
-                  <img
-                    src={fotoPreview}
-                    alt="preview"
-                    className="w-full h-full object-cover"
+              <option value="activo">activo</option>
+              <option value="inactivo">inactivo</option>
+              <option value="bloqueado">bloqueado</option>
+            </select>
+          </div>
+
+          {/* Foto look&feel tipo Socios */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-slate-700 mb-2">Foto del afiliado (JPG o PNG) *</label>
+
+            <div className="w-full border-2 border-dashed border-slate-300 rounded-2xl p-4 bg-slate-50">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
+                  AF
+                </div>
+
+                <div className="flex-1">
+                  <div className="text-slate-700 font-medium">Arrastra y suelta la foto aquí</div>
+                  <div className="text-slate-500 text-sm">o</div>
+
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setFoto(e.target.files?.[0] || null)}
+                    className="mt-2 block"
                   />
-                ) : (
-                  initials
-                )}
-              </div>
 
-              <div className="flex-1">
-                <div className="font-semibold text-slate-800">
-                  Arrastra y suelta la foto aquí
-                </div>
-                <div className="text-sm text-slate-500">o</div>
-                <div className="mt-2">
-                  <label className="inline-flex items-center px-4 py-2 rounded-xl bg-slate-900 text-white cursor-pointer hover:bg-slate-800">
-                    Elegir archivo
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg"
-                      className="hidden"
-                      onChange={(e) => handlePickPhoto(e.target.files?.[0])}
-                    />
-                  </label>
-                  <span className="ml-3 text-sm text-slate-600">
-                    {fotoFile ? fotoFile.name : "No se ha seleccionado ningún archivo"}
-                  </span>
-                </div>
-
-                <div className="text-xs text-slate-400 mt-2">
-                  Bucket: {BUCKET_NAME}
+                  <div className="text-xs text-slate-500 mt-2">
+                    Bucket: <span className="font-medium">{bucketName}</span>
+                    {foto?.name ? (
+                      <>
+                        {" · "}Archivo: <span className="font-medium">{foto.name}</span>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          className="mt-6 w-full py-3 rounded-2xl bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-60"
-        >
-          {loading ? "Guardando..." : "Guardar Afiliado"}
-        </button>
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 border border-slate-200 rounded-xl hover:bg-slate-50"
+          >
+            Cancelar
+          </button>
+
+          <button
+            onClick={handleSubmit}
+            disabled={saving}
+            className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 disabled:opacity-60"
+          >
+            {saving ? "Guardando..." : "Guardar Afiliado"}
+          </button>
+        </div>
       </div>
     </div>
   );
