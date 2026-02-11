@@ -21,7 +21,7 @@ const ModalRegistrarAfiliado = ({
     fecha_nacimiento: "",
     miembro_desde: "",
     estatus: "activo",
-    referido: false,
+    es_referido: false,
     nombre_referido: "",
   });
 
@@ -29,13 +29,26 @@ const ModalRegistrarAfiliado = ({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // 🔥 PRECARGAR DATOS SI ES EDICIÓN
   useEffect(() => {
     if (modo === "edit" && afiliado) {
       setForm({
-        ...form,
-        ...afiliado,
-        referido: afiliado.referido || false,
-        nombre_referido: afiliado.nombre_referido || "",
+        nombre: afiliado.nombre || "",
+        apellido_paterno: afiliado.apellido_paterno || "",
+        apellido_materno: afiliado.apellido_materno || "",
+        email: afiliado.email || "",
+        contraseña: afiliado.contraseña || "",
+        telefono: afiliado.telefono || "",
+        direccion: afiliado.direccion || "",
+        cp: afiliado.cp || "",
+        fecha_nacimiento: afiliado.fecha_nacimiento || "",
+        miembro_desde: afiliado.miembro_desde || "",
+        estatus: afiliado.estatus || "activo",
+        es_referido: afiliado.es_referido || false,
+        nombre_referido:
+          afiliado.nombre_referido && afiliado.nombre_referido !== "Nuevo"
+            ? afiliado.nombre_referido
+            : "",
       });
     }
   }, [modo, afiliado]);
@@ -60,7 +73,7 @@ const ModalRegistrarAfiliado = ({
       return;
     }
 
-    if (form.referido && !form.nombre_referido) {
+    if (form.es_referido && !form.nombre_referido) {
       setError("Debes ingresar el nombre completo de quien refiere.");
       return;
     }
@@ -91,18 +104,29 @@ const ModalRegistrarAfiliado = ({
       }
 
       const payload = {
-        ...form,
-        foto_url,
-        referido: form.referido,
-        nombre_referido: form.referido
+        nombre: form.nombre,
+        apellido_paterno: form.apellido_paterno,
+        apellido_materno: form.apellido_materno,
+        email: form.email,
+        contraseña: form.contraseña,
+        telefono: form.telefono,
+        direccion: form.direccion,
+        cp: form.cp,
+        fecha_nacimiento: form.fecha_nacimiento,
+        miembro_desde: form.miembro_desde,
+        estatus: form.estatus,
+        es_referido: form.es_referido,
+        nombre_referido: form.es_referido
           ? form.nombre_referido
           : "Nuevo",
+        foto_url,
       };
 
       if (modo === "new") {
         const { error } = await supabase
           .from("afore_afiliados")
           .insert([payload]);
+
         if (error) throw error;
       } else {
         const { error } = await supabase
@@ -133,6 +157,7 @@ const ModalRegistrarAfiliado = ({
             ? "Editar Afiliado AFORE"
             : "Registrar Nuevo Afiliado AFORE"}
         </h2>
+
         <p className="text-slate-500 mb-6">
           Todos los campos son obligatorios.
         </p>
@@ -144,7 +169,6 @@ const ModalRegistrarAfiliado = ({
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
           <input className="input" name="nombre" placeholder="Nombre *" value={form.nombre} onChange={handleChange} />
           <input className="input" name="apellido_paterno" placeholder="Apellido paterno *" value={form.apellido_paterno} onChange={handleChange} />
           <input className="input" name="apellido_materno" placeholder="Apellido materno *" value={form.apellido_materno} onChange={handleChange} />
@@ -153,10 +177,8 @@ const ModalRegistrarAfiliado = ({
           <input className="input" name="telefono" placeholder="Teléfono *" value={form.telefono} onChange={handleChange} />
           <input className="input" name="direccion" placeholder="Dirección *" value={form.direccion} onChange={handleChange} />
           <input className="input" name="cp" placeholder="Código Postal *" value={form.cp} onChange={handleChange} />
-
           <input className="input" type="date" name="fecha_nacimiento" value={form.fecha_nacimiento} onChange={handleChange} />
           <input className="input" type="date" name="miembro_desde" value={form.miembro_desde} onChange={handleChange} />
-
         </div>
 
         {/* REFERIDO */}
@@ -167,19 +189,21 @@ const ModalRegistrarAfiliado = ({
             <label>
               <input
                 type="radio"
-                checked={form.referido === true}
-                onChange={() => setForm({ ...form, referido: true })}
+                checked={form.es_referido === true}
+                onChange={() =>
+                  setForm({ ...form, es_referido: true })
+                }
               />{" "}
               Sí
             </label>
             <label>
               <input
                 type="radio"
-                checked={form.referido === false}
+                checked={form.es_referido === false}
                 onChange={() =>
                   setForm({
                     ...form,
-                    referido: false,
+                    es_referido: false,
                     nombre_referido: "",
                   })
                 }
@@ -188,7 +212,7 @@ const ModalRegistrarAfiliado = ({
             </label>
           </div>
 
-          {form.referido && (
+          {form.es_referido && (
             <input
               className="input w-full"
               placeholder="Ingresa el Nombre completo de quien refiere"
@@ -203,6 +227,7 @@ const ModalRegistrarAfiliado = ({
           <button onClick={onClose} className="px-5 py-2 border rounded-xl">
             Cancelar
           </button>
+
           <button
             onClick={handleSubmit}
             disabled={loading}
