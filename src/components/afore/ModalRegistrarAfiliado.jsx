@@ -206,7 +206,7 @@ const ModalRegistrarAfiliado = ({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-50">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-5xl">
+      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-5xl max-h-[90vh] overflow-y-auto">
         <h2 className="text-2xl font-bold mb-1">
           {modo === "edit"
             ? "Editar Afiliado AFORE"
