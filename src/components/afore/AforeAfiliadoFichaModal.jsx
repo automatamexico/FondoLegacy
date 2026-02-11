@@ -16,8 +16,13 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
   const [docBen, setDocBen] = useState(null);
 
   // ============================
-  // CARGAR DATOS
+  // CARGA DATOS
   // ============================
+
+  useEffect(() => {
+    cargarReferencias();
+    cargarBeneficiarios();
+  }, [afiliado]);
 
   const cargarReferencias = async () => {
     const { data } = await supabase
@@ -35,10 +40,32 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
     setBeneficiarios(data || []);
   };
 
-  useEffect(() => {
-    cargarReferencias();
-    cargarBeneficiarios();
-  }, [afiliado]);
+  // ============================
+  // UTILIDADES
+  // ============================
+
+  const fmtFecha = (isoDate) => {
+    if (!isoDate) return "-";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+      const [y, m, d] = isoDate.split("-").map(Number);
+      const dt = new Date(y, m - 1, d);
+      return dt.toLocaleDateString("es-MX", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    }
+    const dt = new Date(isoDate);
+    if (Number.isNaN(dt.getTime())) return String(isoDate);
+    return dt.toLocaleDateString("es-MX");
+  };
+
+  const fmtDateTime = (iso) => {
+    if (!iso) return "-";
+    const dt = new Date(iso);
+    if (Number.isNaN(dt.getTime())) return String(iso);
+    return dt.toLocaleString("es-MX");
+  };
 
   // ============================
   // REFERENCIAS
@@ -64,10 +91,7 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
 
   const eliminarReferencia = async (r) => {
     if (!window.confirm("¿Eliminar esta referencia?")) return;
-    await supabase
-      .from("refs_afore")
-      .delete()
-      .eq("id_ref", r.id_ref);
+    await supabase.from("refs_afore").delete().eq("id_ref", r.id_ref);
     cargarReferencias();
   };
 
@@ -138,14 +162,63 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-3xl">
+      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-4xl">
 
+        {/* HEADER */}
         <div className="flex justify-between mb-6">
           <h2 className="text-xl font-bold">Ficha del Afiliado</h2>
           <button onClick={onClose}>Cerrar</button>
         </div>
 
-        {/* ================= REFERENCIAS ================= */}
+        {/* ================== DATOS PRINCIPALES ================== */}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">Nombre Completo</div>
+            <div className="font-medium">
+              {afiliado.nombre} {afiliado.apellido_paterno} {afiliado.apellido_materno}
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">Correo</div>
+            <div className="font-medium">{afiliado.email}</div>
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">Teléfono</div>
+            <div className="font-medium">{afiliado.telefono || "-"}</div>
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">Dirección</div>
+            <div className="font-medium">{afiliado.direccion || "-"}</div>
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">Fecha Nacimiento</div>
+            <div className="font-medium">{fmtFecha(afiliado.fecha_nacimiento)}</div>
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">Miembro desde</div>
+            <div className="font-medium">{fmtFecha(afiliado.miembro_desde)}</div>
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">Creado</div>
+            <div className="font-medium">{fmtDateTime(afiliado.created_at)}</div>
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">Actualizado</div>
+            <div className="font-medium">{fmtDateTime(afiliado.updated_at)}</div>
+          </div>
+
+        </div>
+
+        {/* ================== REFERENCIAS ================== */}
 
         <div className="h-1 bg-blue-600 rounded-full mt-6"></div>
         <h3 className="font-bold mt-4 mb-3">Referencias Personales</h3>
@@ -180,26 +253,7 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
           </div>
         ))}
 
-        {refForm && (
-          <div className="bg-slate-100 p-4 rounded mt-3">
-            <input
-              placeholder="Nombre"
-              value={refForm.nombre}
-              onChange={(e) =>
-                setRefForm({ ...refForm, nombre: e.target.value })
-              }
-              className="border p-2 w-full mb-2"
-            />
-            <button
-              onClick={guardarReferencia}
-              className="px-3 py-1 bg-green-600 text-white rounded"
-            >
-              Guardar
-            </button>
-          </div>
-        )}
-
-        {/* ================= BENEFICIARIOS ================= */}
+        {/* ================== BENEFICIARIOS ================== */}
 
         <div className="h-1 bg-blue-600 rounded-full mt-8"></div>
         <h3 className="font-bold mt-4 mb-3">Beneficiarios</h3>
@@ -227,47 +281,12 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
             <div className="text-sm">{b.telefono}</div>
             <div className="flex gap-3 mt-2">
               <button onClick={() => setBenForm(b)}>Editar</button>
-              <button
-                onClick={() => eliminarBeneficiario(b)}
-                className="text-red-600"
-              >
+              <button onClick={() => eliminarBeneficiario(b)} className="text-red-600">
                 Eliminar
               </button>
             </div>
           </div>
         ))}
-
-        {benForm && (
-          <div className="bg-slate-100 p-4 rounded mt-3">
-            <input
-              placeholder="Nombre"
-              value={benForm.nombre}
-              onChange={(e) =>
-                setBenForm({ ...benForm, nombre: e.target.value })
-              }
-              className="border p-2 w-full mb-2"
-            />
-
-            <input
-              type="file"
-              onChange={(e) => setFotoBen(e.target.files[0])}
-              className="mb-2"
-            />
-
-            <input
-              type="file"
-              onChange={(e) => setDocBen(e.target.files[0])}
-              className="mb-2"
-            />
-
-            <button
-              onClick={guardarBeneficiario}
-              className="px-3 py-1 bg-green-600 text-white rounded"
-            >
-              Guardar
-            </button>
-          </div>
-        )}
 
       </div>
     </div>
