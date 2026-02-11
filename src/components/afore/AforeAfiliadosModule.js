@@ -18,6 +18,8 @@ const AforeAfiliadosModule = () => {
   const [editAfiliado, setEditAfiliado] = useState(null);
   const [ficha, setFicha] = useState(null);
 
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
   const cargarAfiliados = async () => {
     setLoading(true);
     setError("");
@@ -79,25 +81,21 @@ const AforeAfiliadosModule = () => {
     return "bg-slate-100 text-slate-700";
   };
 
-  const borrarAfiliado = async (afiliado) => {
+  const confirmarEliminacion = async () => {
+    if (!confirmDelete) return;
+
     try {
-      setError("");
-
-      const ok = window.confirm(
-        `¿Eliminar al afiliado "${afiliado.nombre} ${afiliado.apellido_paterno}"?`
-      );
-      if (!ok) return;
-
       const { error } = await supabase
         .from("afore_afiliados")
         .delete()
-        .eq("id_afiliado", afiliado.id_afiliado);
+        .eq("id_afiliado", confirmDelete.id_afiliado);
 
       if (error) throw error;
 
+      setConfirmDelete(null);
       await cargarAfiliados();
     } catch (e) {
-      setError(e?.message || "No se pudo borrar el afiliado.");
+      setError(e.message);
     }
   };
 
@@ -106,9 +104,7 @@ const AforeAfiliadosModule = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-slate-900">Afiliados AFORE</h2>
-          <p className="text-slate-600 mt-1">
-            Administra los afiliados del módulo AFORE.
-          </p>
+          <p className="text-slate-600 mt-1">Administra los afiliados del módulo AFORE.</p>
         </div>
 
         <button
@@ -116,7 +112,7 @@ const AforeAfiliadosModule = () => {
             setEditAfiliado(null);
             setShowForm(true);
           }}
-          className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 transition-all duration-300 transform hover:scale-[1.02]"
+          className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 transition-all"
         >
           + Nuevo Afiliado
         </button>
@@ -135,7 +131,7 @@ const AforeAfiliadosModule = () => {
             placeholder="Buscar por nombre, correo, teléfono o estatus..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl"
           />
         </div>
 
@@ -164,52 +160,38 @@ const AforeAfiliadosModule = () => {
                     <td className="py-4 px-4">
                       <img
                         src={a.foto_url || avatarFallback(a)}
-                        alt="foto"
                         className="w-10 h-10 rounded-full object-cover border"
-                        onError={(e) => {
-                          e.currentTarget.src = avatarFallback(a);
-                        }}
+                        alt="foto"
                       />
                     </td>
-
                     <td className="py-4 px-4">{a.id_afiliado}</td>
-
                     <td className="py-4 px-4 font-medium">
                       {a.nombre} {a.apellido_paterno} {a.apellido_materno}
                     </td>
-
                     <td className="py-4 px-4">{a.email}</td>
-
                     <td className="py-4 px-4">{a.telefono || "-"}</td>
-
                     <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${estatusBadge(a.estatus)}`}>
+                      <span className={`px-3 py-1 rounded-full text-xs ${estatusBadge(a.estatus)}`}>
                         {a.estatus}
                       </span>
                     </td>
-
                     <td
                       className="py-4 px-4"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex gap-2">
                         <button
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          onClick={() => {
                             setEditAfiliado(a);
                             setShowForm(true);
                           }}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
                         >
                           ✏️
                         </button>
-
                         <button
+                          onClick={() => setConfirmDelete(a)}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            borrarAfiliado(a);
-                          }}
                         >
                           🗑️
                         </button>
@@ -225,6 +207,7 @@ const AforeAfiliadosModule = () => {
 
       {showForm && (
         <ModalRegistrarAfiliado
+          bucketName={BUCKET_NAME}
           modo={editAfiliado ? "edit" : "new"}
           afiliado={editAfiliado}
           onClose={() => {
@@ -243,7 +226,37 @@ const AforeAfiliadosModule = () => {
         <AforeAfiliadoFichaModal
           afiliado={ficha}
           onClose={() => setFicha(null)}
+          bucketName={BUCKET_NAME}
         />
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h3 className="text-xl font-semibold mb-4">Confirmar Eliminación</h3>
+            <p className="mb-6">
+              ¿Estás seguro de eliminar al afiliado{" "}
+              <span className="font-semibold">
+                {confirmDelete.nombre} {confirmDelete.apellido_paterno} {confirmDelete.apellido_materno}
+              </span>
+              ? Esta acción es irreversible.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2 rounded-xl bg-slate-200"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarEliminacion}
+                className="px-4 py-2 rounded-xl bg-red-600 text-white"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
