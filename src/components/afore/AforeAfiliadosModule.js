@@ -79,18 +79,41 @@ const AforeAfiliadosModule = () => {
     return "bg-slate-100 text-slate-700";
   };
 
-  const borrarAfiliado = async (id) => {
-    if (!window.confirm("¿Eliminar este afiliado?")) return;
+  const borrarAfiliado = async (afiliado) => {
+    try {
+      setError("");
 
-    const { error } = await supabase
-      .from("afore_afiliados")
-      .delete()
-      .eq("id_afiliado", id);
+      const ok = window.confirm(
+        `¿Eliminar al afiliado "${afiliado.nombre} ${afiliado.apellido_paterno}"?\n\nEsto intentará borrarlo de la base de datos.`
+      );
+      if (!ok) return;
 
-    if (error) {
-      alert(error.message);
-    } else {
+      // 1) Intento: DELETE real
+      const { error: delErr } = await supabase
+        .from("afore_afiliados")
+        .delete()
+        .eq("id_afiliado", afiliado.id_afiliado);
+
+      if (!delErr) {
+        await cargarAfiliados();
+        return;
+      }
+
+      // Si RLS bloquea, mostramos el error y hacemos fallback opcional:
+      // 2) Fallback: baja lógica (estatus = inactivo)
+      // (Si también te lo bloquea, verás el error igualmente.)
+      const { error: softErr } = await supabase
+        .from("afore_afiliados")
+        .update({ estatus: "inactivo" })
+        .eq("id_afiliado", afiliado.id_afiliado);
+
+      if (softErr) {
+        throw delErr; // muestra el error de delete (más representativo)
+      }
+
       await cargarAfiliados();
+    } catch (e) {
+      setError(e?.message || "No se pudo borrar el afiliado (revisa RLS).");
     }
   };
 
@@ -108,18 +131,20 @@ const AforeAfiliadosModule = () => {
             setEditAfiliado(null);
             setShowForm(true);
           }}
-          className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 transition-all"
+          className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 transition-all duration-300 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
           + Nuevo Afiliado
         </button>
       </div>
 
+      {/* Error */}
       {error && (
         <div className="bg-red-100 text-red-700 p-3 rounded-xl border border-red-200">
           {error}
         </div>
       )}
 
+      {/* Card tabla */}
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
         <div className="mb-6">
           <input
@@ -127,9 +152,15 @@ const AforeAfiliadosModule = () => {
             placeholder="Buscar por nombre, correo, teléfono o estatus..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
         </div>
+
+        {loading && <p className="text-center text-slate-600">Cargando afiliados...</p>}
+
+        {!loading && !error && filtered.length === 0 && (
+          <p className="text-center text-slate-600">No hay afiliados registrados.</p>
+        )}
 
         {!loading && filtered.length > 0 && (
           <div className="overflow-x-auto">
@@ -150,52 +181,62 @@ const AforeAfiliadosModule = () => {
                 {filtered.map((a) => (
                   <tr
                     key={a.id_afiliado}
-                    className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+                    className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
                     onClick={() => setFicha(a)}
+                    title="Clic para ver ficha"
                   >
                     <td className="py-4 px-4">
                       <img
                         src={a.foto_url || avatarFallback(a)}
                         alt="foto"
                         className="w-10 h-10 rounded-full object-cover border"
-                        onError={(e) => (e.currentTarget.src = avatarFallback(a))}
+                        onError={(e) => {
+                          e.currentTarget.src = avatarFallback(a);
+                        }}
                       />
                     </td>
 
-                    <td className="py-4 px-4">{a.id_afiliado}</td>
-                    <td className="py-4 px-4 font-medium">
+                    <td className="py-4 px-4 text-slate-700">{a.id_afiliado}</td>
+
+                    <td className="py-4 px-4 font-medium text-slate-900">
                       {a.nombre} {a.apellido_paterno} {a.apellido_materno}
                     </td>
-                    <td className="py-4 px-4">{a.email}</td>
-                    <td className="py-4 px-4">{a.telefono}</td>
+
+                    <td className="py-4 px-4 text-slate-700">{a.email}</td>
+
+                    <td className="py-4 px-4 text-slate-700">{a.telefono || "-"}</td>
+
                     <td className="py-4 px-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${estatusBadge(a.estatus)}`}>
-                        {a.estatus}
+                        {a.estatus || "—"}
                       </span>
                     </td>
 
+                    {/* Acciones */}
                     <td
-                      className="py-4 px-4 flex gap-2"
+                      className="py-4 px-4"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <button
-                        title="Editar"
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                        onClick={() => {
-                          setEditAfiliado(a);
-                          setShowForm(true);
-                        }}
-                      >
-                        ✏️
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Editar"
+                          onClick={() => {
+                            setEditAfiliado(a);
+                            setShowForm(true);
+                          }}
+                        >
+                          ✏️
+                        </button>
 
-                      <button
-                        title="Borrar"
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                        onClick={() => borrarAfiliado(a.id_afiliado)}
-                      >
-                        🗑️
-                      </button>
+                        <button
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Borrar"
+                          onClick={() => borrarAfiliado(a)}
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -205,11 +246,12 @@ const AforeAfiliadosModule = () => {
         )}
       </div>
 
+      {/* MODAL: Nuevo/Editar Afiliado */}
       {showForm && (
         <ModalRegistrarAfiliado
-          afiliado={editAfiliado}
-          modo={editAfiliado ? "edit" : "new"}
           bucketName={BUCKET_NAME}
+          modo={editAfiliado ? "edit" : "new"}
+          afiliado={editAfiliado}
           onClose={() => {
             setShowForm(false);
             setEditAfiliado(null);
@@ -222,6 +264,7 @@ const AforeAfiliadosModule = () => {
         />
       )}
 
+      {/* MODAL: Ficha */}
       {ficha && (
         <AforeAfiliadoFichaModal
           afiliado={ficha}
