@@ -4,7 +4,12 @@ import { supabase } from "../../supabaseClient";
 const BUCKET_AFILIADOS = "Fotos-Afiliados";
 const BUCKET_BENEFICIARIOS = "Beneficiarios-Afore";
 
-const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) => {
+const ModalRegistrarAfiliado = ({
+  onClose,
+  onSaved,
+  afiliado,
+  modo = "new",
+}) => {
   const [form, setForm] = useState({
     nombre: "",
     apellido_paterno: "",
@@ -97,7 +102,8 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
       return;
     }
 
-    if (!window.confirm("¿Estas seguro de guardar los cambios realizados?")) return;
+    if (!window.confirm("¿Estas seguro de guardar los cambios realizados?"))
+      return;
 
     setLoading(true);
 
@@ -106,11 +112,11 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
 
       if (foto) {
         const fileName = `${Date.now()}-${foto.name}`;
-        const { error: uploadError } = await supabase.storage
+        const { error } = await supabase.storage
           .from(BUCKET_AFILIADOS)
           .upload(fileName, foto);
 
-        if (uploadError) throw uploadError;
+        if (error) throw error;
 
         const { data } = supabase.storage
           .from(BUCKET_AFILIADOS)
@@ -122,8 +128,9 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
       const payload = {
         ...form,
         foto_url,
-        es_referido: !!form.es_referido,
-        nombre_referido: form.es_referido ? form.nombre_referido : "Nuevo",
+        nombre_referido: form.es_referido
+          ? form.nombre_referido
+          : "Nuevo",
       };
 
       let afiliadoId = afiliado?.id_afiliado;
@@ -179,7 +186,12 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
         }
 
         await supabase.from("Beneficiarios_Afore").insert([
-          { ...beneficiario, id_afiliado: afiliadoId, foto_url, documento_url: doc_url },
+          {
+            ...beneficiario,
+            id_afiliado: afiliadoId,
+            foto_url,
+            documento_url: doc_url,
+          },
         ]);
       }
 
@@ -200,7 +212,9 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
             ? "Editar Afiliado AFORE"
             : "Registrar Nuevo Afiliado AFORE"}
         </h2>
-        <p className="text-slate-500 mb-6">Todos los campos son obligatorios.</p>
+        <p className="text-slate-500 mb-6">
+          Todos los campos son obligatorios.
+        </p>
 
         {error && (
           <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4">
@@ -208,6 +222,7 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
           </div>
         )}
 
+        {/* DATOS PRINCIPALES */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
           <input className={inputStyle} name="nombre" placeholder="Nombre *" value={form.nombre} onChange={handleChange} />
@@ -219,8 +234,15 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
           <input className={inputStyle} name="direccion" placeholder="Dirección *" value={form.direccion} onChange={handleChange} />
           <input className={inputStyle} name="cp" placeholder="Código Postal *" value={form.cp} onChange={handleChange} />
 
-          <input className={inputStyle} type="date" name="fecha_nacimiento" value={form.fecha_nacimiento} onChange={handleChange} />
-          <input className={inputStyle} type="date" name="miembro_desde" value={form.miembro_desde} onChange={handleChange} />
+          <div>
+            <label className={labelStyle}>Fecha de nacimiento *</label>
+            <input className={inputStyle} type="date" name="fecha_nacimiento" value={form.fecha_nacimiento} onChange={handleChange} />
+          </div>
+
+          <div>
+            <label className={labelStyle}>Fecha de registro *</label>
+            <input className={inputStyle} type="date" name="miembro_desde" value={form.miembro_desde} onChange={handleChange} />
+          </div>
 
         </div>
 
@@ -244,6 +266,40 @@ const ModalRegistrarAfiliado = ({ onClose, onSaved, afiliado, modo = "new" }) =>
           {form.es_referido && (
             <input className={inputStyle + " mt-3"} name="nombre_referido" placeholder="Nombre completo de quien refiere" value={form.nombre_referido} onChange={handleChange} />
           )}
+        </div>
+
+        {/* REFERENCIAS */}
+        <div className="mt-6 border-t-4 border-blue-600 pt-4">
+          <div className="font-bold mb-3">Referencias Personales</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input className={inputStyle} placeholder="Nombre" onChange={(e)=>setReferencia({...referencia,nombre:e.target.value})}/>
+            <input className={inputStyle} placeholder="Apellido Paterno" onChange={(e)=>setReferencia({...referencia,apellido_paterno:e.target.value})}/>
+            <input className={inputStyle} placeholder="Apellido Materno" onChange={(e)=>setReferencia({...referencia,apellido_materno:e.target.value})}/>
+            <input className={inputStyle} placeholder="Teléfono" onChange={(e)=>setReferencia({...referencia,telefono:e.target.value})}/>
+            <input className={inputStyle + " md:col-span-2"} placeholder="Dirección" onChange={(e)=>setReferencia({...referencia,direccion:e.target.value})}/>
+          </div>
+        </div>
+
+        {/* BENEFICIARIO */}
+        <div className="mt-6 border-t-4 border-blue-600 pt-4">
+          <div className="font-bold mb-3">Beneficiario</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input className={inputStyle} placeholder="Nombre" onChange={(e)=>setBeneficiario({...beneficiario,nombre:e.target.value})}/>
+            <input className={inputStyle} placeholder="Apellido Paterno" onChange={(e)=>setBeneficiario({...beneficiario,apellido_paterno:e.target.value})}/>
+            <input className={inputStyle} placeholder="Apellido Materno" onChange={(e)=>setBeneficiario({...beneficiario,apellido_materno:e.target.value})}/>
+            <input className={inputStyle} placeholder="Teléfono" onChange={(e)=>setBeneficiario({...beneficiario,telefono:e.target.value})}/>
+            <input className={inputStyle + " md:col-span-2"} placeholder="Dirección" onChange={(e)=>setBeneficiario({...beneficiario,direccion:e.target.value})}/>
+          </div>
+
+          <div className="mt-3">
+            <label className={labelStyle}>Foto beneficiario</label>
+            <input type="file" onChange={(e)=>setBeneficiarioFoto(e.target.files[0])}/>
+          </div>
+
+          <div className="mt-3">
+            <label className={labelStyle}>Documento beneficiario</label>
+            <input type="file" onChange={(e)=>setBeneficiarioDoc(e.target.files[0])}/>
+          </div>
         </div>
 
         <div className="flex justify-end gap-3 mt-8">
