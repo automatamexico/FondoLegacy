@@ -60,7 +60,7 @@ const SociosModule = () => {
     estatus: 'activo',
     fecha_nacimiento: '',
   });
-
+  const [ahorroRetiro, setAhorroRetiro] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -186,6 +186,32 @@ const SociosModule = () => {
       setPhotoUploading(false);
     }
   };
+  
+const uploadPhotoToAforeBucket = async (socioId) => {
+  if (!photoFile) return null;
+
+  const ext = photoFile.type === 'image/png' ? 'png' : 'jpg';
+  const path = `afiliado_${socioId}.${ext}`;
+  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/Fotos-Afiliados/${encodeURIComponent(path)}?upsert=true`;
+
+  const upRes = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': photoFile.type,
+      'x-upsert': 'true',
+    },
+    body: photoFile,
+  });
+
+  if (!upRes.ok) {
+    const e = await upRes.json().catch(() => ({}));
+    throw new Error(`Error subiendo foto a AFORE: ${e.message || upRes.statusText}`);
+  }
+
+  return `${SUPABASE_URL}/storage/v1/object/public/Fotos-Afiliados/${encodeURIComponent(path)}`;
+};
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -299,6 +325,48 @@ const SociosModule = () => {
         const inserted = await res.json();
         const socio = inserted[0];
         const socioIdNew = socio.id_socio;
+
+      // 🔹 Si seleccionó ahorro para el retiro, duplicar en AFORE
+if (ahorroRetiro) {
+  let fotoAforeUrl = null;
+
+  if (photoFile) {
+    fotoAforeUrl = await uploadPhotoToAforeBucket(socioIdNew);
+  }
+
+  const aforePayload = {
+    id_afiliado: socioIdNew,
+    nombre: newSocio.nombre,
+    apellido_paterno: newSocio.apellido_paterno,
+    apellido_materno: newSocio.apellido_materno,
+    email: newSocio.email,
+    contraseña: newSocio.contrasena,
+    telefono: newSocio.telefono,
+    direccion: newSocio.direccion,
+    cp: newSocio.cp,
+    miembro_desde: new Date().toISOString(),
+    fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
+    estatus: newSocio.estatus === 'activo',
+    foto_url: fotoAforeUrl,
+  };
+
+  const aforeRes = await fetch(`${SUPABASE_URL}/rest/v1/afore_afiliados`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify(aforePayload),
+  });
+
+  if (!aforeRes.ok) {
+    const e = await aforeRes.json().catch(() => ({}));
+    throw new Error(`Error creando afiliado AFORE: ${e.message || aforeRes.statusText}`);
+  }
+}
+
 
         if (photoFile) {
           const url = await uploadPhotoToSupabase(socioIdNew);
@@ -593,6 +661,31 @@ const SociosModule = () => {
               />
               <p className="text-xs text-slate-500 mt-1">Opcional</p>
             </div>
+
+{/* Ahorro para el retiro */}
+<div className="col-span-full mt-4">
+  <label className="block text-sm font-medium text-slate-700 mb-2">
+    ¿Ahorro para el retiro?
+  </label>
+  <div className="flex gap-6">
+    <label>
+      <input
+        type="radio"
+        checked={ahorroRetiro}
+        onChange={() => setAhorroRetiro(true)}
+      />{" "}
+      Sí
+    </label>
+    <label>
+      <input
+        type="radio"
+        checked={!ahorroRetiro}
+        onChange={() => setAhorroRetiro(false)}
+      />{" "}
+      No
+    </label>
+  </div>
+</div>
 
             {/* Subida de foto */}
             <div className="col-span-full">
