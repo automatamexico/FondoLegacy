@@ -346,7 +346,7 @@ if (ahorroRetiro) {
     cp: newSocio.cp,
     miembro_desde: new Date().toISOString(),
     fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
-    estatus: newSocio.estatus.toUpperCase(),
+    estatus: newSocio.estatus === 'activo' ? 'ACTIVO' : 'INACTIVO',
     foto_url: fotoAforeUrl,
   };
 
