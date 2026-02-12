@@ -61,6 +61,7 @@ const SociosModule = () => {
     fecha_nacimiento: '',
   });
   const [ahorroRetiro, setAhorroRetiro] = useState(false);
+  const [montoAfiliacion, setMontoAfiliacion] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -325,6 +326,34 @@ const uploadPhotoToAforeBucket = async (socioId) => {
         const inserted = await res.json();
         const socio = inserted[0];
         const socioIdNew = socio.id_socio;
+
+        // 🔹 Registrar pago de afiliación si hay monto
+if (montoAfiliacion && parseFloat(montoAfiliacion) > 0) {
+  const pagoBody = {
+    id_socio: socioIdNew,
+    afiliacion_papeleria: true,
+    monto_afiliacion_papeleria: parseFloat(montoAfiliacion),
+    fecha_hora: new Date().toISOString(),
+    estatus: 'AFILIACION PAGADA',
+  };
+
+  const pagoRes = await fetch(`${SUPABASE_URL}/rest/v1/pago_afiliaciones`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify(pagoBody),
+  });
+
+  if (!pagoRes.ok) {
+    const e = await pagoRes.json().catch(() => ({}));
+    console.warn('Error registrando pago afiliación:', e?.message || pagoRes.statusText);
+  }
+}
+
 
       // 🔹 Si seleccionó ahorro para el retiro, duplicar en AFORE
 if (ahorroRetiro) {
@@ -685,6 +714,21 @@ if (ahorroRetiro) {
       No
     </label>
   </div>
+</div>
+
+{/* Pago Afiliación */}
+<div className="col-span-full mt-4">
+  <label className="block text-sm font-medium text-slate-700 mb-2">
+    Pago Afiliación
+  </label>
+  <input
+    type="number"
+    step="0.01"
+    value={montoAfiliacion}
+    onChange={(e) => setMontoAfiliacion(e.target.value)}
+    placeholder="Ingrese monto pagado"
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+  />
 </div>
 
             {/* Subida de foto */}
