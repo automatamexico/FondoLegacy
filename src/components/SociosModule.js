@@ -256,7 +256,7 @@ const uploadPhotoToAforeBucket = async (socioId) => {
       if (editingSocio) {
         const patchBody = {
           ...newSocio,
-          estatus: newSocio.estatus === 'activo',
+          estatus: newSocio.estatus,
           fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
         };
 
