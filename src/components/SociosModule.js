@@ -714,10 +714,35 @@ if (ahorroRetiro) {
 
   /** Ficha */
  const openFicha = async (socio) => {
-  setSocioFicha(socio);
-  setShowFicha(true);
+  console.log("SOCIO RECIBIDO:", socio);
 
-  const id = socio.id_socio;
+  setSocioFicha(socio);   // ← primero seteamos directo
+  setShowFicha(true);     // ← abrimos modal inmediatamente
+
+  try {
+    const { data: refs } = await supabase
+      .from("refs_fondo")
+      .select("*")
+      .eq("id_socio", socio.id_socio);
+
+    const { data: benef } = await supabase
+      .from("beneficiarios_fondo")
+      .select("*")
+      .eq("id_socio", socio.id_socio);
+
+    const { data: bancos } = await supabase
+      .from("referencias_bancarias")
+      .select("*")
+      .eq("id_socio", socio.id_socio);
+
+    setRefsFicha(refs || []);
+    setBenefFicha(benef || []);
+    setBancoFicha(bancos || []);
+
+  } catch (error) {
+    console.error("ERROR OPEN FICHA:", error);
+  }
+};
 
   // Referencias personales
   const r1 = await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo?id_socio=eq.${id}`, {
