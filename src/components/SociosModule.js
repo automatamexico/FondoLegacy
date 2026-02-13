@@ -386,6 +386,22 @@ const uploadPhotoToAforeBucket = async (socioId) => {
         const updated = await res.json();
         const socio = updated[0];
         socioId = socio.id_socio;
+// ================= GUARDAR REFERENCIA (EDITAR) =================
+if (referencia.nombre.trim() !== '') {
+  await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify({
+      id_socio: socioId,
+      ...referencia
+    }),
+  });
+}
 
         if (photoFile) {
           const url = await uploadPhotoToSupabase(socioId);
