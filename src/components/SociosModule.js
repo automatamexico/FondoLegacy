@@ -1542,10 +1542,7 @@ if (ahorroRetiro) {
 
 </div>
 
-
-          </div>
-        </div>
-      )}
+{/* REFERENCIAS PERSONALES */}
 {refsFicha.length > 0 && (
   <div className="mt-6 text-sm">
     <h4 className="font-semibold text-slate-800 mb-3">Referencias Personales</h4>
@@ -1558,6 +1555,8 @@ if (ahorroRetiro) {
     ))}
   </div>
 )}
+
+{/* BENEFICIARIO */}
 {benefFicha.length > 0 && (
   <div className="mt-6 text-sm">
     <h4 className="font-semibold text-slate-800 mb-3">Beneficiario</h4>
@@ -1568,23 +1567,15 @@ if (ahorroRetiro) {
         <p><strong>Dirección:</strong> {b.direccion}</p>
 
         {b.foto_url && (
-          <a
-            href={b.foto_url}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-block mt-2 mr-2 px-3 py-1 bg-blue-600 text-white rounded-lg text-xs"
-          >
+          <a href={b.foto_url} target="_blank" rel="noreferrer"
+            className="inline-block mt-2 mr-2 px-3 py-1 bg-blue-600 text-white rounded-lg text-xs">
             Ver Foto
           </a>
         )}
 
         {b.documentos_url && (
-          <a
-            href={b.documentos_url}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-block mt-2 px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs"
-          >
+          <a href={b.documentos_url} target="_blank" rel="noreferrer"
+            className="inline-block mt-2 px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs">
             Ver Documento
           </a>
         )}
@@ -1592,6 +1583,8 @@ if (ahorroRetiro) {
     ))}
   </div>
 )}
+
+{/* REFERENCIAS BANCARIAS */}
 {bancoFicha.length > 0 && (
   <div className="mt-6 text-sm">
     <h4 className="font-semibold text-slate-800 mb-3">Referencias Bancarias</h4>
@@ -1606,7 +1599,6 @@ if (ahorroRetiro) {
     ))}
   </div>
 )}
-
     </div>
   );
 };
