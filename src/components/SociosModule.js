@@ -714,13 +714,11 @@ if (ahorroRetiro) {
     setSocioToDelete(null);
   };
 
-  /** Ficha */
- const openFicha = async (socio) => {
-  setShowFicha(true);
-  setSocioFicha({ ...socio }); // fuerza nuevo objeto
+ /** Ficha */
+const openFicha = async (socio) => {
 
-  setSocioFicha(socio);   // ← primero seteamos directo
-  setShowFicha(true);     // ← abrimos modal inmediatamente
+  setSocioFicha({ ...socio }); // importante: nuevo objeto
+  setShowFicha(true);
 
   try {
     const { data: refs } = await supabase
@@ -747,9 +745,13 @@ if (ahorroRetiro) {
   }
 };
 
-
-
-
+  const closeFicha = () => {
+  setShowFicha(false);
+  setSocioFicha(null);
+  setRefsFicha([]);
+  setBenefFicha([]);
+  setBancoFicha([]);
+};
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
