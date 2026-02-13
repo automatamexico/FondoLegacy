@@ -104,17 +104,6 @@ const [bancoPersonalizado, setBancoPersonalizado] = useState({
   pais: ''
 });
 
-
-const [showBancoModal, setShowBancoModal] = useState(false);
-
-const [bancoPersonalizado, setBancoPersonalizado] = useState({
-  nombre: '',
-  pais: ''
-});
-
-
-
-
   // Modal eliminar
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [socioToDelete, setSocioToDelete] = useState(null);
