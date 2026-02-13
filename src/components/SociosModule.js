@@ -1587,7 +1587,10 @@ if (ahorroRetiro) {
 {/* REFERENCIAS BANCARIAS */}
 {bancoFicha.length > 0 && (
   <div className="mt-6 text-sm">
-    <h4 className="font-semibold text-slate-800 mb-3">Referencias Bancarias</h4>
+    <h4 className="font-semibold text-slate-800 mb-3">
+      Referencias Bancarias
+    </h4>
+
     {bancoFicha.map((b) => (
       <div key={b.id_referencia_bancaria} className="mb-3">
         <p><strong>Entidad:</strong> {b.entidad_bancaria}</p>
@@ -1596,9 +1599,16 @@ if (ahorroRetiro) {
         <p><strong>Número de cuenta:</strong> {b.numero_cuenta}</p>
         <p><strong>Cuenta CLABE:</strong> {b.cuenta_clave}</p>
       </div>
-      )}
-      
-    </div>
+    ))}
+  </div>
+)}
+
+          </div> {/* ← CIERRA div blanco del modal */}
+        </div>   {/* ← CIERRA overlay negro */}
+      )}          {/* ← CIERRA showFicha */}
+
+    </div>        {/* ← CIERRA div principal p-6 */}
+
   );
 };
 
