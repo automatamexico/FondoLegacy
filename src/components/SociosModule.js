@@ -1603,14 +1603,15 @@ if (ahorroRetiro) {
   </div>
 )}
 
-          </div> {/* ← CIERRA div blanco del modal */}
-        </div>   {/* ← CIERRA overlay negro */}
-      )}          {/* ← CIERRA showFicha */}
+                    </div>
+        </div>
+      )}
 
-    </div>        {/* ← CIERRA div principal p-6 */}
+    </div>
 
   );
 };
 
 export default SociosModule;
+
 
