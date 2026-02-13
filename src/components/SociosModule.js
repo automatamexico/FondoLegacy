@@ -384,6 +384,9 @@ const uploadPhotoToAforeBucket = async (socioId) => {
           throw new Error(`Error al actualizar socio: ${res.statusText} - ${e.message || ''}`);
         }
         const updated = await res.json();
+        console.log("ENTRANDO EN EDITAR");
+console.log("Referencia actual:", referencia);
+console.log("Socio ID:", socioId);
         const socio = updated[0];
         socioId = socio.id_socio;
 // ================= GUARDAR REFERENCIA (EDITAR) =================
