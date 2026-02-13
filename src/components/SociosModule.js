@@ -258,24 +258,66 @@ const uploadPhotoToAforeBucket = async (socioId) => {
   };
 
   const resetForm = () => {
-    setNewSocio({
-      nombre: '',
-      apellido_paterno: '',
-      apellido_materno: '',
-      email: '',
-      contrasena: '',
-      telefono: '',
-      direccion: '',
-      cp: '',
-      estatus: 'activo',
-      fecha_nacimiento: '',
-    });
-    setEditingSocio(null);
-    setPhotoFile(null);
-    setPhotoPreview('');
-    setPhotoError('');
-    setShowForm(false);
-  };
+  setNewSocio({
+    nombre: '',
+    apellido_paterno: '',
+    apellido_materno: '',
+    email: '',
+    contrasena: '',
+    telefono: '',
+    direccion: '',
+    cp: '',
+    estatus: 'activo',
+    fecha_nacimiento: '',
+  });
+
+  // 🔹 Limpiar referencia personal
+  setReferencia({
+    nombre: '',
+    apellido_paterno: '',
+    apellido_materno: '',
+    telefono: '',
+    direccion: ''
+  });
+
+  // 🔹 Limpiar beneficiario
+  setBeneficiario({
+    nombre: '',
+    apellido_paterno: '',
+    apellido_materno: '',
+    telefono: '',
+    direccion: ''
+  });
+
+  setBeneficiarioFoto(null);
+  setBeneficiarioDocumento(null);
+
+  // 🔹 Limpiar referencia bancaria
+  setReferenciaBancaria({
+    entidad_bancaria: '',
+    banco_otro: '',
+    titular_cuenta: '',
+    numero_cuenta: '',
+    cuenta_clave: '',
+    pais: 'México'
+  });
+
+  // 🔹 Limpiar pago afiliación
+  setMontoAfiliacion('');
+  setErrorMonto('');
+
+  // 🔹 Reset ahorro retiro
+  setAhorroRetiro(false);
+
+  // 🔹 Reset foto socio
+  setPhotoFile(null);
+  setPhotoPreview('');
+  setPhotoError('');
+
+  setEditingSocio(null);
+  setShowForm(false);
+};
+
 
   
   const handleAddOrUpdateSocio = async (e) => {
