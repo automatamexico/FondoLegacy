@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 /** Util para avatar de respaldo */
 const avatarFallback = (s) => {
   const name = `${s?.nombre || ''} ${s?.apellido_paterno || ''}`.trim() || 'Socio';
@@ -744,33 +746,7 @@ if (ahorroRetiro) {
   }
 };
 
-  // Referencias personales
-  const r1 = await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo?id_socio=eq.${id}`, {
-    headers: {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-  });
-  if (r1.ok) setRefsFicha(await r1.json());
 
-  // Beneficiarios
-  const r2 = await fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${id}`, {
-    headers: {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-  });
-  if (r2.ok) setBenefFicha(await r2.json());
-
-  // Referencias bancarias
-  const r3 = await fetch(`${SUPABASE_URL}/rest/v1/referencias_bancarias?id_socio=eq.${id}`, {
-    headers: {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-  });
-  if (r3.ok) setBancoFicha(await r3.json());
-};
 
 
   return (
