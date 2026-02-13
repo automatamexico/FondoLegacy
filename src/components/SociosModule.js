@@ -1037,50 +1037,54 @@ if (ahorroRetiro) {
     Referencias Bancarias
   </h4>
 </div>
-
 <select
   className="col-span-full px-4 py-2 border border-slate-200 rounded-lg"
   value={referenciaBancaria.entidad_bancaria}
   onChange={(e) => {
-  const value = e.target.value;
+    const value = e.target.value;
 
-  if (value === "OTRO") {
-    setShowBancoModal(true);
-  } else {
-    setReferenciaBancaria({
-      ...referenciaBancaria,
+    if (value === "OTRO") {
+      setShowBancoModal(true);
+      return;
+    }
+
+    setReferenciaBancaria((prev) => ({
+      ...prev,
       entidad_bancaria: value,
-      pais: "México"
-    });
-  }
-}}
+      pais: "México",
+      banco_otro: ""
+    }));
+  }}
 >
   <option value="">Seleccione entidad bancaria</option>
-  <option>BBVA México</option>
-  <option>Banco Santander México</option>
-  <option>Banco Mercantil del Norte (Banorte)</option>
-  <option>Banco Nacional de México (Citibanamex)</option>
-  <option>HSBC México</option>
-  <option>Scotiabank Inverlat</option>
-  <option>Banco Inbursa</option>
-  <option>Banco Azteca</option>
-  <option>BanCoppel</option>
-  <option>Banco del Bajío</option>
-  <option>Banca Afirme</option>
-  <option>Banca Mifel</option>
-  <option>Banco Ve por Más (BX+)</option>
-  <option>Banco Monex</option>
-  <option>Banco Actinver</option>
-  <option>Intercam Banco</option>
-  <option>Banco Multiva</option>
-  <option>Banco Sabadell</option>
-  <option>CIBanco</option>
-  <option>Banco Base</option>
-  <option>Nubank (Nu México)</option>
-  <option>Banco Bineo</option>
-  <option>SPIN By OXXO</option>
+
+  <option value="BBVA México">BBVA México</option>
+  <option value="Banco Santander México">Banco Santander México</option>
+  <option value="Banco Mercantil del Norte (Banorte)">Banco Mercantil del Norte (Banorte)</option>
+  <option value="Banco Nacional de México (Citibanamex)">Banco Nacional de México (Citibanamex)</option>
+  <option value="HSBC México">HSBC México</option>
+  <option value="Scotiabank Inverlat">Scotiabank Inverlat</option>
+  <option value="Banco Inbursa">Banco Inbursa</option>
+  <option value="Banco Azteca">Banco Azteca</option>
+  <option value="BanCoppel">BanCoppel</option>
+  <option value="Banco del Bajío">Banco del Bajío</option>
+  <option value="Banca Afirme">Banca Afirme</option>
+  <option value="Banca Mifel">Banca Mifel</option>
+  <option value="Banco Ve por Más (BX+)">Banco Ve por Más (BX+)</option>
+  <option value="Banco Monex">Banco Monex</option>
+  <option value="Banco Actinver">Banco Actinver</option>
+  <option value="Intercam Banco">Intercam Banco</option>
+  <option value="Banco Multiva">Banco Multiva</option>
+  <option value="Banco Sabadell">Banco Sabadell</option>
+  <option value="CIBanco">CIBanco</option>
+  <option value="Banco Base">Banco Base</option>
+  <option value="Nubank (Nu México)">Nubank (Nu México)</option>
+  <option value="Banco Bineo">Banco Bineo</option>
+  <option value="SPIN By OXXO">SPIN By OXXO</option>
+
   <option value="OTRO">Otro</option>
 </select>
+
 
 <input
   type="text"
@@ -1261,6 +1265,78 @@ if (ahorroRetiro) {
           </div>
         </div>
       )}
+{/* Modal Banco Otro */}
+{showBancoModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
+      <h3 className="text-lg font-bold text-slate-900 mb-4">
+        Ingresa el nombre del banco
+      </h3>
+
+      <input
+        type="text"
+        placeholder="Nombre del banco"
+        className="w-full px-4 py-2 border border-slate-200 rounded-lg mb-3"
+        value={bancoPersonalizado.nombre}
+        onChange={(e) =>
+          setBancoPersonalizado((prev) => ({ ...prev, nombre: e.target.value }))
+        }
+      />
+
+      <input
+        type="text"
+        placeholder="País"
+        className="w-full px-4 py-2 border border-slate-200 rounded-lg mb-4"
+        value={bancoPersonalizado.pais}
+        onChange={(e) =>
+          setBancoPersonalizado((prev) => ({ ...prev, pais: e.target.value }))
+        }
+      />
+
+      <div className="flex justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setShowBancoModal(false);
+            setBancoPersonalizado({ nombre: "", pais: "" });
+            // Regresar select a vacío para evitar que se quede en "OTRO" sin datos
+            setReferenciaBancaria((prev) => ({
+              ...prev,
+              entidad_bancaria: "",
+              banco_otro: "",
+              pais: "México",
+            }));
+          }}
+          className="px-4 py-2 bg-slate-200 text-slate-800 rounded-xl hover:bg-slate-300 font-medium"
+        >
+          Cancelar
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const nombre = (bancoPersonalizado.nombre || "").trim();
+            const pais = (bancoPersonalizado.pais || "").trim();
+
+            if (!nombre || !pais) return;
+
+            setReferenciaBancaria((prev) => ({
+              ...prev,
+              entidad_bancaria: "OTRO",
+              banco_otro: nombre,
+              pais,
+            }));
+
+            setShowBancoModal(false);
+          }}
+          className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium"
+        >
+          Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Modal confirmar eliminación */}
       {showConfirmModal && (
