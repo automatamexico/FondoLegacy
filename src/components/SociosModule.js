@@ -47,6 +47,7 @@ const cleanDate = (v) => (v && String(v).trim() ? v : null);
 const SociosModule = () => {
   const [sociosList, setSociosList] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [showConfirmRegistro, setShowConfirmRegistro] = useState(false);
   const [editingSocio, setEditingSocio] = useState(null);
   const [newSocio, setNewSocio] = useState({
     nombre: '',
@@ -239,6 +240,7 @@ const uploadPhotoToAforeBucket = async (socioId) => {
     setShowForm(false);
   };
 
+  
   const handleAddOrUpdateSocio = async (e) => {
     e.preventDefault();
     setError(null);
@@ -249,7 +251,15 @@ const uploadPhotoToAforeBucket = async (socioId) => {
       setError('Complete los campos obligatorios.');
       return;
     }
+// 👇 AQUÍ VA LA VALIDACIÓN DE PAGO
+  if (!montoAfiliacion || parseFloat(montoAfiliacion) <= 0) {
+    setError('Debe registrar el pago de afiliación.');
+    return;
+  }
 
+  setSaving(true);
+  try {
+    
     setSaving(true);
     try {
       let socioId;
@@ -728,6 +738,7 @@ if (ahorroRetiro) {
     onChange={(e) => setMontoAfiliacion(e.target.value)}
     placeholder="Ingrese monto pagado"
     className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
   />
 </div>
 
@@ -771,7 +782,8 @@ if (ahorroRetiro) {
             </div>
 
             <button
-              type="submit"
+              type="button"
+              onClick={() => setShowConfirmRegistro(true)}
               disabled={saving}
               className="col-span-full px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
             >
@@ -947,6 +959,38 @@ if (ahorroRetiro) {
                 <div className="text-xs text-slate-500">Fecha de nacimiento</div>
                 <div className="font-medium">{fmtFecha(socioFicha.fecha_nacimiento)}</div>
               </div>
+
+                   {/* Modal Confirmar Registro */}
+{showConfirmRegistro && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center">
+      <h3 className="text-lg font-bold text-slate-900 mb-4">
+        ¿La información capturada es correcta?
+      </h3>
+
+      <div className="flex justify-center gap-4">
+        <button
+          onClick={() => {
+            setShowConfirmRegistro(false);
+            document.querySelector('form')?.dispatchEvent(
+              new Event('submit', { cancelable: true, bubbles: true })
+            );
+          }}
+          className="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium"
+        >
+          Sí
+        </button>
+
+        <button
+          onClick={() => setShowConfirmRegistro(false)}
+          className="px-5 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 font-medium"
+        >
+          No
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
               {/* Miembro desde (formateada sin desfase) */}
               <div className="p-3 bg-slate-50 rounded-lg">
