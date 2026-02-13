@@ -44,6 +44,9 @@ const toDateInput = (v) => {
 /** Normaliza fechas vacías a null */
 const cleanDate = (v) => (v && String(v).trim() ? v : null);
 
+const onlyDigits = (v = '') => String(v).replace(/\D/g, '');
+const onlyDigitsMax = (v = '', max = 999) => onlyDigits(v).slice(0, max);
+
 const SociosModule = () => {
   const [sociosList, setSociosList] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -822,15 +825,20 @@ if (ahorroRetiro) {
               className="px-4 py-2 border border-slate-200 rounded-lg"
               required
             />
-            <input
-              type="text"
-              name="telefono"
-              value={newSocio.telefono}
-              onChange={handleInputChange}
-              placeholder="Teléfono *"
-              className="px-4 py-2 border border-slate-200 rounded-lg"
-              required
-            />
+           <input
+  type="tel"
+  inputMode="numeric"
+  pattern="[0-9]*"
+  name="telefono"
+  value={newSocio.telefono}
+  onChange={(e) =>
+    setNewSocio((prev) => ({ ...prev, telefono: onlyDigitsMax(e.target.value, 15) }))
+  }
+  placeholder="Teléfono *"
+  className="px-4 py-2 border border-slate-200 rounded-lg"
+  required
+/>
+
             <input
               type="text"
               name="direccion"
@@ -841,14 +849,19 @@ if (ahorroRetiro) {
               required
             />
             <input
-              type="text"
-              name="cp"
-              value={newSocio.cp}
-              onChange={handleInputChange}
-              placeholder="Código Postal *"
-              className="px-4 py-2 border border-slate-200 rounded-lg"
-              required
-            />
+  type="tel"
+  inputMode="numeric"
+  pattern="[0-9]*"
+  name="cp"
+  value={newSocio.cp}
+  onChange={(e) =>
+    setNewSocio((prev) => ({ ...prev, cp: onlyDigitsMax(e.target.value, 5) }))
+  }
+  placeholder="Código Postal *"
+  className="px-4 py-2 border border-slate-200 rounded-lg"
+  required
+/>
+
 
             {/* Estatus */}
             <select
@@ -1000,12 +1013,17 @@ if (ahorroRetiro) {
 />
 
 <input
-  type="text"
+  type="tel"
+  inputMode="numeric"
+  pattern="[0-9]*"
   placeholder="Teléfono"
   className="px-4 py-2 border border-slate-200 rounded-lg"
   value={referencia.telefono}
-  onChange={(e) => setReferencia({ ...referencia, telefono: e.target.value })}
+  onChange={(e) =>
+    setReferencia({ ...referencia, telefono: onlyDigitsMax(e.target.value, 15) })
+  }
 />
+
 
 <input
   type="text"
@@ -1047,11 +1065,15 @@ if (ahorroRetiro) {
 />
 
 <input
-  type="text"
+  type="tel"
+  inputMode="numeric"
+  pattern="[0-9]*"
   placeholder="Teléfono"
   className="px-4 py-2 border border-slate-200 rounded-lg"
   value={beneficiario.telefono}
-  onChange={(e) => setBeneficiario({ ...beneficiario, telefono: e.target.value })}
+  onChange={(e) =>
+    setBeneficiario({ ...beneficiario, telefono: onlyDigitsMax(e.target.value, 15) })
+  }
 />
 
 <input
@@ -1153,30 +1175,36 @@ if (ahorroRetiro) {
 />
 
 <input
-  type="text"
+  type="tel"
+  inputMode="numeric"
+  pattern="[0-9]*"
   placeholder="Número de cuenta"
   className="px-4 py-2 border border-slate-200 rounded-lg"
   value={referenciaBancaria.numero_cuenta}
   onChange={(e) =>
     setReferenciaBancaria({
       ...referenciaBancaria,
-      numero_cuenta: e.target.value
+      numero_cuenta: onlyDigitsMax(e.target.value, 20),
     })
   }
 />
 
+
 <input
-  type="text"
+  type="tel"
+  inputMode="numeric"
+  pattern="[0-9]*"
   placeholder="Cuenta Clave"
   className="px-4 py-2 border border-slate-200 rounded-lg"
   value={referenciaBancaria.cuenta_clave}
   onChange={(e) =>
     setReferenciaBancaria({
       ...referenciaBancaria,
-      cuenta_clave: e.target.value
+      cuenta_clave: onlyDigitsMax(e.target.value, 18),
     })
   }
 />
+
 
       
 <button
