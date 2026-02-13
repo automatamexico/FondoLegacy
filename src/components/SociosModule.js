@@ -122,6 +122,11 @@ const [bancoPersonalizado, setBancoPersonalizado] = useState({
   // Ficha (modal de detalles)
   const [showFicha, setShowFicha] = useState(false);
   const [socioFicha, setSocioFicha] = useState(null);
+  // ===== DATOS RELACIONADOS FICHA =====
+const [refsFicha, setRefsFicha] = useState([]);
+const [benefFicha, setBenefFicha] = useState([]);
+const [bancoFicha, setBancoFicha] = useState([]);
+
 
   useEffect(() => {
     fetchSocios();
@@ -708,14 +713,40 @@ if (ahorroRetiro) {
   };
 
   /** Ficha */
-  const openFicha = (socio) => {
-    setSocioFicha(socio);
-    setShowFicha(true);
-  };
-  const closeFicha = () => {
-    setShowFicha(false);
-    setSocioFicha(null);
-  };
+ const openFicha = async (socio) => {
+  setSocioFicha(socio);
+  setShowFicha(true);
+
+  const id = socio.id_socio;
+
+  // Referencias personales
+  const r1 = await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo?id_socio=eq.${id}`, {
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  });
+  if (r1.ok) setRefsFicha(await r1.json());
+
+  // Beneficiarios
+  const r2 = await fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${id}`, {
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  });
+  if (r2.ok) setBenefFicha(await r2.json());
+
+  // Referencias bancarias
+  const r3 = await fetch(`${SUPABASE_URL}/rest/v1/referencias_bancarias?id_socio=eq.${id}`, {
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  });
+  if (r3.ok) setBancoFicha(await r3.json());
+};
+
 
   return (
     <div className="p-6 space-y-6">
@@ -1472,36 +1503,109 @@ if (ahorroRetiro) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="font-semibold">Teléfono:</span>
-                <p>{socioFicha.telefono}</p>
-              </div>
+           <div className="grid grid-cols-2 gap-4 text-sm">
 
-              <div>
-                <span className="font-semibold">Código Postal:</span>
-                <p>{socioFicha.cp}</p>
-              </div>
+  <div>
+    <span className="font-semibold">ID Socio:</span>
+    <p>{socioFicha.id_socio}</p>
+  </div>
 
-              <div>
-                <span className="font-semibold">Dirección:</span>
-                <p>{socioFicha.direccion}</p>
-              </div>
+  <div>
+    <span className="font-semibold">Fecha de registro:</span>
+    <p>{fmtFecha(socioFicha.created_at)}</p>
+  </div>
 
-              <div>
-                <span className="font-semibold">Fecha de nacimiento:</span>
-                <p>{fmtFecha(socioFicha.fecha_nacimiento)}</p>
-              </div>
+  <div>
+    <span className="font-semibold">Teléfono:</span>
+    <p>{socioFicha.telefono}</p>
+  </div>
 
-              <div>
-                <span className="font-semibold">Estatus:</span>
-                <p>{socioFicha.estatus ? 'Activo' : 'Inactivo'}</p>
-              </div>
-            </div>
+  <div>
+    <span className="font-semibold">Código Postal:</span>
+    <p>{socioFicha.cp}</p>
+  </div>
+
+  <div className="col-span-full">
+    <span className="font-semibold">Dirección:</span>
+    <p>{socioFicha.direccion}</p>
+  </div>
+
+  <div>
+    <span className="font-semibold">Fecha de nacimiento:</span>
+    <p>{fmtFecha(socioFicha.fecha_nacimiento)}</p>
+  </div>
+
+  <div>
+    <span className="font-semibold">Estatus:</span>
+    <p>{socioFicha.estatus ? 'Activo' : 'Inactivo'}</p>
+  </div>
+
+</div>
+
 
           </div>
         </div>
       )}
+{refsFicha.length > 0 && (
+  <div className="mt-6 text-sm">
+    <h4 className="font-semibold text-slate-800 mb-3">Referencias Personales</h4>
+    {refsFicha.map((r) => (
+      <div key={r.id_referencia} className="mb-3">
+        <p><strong>Nombre:</strong> {r.nombre} {r.apellido_paterno} {r.apellido_materno}</p>
+        <p><strong>Teléfono:</strong> {r.telefono}</p>
+        <p><strong>Dirección:</strong> {r.direccion}</p>
+      </div>
+    ))}
+  </div>
+)}
+{benefFicha.length > 0 && (
+  <div className="mt-6 text-sm">
+    <h4 className="font-semibold text-slate-800 mb-3">Beneficiario</h4>
+    {benefFicha.map((b) => (
+      <div key={b.id_beneficiario} className="mb-3">
+        <p><strong>Nombre:</strong> {b.nombre} {b.apellido_paterno} {b.apellido_materno}</p>
+        <p><strong>Teléfono:</strong> {b.telefono}</p>
+        <p><strong>Dirección:</strong> {b.direccion}</p>
+
+        {b.foto_url && (
+          <a
+            href={b.foto_url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-block mt-2 mr-2 px-3 py-1 bg-blue-600 text-white rounded-lg text-xs"
+          >
+            Ver Foto
+          </a>
+        )}
+
+        {b.documentos_url && (
+          <a
+            href={b.documentos_url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-block mt-2 px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs"
+          >
+            Ver Documento
+          </a>
+        )}
+      </div>
+    ))}
+  </div>
+)}
+{bancoFicha.length > 0 && (
+  <div className="mt-6 text-sm">
+    <h4 className="font-semibold text-slate-800 mb-3">Referencias Bancarias</h4>
+    {bancoFicha.map((b) => (
+      <div key={b.id_referencia_bancaria} className="mb-3">
+        <p><strong>Entidad:</strong> {b.entidad_bancaria}</p>
+        <p><strong>País:</strong> {b.pais}</p>
+        <p><strong>Titular:</strong> {b.titular_cuenta}</p>
+        <p><strong>Número de cuenta:</strong> {b.numero_cuenta}</p>
+        <p><strong>Cuenta CLABE:</strong> {b.cuenta_clave}</p>
+      </div>
+    ))}
+  </div>
+)}
 
     </div>
   );
