@@ -361,11 +361,12 @@ const uploadPhotoToAforeBucket = async (socioId) => {
       let socioId;
 
       if (editingSocio) {
-        const patchBody = {
-          ...newSocio,
-          estatus: newSocio.estatus,
-          fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
-        };
+  const patchBody = {
+    ...newSocio,
+    estatus: newSocio.estatus === 'activo',
+    fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
+  };
+
 
         const res = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${editingSocio.id_socio}`, {
           method: 'PATCH',
