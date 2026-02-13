@@ -361,6 +361,7 @@ const uploadPhotoToAforeBucket = async (socioId) => {
       let socioId;
 
       if (editingSocio) {
+        console.log("ENTRANDO EN EDITAR");
   const patchBody = {
     ...newSocio,
     estatus: newSocio.estatus === 'activo',
