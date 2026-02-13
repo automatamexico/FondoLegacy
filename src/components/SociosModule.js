@@ -732,26 +732,28 @@ if (ahorroRetiro) {
   <label className="block text-sm font-medium text-slate-700 mb-2">
     Pago Afiliación
   </label>
- <input
-  type="number"
-  step="0.01"
-  value={montoAfiliacion}
-  onChange={(e) => {
-    setMontoAfiliacion(e.target.value);
-    if (errorMonto) setErrorMonto('');
-  }}
-  placeholder="Ingrese monto pagado"
-  className={`w-full px-4 py-2 border rounded-lg ${
-    errorMonto ? 'border-red-500 focus:ring-red-500' : 'border-slate-200'
-  }`}
-  required
-/>
 
-{errorMonto && (
-  <p className="text-sm text-red-600 mt-1">
-    {errorMonto}
-  </p>
-)}
+  <input
+    type="number"
+    step="0.01"
+    value={montoAfiliacion}
+    onChange={(e) => {
+      setMontoAfiliacion(e.target.value);
+      if (errorMonto) setErrorMonto('');
+    }}
+    placeholder="Ingrese monto pagado"
+    className={`w-full px-4 py-2 border rounded-lg ${
+      errorMonto ? 'border-red-500 focus:ring-red-500' : 'border-slate-200'
+    }`}
+    required
+  />
+
+  {errorMonto && (
+    <p className="text-sm text-red-600 mt-1">
+      {errorMonto}
+    </p>
+  )}
+</div>
 
 
             {/* Subida de foto */}
