@@ -348,13 +348,17 @@ const uploadPhotoToAforeBucket = async (socioId) => {
       setError('Complete los campos obligatorios.');
       return;
     }
-// 👇 AQUÍ VA LA VALIDACIÓN DE PAGO
- if (!montoAfiliacion || parseFloat(montoAfiliacion) <= 0) {
-  setErrorMonto('Debe registrar el pago de afiliación.');
-  return;
-} else {
-  setErrorMonto('');
+    
+// 👇 VALIDACIÓN SOLO PARA NUEVOS SOCIOS
+if (!editingSocio) {
+  if (!montoAfiliacion || parseFloat(montoAfiliacion) <= 0) {
+    setErrorMonto('Debe registrar el pago de afiliación.');
+    return;
+  } else {
+    setErrorMonto('');
+  }
 }
+
 
     setSaving(true);
     try {
