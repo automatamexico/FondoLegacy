@@ -441,6 +441,12 @@ if (beneficiario.nombre.trim() !== '') {
 }
 // ================= GUARDAR REFERENCIA BANCARIA (OPCIONAL) =================
 if (referenciaBancaria.entidad_bancaria.trim() !== '') {
+
+  const bancoFinal =
+    referenciaBancaria.entidad_bancaria === "OTRO"
+      ? referenciaBancaria.banco_otro
+      : referenciaBancaria.entidad_bancaria;
+
   await fetch(`${SUPABASE_URL}/rest/v1/referencias_bancarias`, {
     method: 'POST',
     headers: {
@@ -451,10 +457,15 @@ if (referenciaBancaria.entidad_bancaria.trim() !== '') {
     },
     body: JSON.stringify({
       id_socio: socioIdNew,
-      ...referenciaBancaria
+      entidad_bancaria: bancoFinal,
+      titular_cuenta: referenciaBancaria.titular_cuenta,
+      numero_cuenta: referenciaBancaria.numero_cuenta,
+      cuenta_clave: referenciaBancaria.cuenta_clave,
+      pais: referenciaBancaria.pais || "México",
     }),
   });
 }
+
 
 
         // 🔹 Registrar pago de afiliación si hay monto
