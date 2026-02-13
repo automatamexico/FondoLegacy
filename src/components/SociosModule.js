@@ -361,43 +361,103 @@ if (!editingSocio) {
 
 
     setSaving(true);
-    try {
-      let socioId;
 
-      if (editingSocio) {
-        console.log("ENTRANDO EN EDITAR");
-  const patchBody = {
-    ...newSocio,
-    estatus: newSocio.estatus === 'activo',
-    fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
-  };
+try {
+  let socioId;
 
+  if (editingSocio) {
 
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${editingSocio.id_socio}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Prefer': 'return=representation',
-          },
-          body: JSON.stringify(patchBody),
-        });
-        if (!res.ok) {
-          const e = await res.json().catch(() => ({}));
-          throw new Error(`Error al actualizar socio: ${res.statusText} - ${e.message || ''}`);
-        }
-        const updated = await res.json();
-console.log("RESPUESTA PATCH:", updated);
+    console.log("ENTRANDO EN EDITAR");
 
-const socio = updated[0];
+    const patchBody = {
+      ...newSocio,
+      estatus: newSocio.estatus === 'activo',
+      fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
+    };
 
-if (!socio) {
-  console.error("PATCH no devolvió registro");
-  return;
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${editingSocio.id_socio}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify(patchBody),
+      }
+    );
+
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(
+        `Error al actualizar socio: ${res.statusText} - ${e.message || ''}`
+      );
+    }
+
+    const updated = await res.json();
+    console.log("RESPUESTA PATCH:", updated);
+
+    const socio = updated[0];
+
+    if (!socio) {
+      throw new Error("PATCH no devolvió registro");
+    }
+
+    socioId = socio.id_socio;
+
+    setSociosList(prev =>
+      prev.map(s => (s.id_socio === socioId ? socio : s))
+    );
+
+  } else {
+
+    const bodyToSend = {
+      ...newSocio,
+      estatus: newSocio.estatus === 'activo',
+      fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
+    };
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/socios`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify(bodyToSend),
+    });
+
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(
+        `Error al registrar socio: ${res.statusText} - ${e.message || ''}`
+      );
+    }
+
+    const inserted = await res.json();
+    const socio = inserted[0];
+    socioId = socio.id_socio;
+
+    setSociosList(prev => [...prev, socio]);
+  }
+
+  // ✅ cerrar formulario correctamente
+  resetForm();
+  setShowForm(false);
+
+} catch (err) {
+
+  console.error("ERROR GENERAL:", err);
+  setError(err.message);
+
+} finally {
+
+  setSaving(false);
 }
 
-socioId = socio.id_socio;
 // ================= GUARDAR BENEFICIARIO (EDITAR) =================
 if (beneficiario.nombre.trim() !== '') {
 
