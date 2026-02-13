@@ -88,6 +88,15 @@ const [beneficiario, setBeneficiario] = useState({
 const [beneficiarioFoto, setBeneficiarioFoto] = useState(null);
 const [beneficiarioDocumento, setBeneficiarioDocumento] = useState(null);
 
+  // ================= REFERENCIA BANCARIA =================
+const [referenciaBancaria, setReferenciaBancaria] = useState({
+  entidad_bancaria: '',
+  titular_cuenta: '',
+  numero_cuenta: '',
+  cuenta_clave: ''
+});
+
+
 
   // Modal eliminar
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -421,6 +430,22 @@ if (beneficiario.nombre.trim() !== '') {
       ...beneficiario,
       foto_url: fotoUrl,
       documentos_url: documentoUrl
+    }),
+  });
+}
+// ================= GUARDAR REFERENCIA BANCARIA (OPCIONAL) =================
+if (referenciaBancaria.entidad_bancaria.trim() !== '') {
+  await fetch(`${SUPABASE_URL}/rest/v1/referencias_bancarias`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify({
+      id_socio: socioIdNew,
+      ...referenciaBancaria
     }),
   });
 }
@@ -1000,6 +1025,90 @@ if (ahorroRetiro) {
   />
 </div>
 
+      {/* ================= REFERENCIAS BANCARIAS ================= */}
+<div className="col-span-full border-t-2 border-blue-600 pt-6 mt-6">
+  <h4 className="font-semibold text-slate-800 mb-4">
+    Referencias Bancarias
+  </h4>
+</div>
+
+<select
+  className="col-span-full px-4 py-2 border border-slate-200 rounded-lg"
+  value={referenciaBancaria.entidad_bancaria}
+  onChange={(e) =>
+    setReferenciaBancaria({
+      ...referenciaBancaria,
+      entidad_bancaria: e.target.value
+    })
+  }
+>
+  <option value="">Seleccione entidad bancaria</option>
+  <option>BBVA México</option>
+  <option>Banco Santander México</option>
+  <option>Banco Mercantil del Norte (Banorte)</option>
+  <option>Banco Nacional de México (Citibanamex)</option>
+  <option>HSBC México</option>
+  <option>Scotiabank Inverlat</option>
+  <option>Banco Inbursa</option>
+  <option>Banco Azteca</option>
+  <option>BanCoppel</option>
+  <option>Banco del Bajío</option>
+  <option>Banca Afirme</option>
+  <option>Banca Mifel</option>
+  <option>Banco Ve por Más (BX+)</option>
+  <option>Banco Monex</option>
+  <option>Banco Actinver</option>
+  <option>Intercam Banco</option>
+  <option>Banco Multiva</option>
+  <option>Banco Sabadell</option>
+  <option>CIBanco</option>
+  <option>Banco Base</option>
+  <option>Nubank (Nu México)</option>
+  <option>Banco Bineo</option>
+  <option>SPIN By OXXO</option>
+  <option>Otro</option>
+</select>
+
+<input
+  type="text"
+  placeholder="Titular de la cuenta"
+  className="px-4 py-2 border border-slate-200 rounded-lg"
+  value={referenciaBancaria.titular_cuenta}
+  onChange={(e) =>
+    setReferenciaBancaria({
+      ...referenciaBancaria,
+      titular_cuenta: e.target.value
+    })
+  }
+/>
+
+<input
+  type="text"
+  placeholder="Número de cuenta"
+  className="px-4 py-2 border border-slate-200 rounded-lg"
+  value={referenciaBancaria.numero_cuenta}
+  onChange={(e) =>
+    setReferenciaBancaria({
+      ...referenciaBancaria,
+      numero_cuenta: e.target.value
+    })
+  }
+/>
+
+<input
+  type="text"
+  placeholder="Cuenta Clave"
+  className="px-4 py-2 border border-slate-200 rounded-lg"
+  value={referenciaBancaria.cuenta_clave}
+  onChange={(e) =>
+    setReferenciaBancaria({
+      ...referenciaBancaria,
+      cuenta_clave: e.target.value
+    })
+  }
+/>
+
+      
 <button
   type="button"
   onClick={() => setShowConfirmRegistro(true)}
