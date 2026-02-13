@@ -1512,8 +1512,9 @@ if (ahorroRetiro) {
 
   <div>
   <span className="font-semibold">Fecha de registro:</span>
-  <p>{socioFicha.miembro_desde ? fmtFecha(socioFicha.miembro_desde) : '-'}</p>
+  <p>{fmtFecha(socioFicha.miembro_desde)}</p>
 </div>
+
 
 
   <div>
