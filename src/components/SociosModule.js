@@ -931,17 +931,6 @@ if (ahorroRetiro) {
   onChange={(e) => setReferencia({ ...referencia, direccion: e.target.value })}
 />
 
-<button
-  type="button"
-  onClick={() => setShowConfirmRegistro(true)}
-  disabled={saving}
-  className="col-span-full px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
->
-  {saving
-    ? (editingSocio ? 'Actualizando…' : 'Registrando…')
-    : (editingSocio ? 'Actualizar Socio' : 'Registrar Socio')}
-</button>
-
 {/* ================= BENEFICIARIO ================= */}
 <div className="col-span-full border-t-2 border-blue-600 pt-6 mt-6">
   <h4 className="font-semibold text-slate-800 mb-4">
@@ -954,7 +943,7 @@ if (ahorroRetiro) {
   placeholder="Nombre"
   className="px-4 py-2 border border-slate-200 rounded-lg"
   value={beneficiario.nombre}
-  onChange={(e) => setBeneficiario({...beneficiario, nombre: e.target.value})}
+  onChange={(e) => setBeneficiario({ ...beneficiario, nombre: e.target.value })}
 />
 
 <input
@@ -962,7 +951,7 @@ if (ahorroRetiro) {
   placeholder="Apellido Paterno"
   className="px-4 py-2 border border-slate-200 rounded-lg"
   value={beneficiario.apellido_paterno}
-  onChange={(e) => setBeneficiario({...beneficiario, apellido_paterno: e.target.value})}
+  onChange={(e) => setBeneficiario({ ...beneficiario, apellido_paterno: e.target.value })}
 />
 
 <input
@@ -970,7 +959,7 @@ if (ahorroRetiro) {
   placeholder="Apellido Materno"
   className="px-4 py-2 border border-slate-200 rounded-lg"
   value={beneficiario.apellido_materno}
-  onChange={(e) => setBeneficiario({...beneficiario, apellido_materno: e.target.value})}
+  onChange={(e) => setBeneficiario({ ...beneficiario, apellido_materno: e.target.value })}
 />
 
 <input
@@ -978,7 +967,7 @@ if (ahorroRetiro) {
   placeholder="Teléfono"
   className="px-4 py-2 border border-slate-200 rounded-lg"
   value={beneficiario.telefono}
-  onChange={(e) => setBeneficiario({...beneficiario, telefono: e.target.value})}
+  onChange={(e) => setBeneficiario({ ...beneficiario, telefono: e.target.value })}
 />
 
 <input
@@ -986,7 +975,7 @@ if (ahorroRetiro) {
   placeholder="Dirección"
   className="col-span-full px-4 py-2 border border-slate-200 rounded-lg"
   value={beneficiario.direccion}
-  onChange={(e) => setBeneficiario({...beneficiario, direccion: e.target.value})}
+  onChange={(e) => setBeneficiario({ ...beneficiario, direccion: e.target.value })}
 />
 
 <div className="col-span-full">
@@ -1011,8 +1000,17 @@ if (ahorroRetiro) {
   />
 </div>
 
+<button
+  type="button"
+  onClick={() => setShowConfirmRegistro(true)}
+  disabled={saving}
+  className="col-span-full px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
+>
+  {saving
+    ? (editingSocio ? 'Actualizando…' : 'Registrando…')
+    : (editingSocio ? 'Actualizar Socio' : 'Registrar Socio')}
+</button>
 
-                 )}
 
       {/* Tabla principal */}
       {loading && <p className="text-center text-slate-600">Cargando socios...</p>}
