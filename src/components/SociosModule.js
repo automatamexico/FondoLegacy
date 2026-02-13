@@ -716,7 +716,8 @@ if (ahorroRetiro) {
 
   /** Ficha */
  const openFicha = async (socio) => {
-  console.log("SOCIO RECIBIDO:", socio);
+  setShowFicha(true);
+  setSocioFicha({ ...socio }); // fuerza nuevo objeto
 
   setSocioFicha(socio);   // ← primero seteamos directo
   setShowFicha(true);     // ← abrimos modal inmediatamente
