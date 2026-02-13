@@ -413,8 +413,8 @@ if (beneficiario.nombre.trim() !== '') {
       {
         method: 'POST',
         headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           'Content-Type': beneficiarioFoto.type,
           'x-upsert': 'true'
         },
@@ -440,8 +440,8 @@ if (beneficiario.nombre.trim() !== '') {
       {
         method: 'POST',
         headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/pdf',
           'x-upsert': 'true'
         },
@@ -458,8 +458,55 @@ if (beneficiario.nombre.trim() !== '') {
     documentoUrl = `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_fondo/${pathDoc}`;
   }
 
-  // ================= GUARDAR BENEFICIARIO (EDITAR) =================
-if (beneficiario.nombre.trim() !== '') {
+  // ===== VERIFICAR SI YA EXISTE =====
+  const checkRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${socioId}`,
+    {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    }
+  );
+
+  const existing = await checkRes.json();
+
+  if (existing && existing.length > 0) {
+    // 👉 HACER UPDATE (PATCH)
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${socioId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          ...beneficiario,
+          foto_url: fotoUrl || existing[0].foto_url,
+          documentos_url: documentoUrl || existing[0].documentos_url
+        }),
+      }
+    );
+  } else {
+    // 👉 HACER INSERT (POST)
+    await fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        id_socio: socioId,
+        ...beneficiario,
+        foto_url: fotoUrl,
+        documentos_url: documentoUrl
+      }),
+    });
+  }
+}
 
   // Primero verificamos si ya existe
   const checkRes = await fetch(
