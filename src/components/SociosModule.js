@@ -88,14 +88,22 @@ const [beneficiario, setBeneficiario] = useState({
 const [beneficiarioFoto, setBeneficiarioFoto] = useState(null);
 const [beneficiarioDocumento, setBeneficiarioDocumento] = useState(null);
 
-  // ================= REFERENCIA BANCARIA =================
+ // ================= REFERENCIAS BANCARIAS =================
 const [referenciaBancaria, setReferenciaBancaria] = useState({
   entidad_bancaria: '',
-  titular: '',
+  titular_cuenta: '',
   numero_cuenta: '',
   cuenta_clave: '',
-  pais: 'México'
+  pais: 'México',
+  banco_otro: ''
 });
+
+const [showBancoModal, setShowBancoModal] = useState(false);
+const [bancoPersonalizado, setBancoPersonalizado] = useState({
+  nombre: '',
+  pais: ''
+});
+
 
 const [showBancoModal, setShowBancoModal] = useState(false);
 
