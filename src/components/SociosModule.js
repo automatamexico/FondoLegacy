@@ -897,37 +897,37 @@ if (ahorroRetiro) {
           </div>
         </div>
       )}
-{/* Modal Confirmar Registro */}
-{showConfirmRegistro && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-    <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center">
-      <h3 className="text-lg font-bold text-slate-900 mb-4">
-        ¿La información capturada es correcta?
-      </h3>
+      {/* Modal Confirmar Registro */}
+      {showConfirmRegistro && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">
+              ¿La información capturada es correcta?
+            </h3>
 
-      <div className="flex justify-center gap-4">
-        <button
-          onClick={() => {
-            setShowConfirmRegistro(false);
-            document.querySelector('form')?.dispatchEvent(
-              new Event('submit', { cancelable: true, bubbles: true })
-            );
-          }}
-          className="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium"
-        >
-          Sí
-        </button>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => {
+                  setShowConfirmRegistro(false);
+                  document.querySelector('form')?.dispatchEvent(
+                    new Event('submit', { cancelable: true, bubbles: true })
+                  );
+                }}
+                className="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium"
+              >
+                Sí
+              </button>
 
-        <button
-          onClick={() => setShowConfirmRegistro(false)}
-          className="px-5 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 font-medium"
-        >
-          No
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+              <button
+                onClick={() => setShowConfirmRegistro(false)}
+                className="px-5 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 font-medium"
+              >
+                No
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal confirmar eliminación */}
       {showConfirmModal && (
@@ -957,75 +957,6 @@ if (ahorroRetiro) {
         </div>
       )}
 
-      {/* Modal Ficha del socio — AHORA SIN DESFASE en fechas */}
-      {showFicha && socioFicha && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg">
-            <div className="flex items-start justify-between mb-4">
-              <h3 className="text-xl font-bold text-slate-900">Ficha del socio</h3>
-              <button onClick={closeFicha} className="text-slate-500 hover:text-slate-900">Cerrar</button>
-            </div>
-
-            <div className="flex items-center space-x-4 mb-4">
-              <img
-                src={socioFicha.foto_url || avatarFallback(socioFicha)}
-                alt="foto"
-                className="w-20 h-20 rounded-xl object-cover border"
-              />
-              <div>
-                <div className="text-sm text-slate-500">ID Socio</div>
-                <div className="text-lg font-semibold">{socioFicha.id_socio}</div>
-                <div className="text-slate-900 font-medium">
-                  {socioFicha.nombre} {socioFicha.apellido_paterno} {socioFicha.apellido_materno}
-                </div>
-                <div className="text-sm text-slate-600 mt-1">
-                  Teléfono:{' '}
-                  <span className="font-medium text-slate-900">
-                    {socioFicha.telefono || '-'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-3 bg-slate-50 rounded-lg">
-                <div className="text-xs text-slate-500">Teléfono</div>
-                <div className="font-medium">{socioFicha.telefono || '-'}</div>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-lg">
-                <div className="text-xs text-slate-500">Código Postal</div>
-                <div className="font-medium">{socioFicha.cp || '-'}</div>
-              </div>
-
-              {/* Fecha de nacimiento (formateada sin desfase) */}
-              <div className="p-3 bg-slate-50 rounded-lg">
-                <div className="text-xs text-slate-500">Fecha de nacimiento</div>
-                <div className="font-medium">{fmtFecha(socioFicha.fecha_nacimiento)}</div>
-              </div>
-
-              {/* Miembro desde (formateada sin desfase) */}
-              <div className="p-3 bg-slate-50 rounded-lg">
-                <div className="text-xs text-slate-500">Miembro desde</div>
-                <div className="font-medium">{fmtFecha(socioFicha.miembro_desde)}</div>
-              </div>
-
-              <div className="md:col-span-2 p-3 bg-slate-50 rounded-lg">
-                <div className="text-xs text-slate-500">Dirección</div>
-                <div className="font-medium">{socioFicha.direccion || '-'}</div>
-              </div>
-            </div>
-
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={closeFicha}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
