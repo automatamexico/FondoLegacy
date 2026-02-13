@@ -803,14 +803,53 @@ if (ahorroRetiro) {
       direccion: socio.direccion || '',
       cp: socio.cp || '',
       estatus: socio.estatus ? 'activo' : 'inactivo',
-      // Usar toDateInput "segura" que respeta 'YYYY-MM-DD' tal cual
       fecha_nacimiento: toDateInput(socio.fecha_nacimiento) || '',
     });
     setPhotoFile(null);
     setPhotoPreview(socio.foto_url || '');
     setPhotoError('');
     setShowForm(true);
-  };
+    // ================= CARGAR REFERENCIAS PERSONALES =================
+  fetch(`${SUPABASE_URL}/rest/v1/refs_fondo?id_socio=eq.${socio.id_socio}`, {
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.length > 0) {
+        setReferencia(data[0]);
+      }
+    });
+
+  // ================= CARGAR BENEFICIARIO =================
+  fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${socio.id_socio}`, {
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.length > 0) {
+        setBeneficiario(data[0]);
+      }
+    });
+
+  // ================= CARGAR REFERENCIA BANCARIA =================
+  fetch(`${SUPABASE_URL}/rest/v1/referencias_bancarias?id_socio=eq.${socio.id_socio}`, {
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.length > 0) {
+        setReferenciaBancaria(data[0]);
+      }
+    });
 
   const handleDeleteClick = (socio) => {
     setSocioToDelete(socio);
@@ -1096,32 +1135,35 @@ const openFicha = async (socio) => {
 </div>
 
 {/* Pago Afiliación */}
-<div className="col-span-full mt-4">
-  <label className="block text-sm font-medium text-slate-700 mb-2">
-    Pago Afiliación
-  </label>
+{!editingSocio && (
+  <div className="col-span-full mt-4">
+    <label className="block text-sm font-medium text-slate-700 mb-2">
+      Pago Afiliación
+    </label>
 
-  <input
-    type="number"
-    step="0.01"
-    value={montoAfiliacion}
-    onChange={(e) => {
-      setMontoAfiliacion(e.target.value);
-      if (errorMonto) setErrorMonto('');
-    }}
-    placeholder="Ingrese monto pagado"
-    className={`w-full px-4 py-2 border rounded-lg ${
-      errorMonto ? 'border-red-500 focus:ring-red-500' : 'border-slate-200'
-    }`}
-    required
-  />
+    <input
+      type="number"
+      step="0.01"
+      value={montoAfiliacion}
+      onChange={(e) => {
+        setMontoAfiliacion(e.target.value);
+        if (errorMonto) setErrorMonto('');
+      }}
+      placeholder="Ingrese monto pagado"
+      className={`w-full px-4 py-2 border rounded-lg ${
+        errorMonto ? 'border-red-500 focus:ring-red-500' : 'border-slate-200'
+      }`}
+      required
+    />
 
-  {errorMonto && (
-    <p className="text-sm text-red-600 mt-1">
-      {errorMonto}
-    </p>
-  )}
-</div>
+    {errorMonto && (
+      <p className="text-sm text-red-600 mt-1">
+        {errorMonto}
+      </p>
+    )}
+  </div>
+)}
+
 
 {/* Subida de foto */}
 <div className="col-span-full">
