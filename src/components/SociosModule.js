@@ -257,9 +257,6 @@ const uploadPhotoToAforeBucket = async (socioId) => {
     return;
   }
 
-  setSaving(true);
-  try {
-    
     setSaving(true);
     try {
       let socioId;
