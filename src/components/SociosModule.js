@@ -1511,9 +1511,10 @@ if (ahorroRetiro) {
   </div>
 
   <div>
-    <span className="font-semibold">Fecha de registro:</span>
-    <p>{fmtFecha(socioFicha.created_at)}</p>
-  </div>
+  <span className="font-semibold">Fecha de registro:</span>
+  <p>{socioFicha.miembro_desde ? fmtFecha(socioFicha.miembro_desde) : '-'}</p>
+</div>
+
 
   <div>
     <span className="font-semibold">Teléfono:</span>
