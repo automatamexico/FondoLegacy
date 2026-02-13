@@ -843,55 +843,46 @@ if (ahorroRetiro) {
   )}
 </div>
 
- {/* Subida de foto */}
-            <div className="col-span-full">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Foto del socio (JPG o PNG)</label>
+{/* Subida de foto */}
+<div className="col-span-full">
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Foto del socio (JPG o PNG)
+  </label>
 
-              <div
-                ref={dropRef}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className="border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col md:flex-row items-center gap-4"
-              >
-                <img
-                  src={photoPreview || avatarFallback(newSocio)}
-                  alt="preview"
-                  className="w-20 h-20 rounded-full object-cover border"
-                />
-                <div className="flex-1 text-slate-600">
-                  <p className="font-medium">Arrastra y suelta la foto aquí</p>
-                  <p className="text-sm">o</p>
-                  <button
-                    type="button"
-                    onClick={handleChooseFile}
-                    className="mt-2 px-3 py-1.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900"
-                  >
-                    Elegir archivo
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                  {photoError && <p className="text-sm text-red-600 mt-2">{photoError}</p>}
-                  {photoUploading && <p className="text-sm text-slate-500 mt-2">Subiendo foto…</p>}
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowConfirmRegistro(true)}
-              disabled={saving}
-              className="col-span-full px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
-            >
-              {saving ? (editingSocio ? 'Actualizando…' : 'Registrando…') : (editingSocio ? 'Actualizar Socio' : 'Registrar Socio')}
-            </button>
-          </form>
-        </div>
+  <div
+    ref={dropRef}
+    onDragOver={handleDragOver}
+    onDragLeave={handleDragLeave}
+    onDrop={handleDrop}
+    className="border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col md:flex-row items-center gap-4"
+  >
+    <img
+      src={photoPreview || avatarFallback(newSocio)}
+      alt="preview"
+      className="w-20 h-20 rounded-full object-cover border"
+    />
+    <div className="flex-1 text-slate-600">
+      <p className="font-medium">Arrastra y suelta la foto aquí</p>
+      <p className="text-sm">o</p>
+      <button
+        type="button"
+        onClick={handleChooseFile}
+        className="mt-2 px-3 py-1.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900"
+      >
+        Elegir archivo
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      {photoError && <p className="text-sm text-red-600 mt-2">{photoError}</p>}
+      {photoUploading && <p className="text-sm text-slate-500 mt-2">Subiendo foto…</p>}
+    </div>
+  </div>
+</div>
 
 {/* ================= REFERENCIAS PERSONALES ================= */}
 <div className="col-span-full border-t-2 border-blue-600 pt-6 mt-6">
@@ -905,7 +896,7 @@ if (ahorroRetiro) {
   placeholder="Nombre"
   className="px-4 py-2 border border-slate-200 rounded-lg"
   value={referencia.nombre}
-  onChange={(e) => setReferencia({...referencia, nombre: e.target.value})}
+  onChange={(e) => setReferencia({ ...referencia, nombre: e.target.value })}
 />
 
 <input
@@ -913,7 +904,7 @@ if (ahorroRetiro) {
   placeholder="Apellido Paterno"
   className="px-4 py-2 border border-slate-200 rounded-lg"
   value={referencia.apellido_paterno}
-  onChange={(e) => setReferencia({...referencia, apellido_paterno: e.target.value})}
+  onChange={(e) => setReferencia({ ...referencia, apellido_paterno: e.target.value })}
 />
 
 <input
@@ -921,7 +912,7 @@ if (ahorroRetiro) {
   placeholder="Apellido Materno"
   className="px-4 py-2 border border-slate-200 rounded-lg"
   value={referencia.apellido_materno}
-  onChange={(e) => setReferencia({...referencia, apellido_materno: e.target.value})}
+  onChange={(e) => setReferencia({ ...referencia, apellido_materno: e.target.value })}
 />
 
 <input
@@ -929,7 +920,7 @@ if (ahorroRetiro) {
   placeholder="Teléfono"
   className="px-4 py-2 border border-slate-200 rounded-lg"
   value={referencia.telefono}
-  onChange={(e) => setReferencia({...referencia, telefono: e.target.value})}
+  onChange={(e) => setReferencia({ ...referencia, telefono: e.target.value })}
 />
 
 <input
@@ -937,8 +928,19 @@ if (ahorroRetiro) {
   placeholder="Dirección"
   className="col-span-full px-4 py-2 border border-slate-200 rounded-lg"
   value={referencia.direccion}
-  onChange={(e) => setReferencia({...referencia, direccion: e.target.value})}
+  onChange={(e) => setReferencia({ ...referencia, direccion: e.target.value })}
 />
+
+<button
+  type="button"
+  onClick={() => setShowConfirmRegistro(true)}
+  disabled={saving}
+  className="col-span-full px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
+>
+  {saving
+    ? (editingSocio ? 'Actualizando…' : 'Registrando…')
+    : (editingSocio ? 'Actualizar Socio' : 'Registrar Socio')}
+</button>
 
 {/* ================= BENEFICIARIO ================= */}
 <div className="col-span-full border-t-2 border-blue-600 pt-6 mt-6">
