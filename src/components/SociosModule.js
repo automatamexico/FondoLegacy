@@ -384,11 +384,103 @@ const uploadPhotoToAforeBucket = async (socioId) => {
           throw new Error(`Error al actualizar socio: ${res.statusText} - ${e.message || ''}`);
         }
         const updated = await res.json();
-        console.log("ENTRANDO EN EDITAR");
+console.log("RESPUESTA PATCH:", updated);
+
+const socio = updated[0];
+
+if (!socio) {
+  console.error("PATCH no devolvió registro");
+  return;
+}
+
+socioId = socio.id_socio;
+// ================= GUARDAR BENEFICIARIO (EDITAR) =================
+if (beneficiario.nombre.trim() !== '') {
+
+  let fotoUrl = null;
+  let documentoUrl = null;
+
+  // ===== SUBIR FOTO =====
+  if (beneficiarioFoto) {
+    const path = `socio_${socioId}_foto_${Date.now()}.jpg`;
+
+    const uploadRes = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/beneficiarios_fondo/${path}?upsert=true`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': beneficiarioFoto.type,
+          'x-upsert': 'true'
+        },
+        body: beneficiarioFoto
+      }
+    );
+
+    if (!uploadRes.ok) {
+      const errorText = await uploadRes.text();
+      console.error("ERROR SUBIENDO FOTO (EDITAR):", errorText);
+      throw new Error("No se pudo subir la foto del beneficiario");
+    }
+
+    fotoUrl = `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_fondo/${path}`;
+  }
+
+  // ===== SUBIR DOCUMENTO =====
+  if (beneficiarioDocumento) {
+    const pathDoc = `socio_${socioId}_doc_${Date.now()}.pdf`;
+
+    const uploadResDoc = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/beneficiarios_fondo/${pathDoc}?upsert=true`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/pdf',
+          'x-upsert': 'true'
+        },
+        body: beneficiarioDocumento
+      }
+    );
+
+    if (!uploadResDoc.ok) {
+      const errorText = await uploadResDoc.text();
+      console.error("ERROR SUBIENDO PDF (EDITAR):", errorText);
+      throw new Error("No se pudo subir el documento del beneficiario");
+    }
+
+    documentoUrl = `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_fondo/${pathDoc}`;
+  }
+
+  // ===== INSERTAR REGISTRO BENEFICIARIO =====
+  const insertBenefRes = await fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify({
+      id_socio: socioId,
+      ...beneficiario,
+      foto_url: fotoUrl,
+      documentos_url: documentoUrl
+    }),
+  });
+
+  if (!insertBenefRes.ok) {
+    const errorText = await insertBenefRes.text();
+    console.error("ERROR INSERTANDO BENEFICIARIO (EDITAR):", errorText);
+    throw new Error("No se pudo guardar el beneficiario");
+  }
+}
+
+console.log("Socio ID ya asignado:", socioId);
 console.log("Referencia actual:", referencia);
-console.log("Socio ID:", socioId);
-        const socio = updated[0];
-        socioId = socio.id_socio;
+
 // ================= GUARDAR REFERENCIA (EDITAR) =================
 if (referencia.nombre.trim() !== '') {
   await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo`, {
