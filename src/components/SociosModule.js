@@ -1479,7 +1479,8 @@ if (ahorroRetiro) {
         </div>
       )}
      {/* ================= FICHA DEL SOCIO ================= */}
-{showFicha && (
+{showFicha && socioFicha && (
+
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-2xl w-full relative">
   <pre style={{fontSize: "10px", background: "#eee", padding: "10px", maxHeight: "200px", overflow: "auto"}}>
