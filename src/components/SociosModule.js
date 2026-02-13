@@ -433,6 +433,8 @@ const uploadPhotoToAforeBucket = async (socioId) => {
         const inserted = await res.json();
         const socio = inserted[0];
         const socioIdNew = socio.id_socio;
+        socioId = socioIdNew;
+
         // ================= GUARDAR REFERENCIA (OPCIONAL) =================
 if (referencia.nombre.trim() !== '') {
   await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo`, {
@@ -444,7 +446,7 @@ if (referencia.nombre.trim() !== '') {
       'Prefer': 'return=minimal',
     },
     body: JSON.stringify({
-      id_socio: socioIdNew,
+      id_socio: socioId,
       ...referencia
     }),
   });
@@ -517,7 +519,7 @@ if (beneficiario.nombre.trim() !== '') {
       'Prefer': 'return=minimal',
     },
     body: JSON.stringify({
-      id_socio: socioIdNew,
+      id_socio: socioId,
       ...beneficiario,
       foto_url: fotoUrl,
       documentos_url: documentoUrl
@@ -542,7 +544,7 @@ if (referenciaBancaria.entidad_bancaria.trim() !== '') {
       'Prefer': 'return=minimal',
     },
     body: JSON.stringify({
-      id_socio: socioIdNew,
+      id_socio: socioId,
       entidad_bancaria: bancoFinal,
       titular_cuenta: referenciaBancaria.titular_cuenta,
       numero_cuenta: referenciaBancaria.numero_cuenta,
