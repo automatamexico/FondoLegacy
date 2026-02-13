@@ -1446,6 +1446,62 @@ if (ahorroRetiro) {
           </div>
         </div>
       )}
+      {/* ================= FICHA DEL SOCIO ================= */}
+      {showFicha && socioFicha && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-2xl w-full relative">
+
+            <button
+              onClick={closeFicha}
+              className="absolute top-3 right-3 text-slate-500 hover:text-slate-800"
+            >
+              ✕
+            </button>
+
+            <div className="flex items-center gap-4 mb-6">
+              <img
+                src={socioFicha.foto_url || avatarFallback(socioFicha)}
+                alt="avatar"
+                className="w-20 h-20 rounded-full object-cover border"
+              />
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">
+                  {socioFicha.nombre} {socioFicha.apellido_paterno} {socioFicha.apellido_materno}
+                </h3>
+                <p className="text-slate-600">{socioFicha.email}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-semibold">Teléfono:</span>
+                <p>{socioFicha.telefono}</p>
+              </div>
+
+              <div>
+                <span className="font-semibold">Código Postal:</span>
+                <p>{socioFicha.cp}</p>
+              </div>
+
+              <div>
+                <span className="font-semibold">Dirección:</span>
+                <p>{socioFicha.direccion}</p>
+              </div>
+
+              <div>
+                <span className="font-semibold">Fecha de nacimiento:</span>
+                <p>{fmtFecha(socioFicha.fecha_nacimiento)}</p>
+              </div>
+
+              <div>
+                <span className="font-semibold">Estatus:</span>
+                <p>{socioFicha.estatus ? 'Activo' : 'Inactivo'}</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
