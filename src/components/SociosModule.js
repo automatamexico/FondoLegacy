@@ -1493,7 +1493,7 @@ const openFicha = async (socio) => {
 {showFicha && socioFicha && (
 
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-4xl w-full relative max-h-[85vh] overflow-y-auto">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-4xl w-full relative max-h-[90vh] overflow-y-auto text-base">
 
  
             <button
@@ -1564,7 +1564,7 @@ const openFicha = async (socio) => {
 
 {/* REFERENCIAS PERSONALES */}
 {refsFicha.length > 0 && (
-  <div className="mt-6 text-sm">
+  <div className="mt-6">
     <h4 className="font-semibold text-slate-800 mb-3">Referencias Personales</h4>
     {refsFicha.map((r) => (
       <div key={r.id_referencia} className="mb-3">
@@ -1578,7 +1578,7 @@ const openFicha = async (socio) => {
 
 {/* BENEFICIARIO */}
 {benefFicha.length > 0 && (
-  <div className="mt-6 text-sm">
+  <div className="mt-6">
     <h4 className="font-semibold text-slate-800 mb-3">Beneficiario</h4>
     {benefFicha.map((b) => (
       <div key={b.id_beneficiario} className="mb-3">
@@ -1606,7 +1606,7 @@ const openFicha = async (socio) => {
 
 {/* REFERENCIAS BANCARIAS */}
 {bancoFicha.length > 0 && (
-  <div className="mt-6 text-sm">
+  <div className="mt-6">
     <h4 className="font-semibold text-slate-800 mb-3">
       Referencias Bancarias
     </h4>
