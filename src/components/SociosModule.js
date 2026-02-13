@@ -67,6 +67,26 @@ const SociosModule = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [errorMonto, setErrorMonto] = useState('');
+// ================= REFERENCIAS =================
+const [referencia, setReferencia] = useState({
+  nombre: '',
+  apellido_paterno: '',
+  apellido_materno: '',
+  telefono: '',
+  direccion: ''
+});
+
+// ================= BENEFICIARIO =================
+const [beneficiario, setBeneficiario] = useState({
+  nombre: '',
+  apellido_paterno: '',
+  apellido_materno: '',
+  telefono: '',
+  direccion: ''
+});
+
+const [beneficiarioFoto, setBeneficiarioFoto] = useState(null);
+const [beneficiarioDocumento, setBeneficiarioDocumento] = useState(null);
 
 
   // Modal eliminar
@@ -337,6 +357,74 @@ const uploadPhotoToAforeBucket = async (socioId) => {
         const inserted = await res.json();
         const socio = inserted[0];
         const socioIdNew = socio.id_socio;
+        // ================= GUARDAR REFERENCIA (OPCIONAL) =================
+if (referencia.nombre.trim() !== '') {
+  await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify({
+      id_socio: socioIdNew,
+      ...referencia
+    }),
+  });
+}
+
+// ================= GUARDAR BENEFICIARIO (OPCIONAL) =================
+if (beneficiario.nombre.trim() !== '') {
+
+  let fotoUrl = null;
+  let documentoUrl = null;
+
+  if (beneficiarioFoto) {
+    const path = `socio_${socioIdNew}_foto_${Date.now()}`;
+    await fetch(`${SUPABASE_URL}/storage/v1/object/beneficiarios_socios/${path}`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': beneficiarioFoto.type,
+      },
+      body: beneficiarioFoto
+    });
+    fotoUrl = `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_socios/${path}`;
+  }
+
+  if (beneficiarioDocumento) {
+    const pathDoc = `socio_${socioIdNew}_doc_${Date.now()}.pdf`;
+    await fetch(`${SUPABASE_URL}/storage/v1/object/beneficiarios_socios/${pathDoc}`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/pdf',
+      },
+      body: beneficiarioDocumento
+    });
+    documentoUrl = `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_socios/${pathDoc}`;
+  }
+
+  await fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify({
+      id_socio: socioIdNew,
+      ...beneficiario,
+      foto_url: fotoUrl,
+      documentos_url: documentoUrl
+    }),
+  });
+}
+
 
         // 🔹 Registrar pago de afiliación si hay monto
 if (montoAfiliacion && parseFloat(montoAfiliacion) > 0) {
@@ -753,6 +841,121 @@ if (ahorroRetiro) {
       {errorMonto}
     </p>
   )}
+</div>
+{/* ================= REFERENCIAS PERSONALES ================= */}
+<div className="col-span-full border-t-2 border-blue-600 pt-6 mt-6">
+  <h4 className="font-semibold text-slate-800 mb-4">
+    Referencias Personales
+  </h4>
+</div>
+
+<input
+  type="text"
+  placeholder="Nombre"
+  className="px-4 py-2 border border-slate-200 rounded-lg"
+  value={referencia.nombre}
+  onChange={(e) => setReferencia({...referencia, nombre: e.target.value})}
+/>
+
+<input
+  type="text"
+  placeholder="Apellido Paterno"
+  className="px-4 py-2 border border-slate-200 rounded-lg"
+  value={referencia.apellido_paterno}
+  onChange={(e) => setReferencia({...referencia, apellido_paterno: e.target.value})}
+/>
+
+<input
+  type="text"
+  placeholder="Apellido Materno"
+  className="px-4 py-2 border border-slate-200 rounded-lg"
+  value={referencia.apellido_materno}
+  onChange={(e) => setReferencia({...referencia, apellido_materno: e.target.value})}
+/>
+
+<input
+  type="text"
+  placeholder="Teléfono"
+  className="px-4 py-2 border border-slate-200 rounded-lg"
+  value={referencia.telefono}
+  onChange={(e) => setReferencia({...referencia, telefono: e.target.value})}
+/>
+
+<input
+  type="text"
+  placeholder="Dirección"
+  className="col-span-full px-4 py-2 border border-slate-200 rounded-lg"
+  value={referencia.direccion}
+  onChange={(e) => setReferencia({...referencia, direccion: e.target.value})}
+/>
+
+{/* ================= BENEFICIARIO ================= */}
+<div className="col-span-full border-t-2 border-blue-600 pt-6 mt-6">
+  <h4 className="font-semibold text-slate-800 mb-4">
+    Beneficiario
+  </h4>
+</div>
+
+<input
+  type="text"
+  placeholder="Nombre"
+  className="px-4 py-2 border border-slate-200 rounded-lg"
+  value={beneficiario.nombre}
+  onChange={(e) => setBeneficiario({...beneficiario, nombre: e.target.value})}
+/>
+
+<input
+  type="text"
+  placeholder="Apellido Paterno"
+  className="px-4 py-2 border border-slate-200 rounded-lg"
+  value={beneficiario.apellido_paterno}
+  onChange={(e) => setBeneficiario({...beneficiario, apellido_paterno: e.target.value})}
+/>
+
+<input
+  type="text"
+  placeholder="Apellido Materno"
+  className="px-4 py-2 border border-slate-200 rounded-lg"
+  value={beneficiario.apellido_materno}
+  onChange={(e) => setBeneficiario({...beneficiario, apellido_materno: e.target.value})}
+/>
+
+<input
+  type="text"
+  placeholder="Teléfono"
+  className="px-4 py-2 border border-slate-200 rounded-lg"
+  value={beneficiario.telefono}
+  onChange={(e) => setBeneficiario({...beneficiario, telefono: e.target.value})}
+/>
+
+<input
+  type="text"
+  placeholder="Dirección"
+  className="col-span-full px-4 py-2 border border-slate-200 rounded-lg"
+  value={beneficiario.direccion}
+  onChange={(e) => setBeneficiario({...beneficiario, direccion: e.target.value})}
+/>
+
+<div className="col-span-full">
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Foto beneficiario
+  </label>
+  <input
+    type="file"
+    accept="image/png,image/jpeg"
+    onChange={(e) => setBeneficiarioFoto(e.target.files[0])}
+  />
+</div>
+
+<div className="col-span-full">
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Documento beneficiario (PDF)
+  </label>
+  <input
+    type="file"
+    accept="application/pdf"
+    onChange={(e) => setBeneficiarioDocumento(e.target.files[0])}
+  />
 </div>
 
 
