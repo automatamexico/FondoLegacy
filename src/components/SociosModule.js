@@ -456,30 +456,54 @@ if (beneficiario.nombre.trim() !== '') {
   let documentoUrl = null;
 
   if (beneficiarioFoto) {
-    const path = `socio_${socioIdNew}_foto_${Date.now()}`;
-    await fetch(`${SUPABASE_URL}/storage/v1/object/beneficiarios_fondo/${path}`, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': beneficiarioFoto.type,
-      },
-      body: beneficiarioFoto
-    });
+    const path = `socio_${socioIdNew}_foto_${Date.now()}.jpg`;
+
+    const uploadRes = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/beneficiarios_fondo/${path}?upsert=true`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': beneficiarioFoto.type,
+          'x-upsert': 'true'
+        },
+        body: beneficiarioFoto
+      }
+    );
+
+    if (!uploadRes.ok) {
+      const errorText = await uploadRes.text();
+      console.error("ERROR SUBIENDO FOTO:", errorText);
+      throw new Error("No se pudo subir la foto del beneficiario");
+    }
+
     fotoUrl = `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_fondo/${path}`;
   }
 
   if (beneficiarioDocumento) {
     const pathDoc = `socio_${socioIdNew}_doc_${Date.now()}.pdf`;
-    await fetch(`${SUPABASE_URL}/storage/v1/object/beneficiarios_fondo/${pathDoc}`, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/pdf',
-      },
-      body: beneficiarioDocumento
-    });
+
+    const uploadResDoc = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/beneficiarios_fondo/${pathDoc}?upsert=true`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/pdf',
+          'x-upsert': 'true'
+        },
+        body: beneficiarioDocumento
+      }
+    );
+
+    if (!uploadResDoc.ok) {
+      const errorText = await uploadResDoc.text();
+      console.error("ERROR SUBIENDO PDF:", errorText);
+      throw new Error("No se pudo subir el documento del beneficiario");
+    }
+
     documentoUrl = `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_fondo/${pathDoc}`;
   }
 
@@ -499,6 +523,7 @@ if (beneficiario.nombre.trim() !== '') {
     }),
   });
 }
+
 // ================= GUARDAR REFERENCIA BANCARIA (OPCIONAL) =================
 if (referenciaBancaria.entidad_bancaria.trim() !== '') {
 
