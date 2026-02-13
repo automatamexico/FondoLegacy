@@ -1596,11 +1596,11 @@ if (ahorroRetiro) {
         <p><strong>Número de cuenta:</strong> {b.numero_cuenta}</p>
         <p><strong>Cuenta CLABE:</strong> {b.cuenta_clave}</p>
       </div>
-    ))}
-  </div>
-)}
+      )}
+      
     </div>
   );
 };
 
 export default SociosModule;
+
