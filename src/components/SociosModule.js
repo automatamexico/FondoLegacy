@@ -791,115 +791,64 @@ if (ahorroRetiro) {
     }
   };
 
-  const handleEditClick = (socio) => {
-    setEditingSocio(socio);
-    setNewSocio({
-      nombre: socio.nombre || '',
-      apellido_paterno: socio.apellido_paterno || '',
-      apellido_materno: socio.apellido_materno || '',
-      email: socio.email || '',
-      contrasena: socio.contrasena || '',
-      telefono: socio.telefono || '',
-      direccion: socio.direccion || '',
-      cp: socio.cp || '',
-      estatus: socio.estatus ? 'activo' : 'inactivo',
-      fecha_nacimiento: toDateInput(socio.fecha_nacimiento) || '',
-    });
-    setPhotoFile(null);
-    setPhotoPreview(socio.foto_url || '');
-    setPhotoError('');
-    setShowForm(true);
-    // ================= CARGAR REFERENCIAS PERSONALES =================
+ const handleEditClick = (socio) => {
+  setEditingSocio(socio);
+  setNewSocio({
+    nombre: socio.nombre || '',
+    apellido_paterno: socio.apellido_paterno || '',
+    apellido_materno: socio.apellido_materno || '',
+    email: socio.email || '',
+    contrasena: socio.contrasena || '',
+    telefono: socio.telefono || '',
+    direccion: socio.direccion || '',
+    cp: socio.cp || '',
+    estatus: socio.estatus ? 'activo' : 'inactivo',
+    fecha_nacimiento: toDateInput(socio.fecha_nacimiento) || '',
+  });
+
+  setPhotoFile(null);
+  setPhotoPreview(socio.foto_url || '');
+  setPhotoError('');
+  setShowForm(true);
+
+  // REFERENCIAS
   fetch(`${SUPABASE_URL}/rest/v1/refs_fondo?id_socio=eq.${socio.id_socio}`, {
     headers: {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     },
   })
     .then(res => res.json())
     .then(data => {
-      if (data && data.length > 0) {
-        setReferencia(data[0]);
-      }
+      if (data?.length > 0) setReferencia(data[0]);
     });
 
-  // ================= CARGAR BENEFICIARIO =================
+  // BENEFICIARIO
   fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${socio.id_socio}`, {
     headers: {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     },
   })
     .then(res => res.json())
     .then(data => {
-      if (data && data.length > 0) {
-        setBeneficiario(data[0]);
-      }
+      if (data?.length > 0) setBeneficiario(data[0]);
     });
 
-  // ================= CARGAR REFERENCIA BANCARIA =================
+  // BANCO
   fetch(`${SUPABASE_URL}/rest/v1/referencias_bancarias?id_socio=eq.${socio.id_socio}`, {
     headers: {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     },
   })
     .then(res => res.json())
     .then(data => {
-      if (data && data.length > 0) {
-        setReferenciaBancaria(data[0]);
-      }
+      if (data?.length > 0) setReferenciaBancaria(data[0]);
     });
 
-  const handleDeleteClick = (socio) => {
-    setSocioToDelete(socio);
-    setShowConfirmModal(true);
-  };
+};   // ✅ AQUÍ TERMINA
 
-  const confirmDelete = async () => {
-    setShowConfirmModal(false);
-    setLoading(true);
-    setError(null);
-    try {
-      const socioId = socioToDelete.id_socio;
-
-      await fetch(`${SUPABASE_URL}/rest/v1/usuarios_sistema?id_socio=eq.${socioId}`, {
-        method: 'DELETE',
-        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-      });
-
-      await fetch(`${SUPABASE_URL}/rest/v1/ahorros?id_socio=eq.${socioId}`, {
-        method: 'DELETE',
-        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-      });
-
-      await fetch(`${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioId}`, {
-        method: 'DELETE',
-        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-      });
-
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioId}`, {
-        method: 'DELETE',
-        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-      });
-
-      if (!response.ok) {
-        const e = await response.json().catch(() => ({}));
-        throw new Error(`Error al eliminar socio: ${response.statusText} - ${e.message || ''}`);
-      }
-      setSociosList((prev) => prev.filter((s) => s.id_socio !== socioId));
-      setSocioToDelete(null);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const cancelDelete = () => {
-    setShowConfirmModal(false);
-    setSocioToDelete(null);
-  };
 
  /** Ficha */
 const openFicha = async (socio) => {
