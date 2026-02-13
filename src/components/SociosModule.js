@@ -24,14 +24,22 @@ const dateFromYMDLocal = (ymd) => {
 /** Formatea bonito en español SIN desfase */
 const fmtFecha = (v) => {
   if (!v) return '-';
-  if (isYMD(v)) {
-    const dt = dateFromYMDLocal(v);
-    return dt ? dt.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '-';
-  }
+
   const dt = new Date(v);
   if (isNaN(dt.getTime())) return '-';
-  return dt.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  const fecha = dt.toLocaleDateString('es-MX', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  });
+
+  return fecha.replace(/^\d{2}\s\w+/, (match) => {
+    return match.charAt(0) + match.slice(1).replace(/\b\w/g, c => c.toUpperCase());
+  });
 };
+
+
 /** Para inputs <input type="date"> SIN desfase */
 const toDateInput = (v) => {
   if (!v) return '';
@@ -1485,7 +1493,8 @@ const openFicha = async (socio) => {
 {showFicha && socioFicha && (
 
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-2xl w-full relative">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-4xl w-full relative max-h-[85vh] overflow-y-auto">
+
  
             <button
               onClick={closeFicha}
@@ -1508,7 +1517,7 @@ const openFicha = async (socio) => {
               </div>
             </div>
 
-           <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-2 gap-6 text-lg">
 
   <div>
     <span className="font-semibold">ID Socio:</span>
@@ -1516,7 +1525,7 @@ const openFicha = async (socio) => {
   </div>
 
   <div>
-  <span className="font-semibold">Fecha de registro:</span>
+  <span className="font-semibold">Miembro desde:</span>
  <p>{socioFicha?.miembro_desde}</p>
 
 </div>
