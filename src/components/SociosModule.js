@@ -1010,6 +1010,10 @@ if (ahorroRetiro) {
     ? (editingSocio ? 'Actualizando…' : 'Registrando…')
     : (editingSocio ? 'Actualizar Socio' : 'Registrar Socio')}
 </button>
+          </form>
+        </div>
+      )}
+
 
 
       {/* Tabla principal */}
