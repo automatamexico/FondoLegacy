@@ -457,7 +457,7 @@ if (beneficiario.nombre.trim() !== '') {
 
   if (beneficiarioFoto) {
     const path = `socio_${socioIdNew}_foto_${Date.now()}`;
-    await fetch(`${SUPABASE_URL}/storage/v1/object/beneficiarios_socios/${path}`, {
+    await fetch(`${SUPABASE_URL}/storage/v1/object/beneficiarios_fondo/${path}`, {
       method: 'POST',
       headers: {
         'apikey': SUPABASE_ANON_KEY,
@@ -466,12 +466,12 @@ if (beneficiario.nombre.trim() !== '') {
       },
       body: beneficiarioFoto
     });
-    fotoUrl = `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_socios/${path}`;
+    fotoUrl = `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_fondo/${path}`;
   }
 
   if (beneficiarioDocumento) {
     const pathDoc = `socio_${socioIdNew}_doc_${Date.now()}.pdf`;
-    await fetch(`${SUPABASE_URL}/storage/v1/object/beneficiarios_socios/${pathDoc}`, {
+    await fetch(`${SUPABASE_URL}/storage/v1/object/beneficiarios_fondo/${pathDoc}`, {
       method: 'POST',
       headers: {
         'apikey': SUPABASE_ANON_KEY,
@@ -480,7 +480,7 @@ if (beneficiario.nombre.trim() !== '') {
       },
       body: beneficiarioDocumento
     });
-    documentoUrl = `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_socios/${pathDoc}`;
+    documentoUrl = `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_fondo/${pathDoc}`;
   }
 
   await fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo`, {
