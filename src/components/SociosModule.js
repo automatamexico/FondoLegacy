@@ -1565,7 +1565,7 @@ const openFicha = async (socio) => {
 {/* REFERENCIAS PERSONALES */}
 {refsFicha.length > 0 && (
   <div className="mt-6">
-    <h4 className="font-semibold text-slate-800 mb-3">Referencias Personales</h4>
+   <h4 className="font-semibold text-slate-800 text-lg mb-3 mt-6">Referencias Personales</h4>
     {refsFicha.map((r) => (
       <div key={r.id_referencia} className="mb-3">
         <p><strong>Nombre:</strong> {r.nombre} {r.apellido_paterno} {r.apellido_materno}</p>
@@ -1579,7 +1579,7 @@ const openFicha = async (socio) => {
 {/* BENEFICIARIO */}
 {benefFicha.length > 0 && (
   <div className="mt-6">
-    <h4 className="font-semibold text-slate-800 mb-3">Beneficiario</h4>
+    <h4 className="font-semibold text-slate-800 text-lg mb-3 mt-6">Beneficiario</h4>
     {benefFicha.map((b) => (
       <div key={b.id_beneficiario} className="mb-3">
         <p><strong>Nombre:</strong> {b.nombre} {b.apellido_paterno} {b.apellido_materno}</p>
@@ -1607,7 +1607,7 @@ const openFicha = async (socio) => {
 {/* REFERENCIAS BANCARIAS */}
 {bancoFicha.length > 0 && (
   <div className="mt-6">
-    <h4 className="font-semibold text-slate-800 mb-3">
+    <h4 className="font-semibold text-slate-800 text-lg mb-3 mt-6">
       Referencias Bancarias
     </h4>
 
