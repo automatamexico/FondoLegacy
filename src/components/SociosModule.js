@@ -1477,10 +1477,14 @@ if (ahorroRetiro) {
           </div>
         </div>
       )}
-      {/* ================= FICHA DEL SOCIO ================= */}
-      {showFicha && (
+     {/* ================= FICHA DEL SOCIO ================= */}
+{showFicha && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-2xl w-full relative">
+  <pre style={{fontSize: "10px", background: "#eee", padding: "10px", maxHeight: "200px", overflow: "auto"}}>
+  {JSON.stringify(socioFicha)}
+</pre>
+
         <pre className="text-xs bg-gray-100 p-3 rounded mb-4 overflow-auto max-h-40">
   {JSON.stringify(socioFicha, null, 2)}
 </pre>
