@@ -458,32 +458,54 @@ if (beneficiario.nombre.trim() !== '') {
     documentoUrl = `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_fondo/${pathDoc}`;
   }
 
-  // ===== INSERTAR REGISTRO BENEFICIARIO =====
-  const insertBenefRes = await fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'Prefer': 'return=minimal',
-    },
-    body: JSON.stringify({
-      id_socio: socioId,
-      ...beneficiario,
-      foto_url: fotoUrl,
-      documentos_url: documentoUrl
-    }),
-  });
+  // ================= GUARDAR BENEFICIARIO (EDITAR) =================
+if (beneficiario.nombre.trim() !== '') {
 
-  if (!insertBenefRes.ok) {
-    const errorText = await insertBenefRes.text();
-    console.error("ERROR INSERTANDO BENEFICIARIO (EDITAR):", errorText);
-    throw new Error("No se pudo guardar el beneficiario");
+  // Primero verificamos si ya existe
+  const checkRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${socioId}`,
+    {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    }
+  );
+
+  const existing = await checkRes.json();
+
+  if (existing && existing.length > 0) {
+    // 👉 YA EXISTE → HACER PATCH
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${socioId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          ...beneficiario
+        }),
+      }
+    );
+  } else {
+    // 👉 NO EXISTE → HACER POST
+    await fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        id_socio: socioId,
+        ...beneficiario
+      }),
+    });
   }
 }
-
-console.log("Socio ID ya asignado:", socioId);
-console.log("Referencia actual:", referencia);
 
 // ================= GUARDAR REFERENCIA (EDITAR) =================
 if (referencia.nombre.trim() !== '') {
