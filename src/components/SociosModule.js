@@ -1526,7 +1526,8 @@ const openFicha = async (socio) => {
 
   <div>
   <span className="font-semibold">Miembro desde:</span>
- <p>{socioFicha?.miembro_desde}</p>
+ <p>{fmtFecha(socioFicha?.miembro_desde)}</p>
+
 
 </div>
 
@@ -1549,7 +1550,8 @@ const openFicha = async (socio) => {
 
   <div>
     <span className="font-semibold">Fecha de nacimiento:</span>
-    <p>{socioFicha?.fecha_nacimiento}</p>
+    <p>{fmtFecha(socioFicha?.fecha_nacimiento)}</p>
+
 
   </div>
 
