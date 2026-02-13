@@ -94,6 +94,12 @@ const [referenciaBancaria, setReferenciaBancaria] = useState({
   titular_cuenta: '',
   numero_cuenta: '',
   cuenta_clave: ''
+  const [showBancoModal, setShowBancoModal] = useState(false);
+const [bancoPersonalizado, setBancoPersonalizado] = useState({
+  nombre: '',
+  pais: ''
+});
+
 });
 
 
@@ -1035,13 +1041,20 @@ if (ahorroRetiro) {
 <select
   className="col-span-full px-4 py-2 border border-slate-200 rounded-lg"
   value={referenciaBancaria.entidad_bancaria}
-  onChange={(e) =>
+  onChange={(e) => {
+  const value = e.target.value;
+
+  if (value === "OTRO") {
+    setShowBancoModal(true);
+  } else {
     setReferenciaBancaria({
       ...referenciaBancaria,
-      entidad_bancaria: e.target.value
-    })
+      entidad_bancaria: value,
+      pais: "México"
+    });
   }
->
+}}
+
   <option value="">Seleccione entidad bancaria</option>
   <option>BBVA México</option>
   <option>Banco Santander México</option>
@@ -1066,7 +1079,7 @@ if (ahorroRetiro) {
   <option>Nubank (Nu México)</option>
   <option>Banco Bineo</option>
   <option>SPIN By OXXO</option>
-  <option>Otro</option>
+  <option value="OTRO">Otro</option>
 </select>
 
 <input
