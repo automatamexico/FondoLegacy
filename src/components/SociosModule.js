@@ -91,16 +91,19 @@ const [beneficiarioDocumento, setBeneficiarioDocumento] = useState(null);
   // ================= REFERENCIA BANCARIA =================
 const [referenciaBancaria, setReferenciaBancaria] = useState({
   entidad_bancaria: '',
-  titular_cuenta: '',
+  titular: '',
   numero_cuenta: '',
-  cuenta_clave: ''
-  const [showBancoModal, setShowBancoModal] = useState(false);
+  cuenta_clave: '',
+  pais: 'México'
+});
+
+const [showBancoModal, setShowBancoModal] = useState(false);
+
 const [bancoPersonalizado, setBancoPersonalizado] = useState({
   nombre: '',
   pais: ''
 });
 
-});
 
 
 
