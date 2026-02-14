@@ -336,438 +336,157 @@ const uploadPhotoToAforeBucket = async (socioId) => {
   setShowForm(false);
 };
 
-
-  
   const handleAddOrUpdateSocio = async (e) => {
-    e.preventDefault();
-    setError(null);
+  e.preventDefault();
+  setError(null);
 
-    const required = ['nombre', 'apellido_paterno', 'apellido_materno', 'email', 'contrasena', 'telefono', 'direccion', 'cp'];
-    const missing = required.filter((k) => !`${newSocio[k]}`.trim());
-    if (missing.length) {
-      setError('Complete los campos obligatorios.');
-      return;
-    }
-    
-// 👇 VALIDACIÓN SOLO PARA NUEVOS SOCIOS
-if (!editingSocio) {
-  if (!montoAfiliacion || parseFloat(montoAfiliacion) <= 0) {
-    setErrorMonto('Debe registrar el pago de afiliación.');
+  const required = ['nombre', 'apellido_paterno', 'apellido_materno', 'email', 'contrasena', 'telefono', 'direccion', 'cp'];
+  const missing = required.filter((k) => !`${newSocio[k]}`.trim());
+  if (missing.length) {
+    setError('Complete los campos obligatorios.');
     return;
-  } else {
-    setErrorMonto('');
   }
-}
 
+  if (!editingSocio) {
+    if (!montoAfiliacion || parseFloat(montoAfiliacion) <= 0) {
+      setErrorMonto('Debe registrar el pago de afiliación.');
+      return;
+    } else {
+      setErrorMonto('');
+    }
+  }
 
-    setSaving(true);
+  setSaving(true);
 
-try {
-  let socioId;
+  try {
+    let socioId;
+    let socio;
 
-  if (editingSocio) {
+    // ================= SOCIO =================
+    if (editingSocio) {
 
-    console.log("ENTRANDO EN EDITAR");
+      const patchBody = {
+        ...newSocio,
+        estatus: newSocio.estatus === 'activo',
+        fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
+      };
 
-    const patchBody = {
-      ...newSocio,
-      estatus: newSocio.estatus === 'activo',
-      fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
-    };
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${editingSocio.id_socio}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Prefer: 'return=representation',
+          },
+          body: JSON.stringify(patchBody),
+        }
+      );
 
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${editingSocio.id_socio}`,
-      {
-        method: 'PATCH',
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.message || res.statusText);
+      }
+
+      const updated = await res.json();
+      socio = updated[0];
+      socioId = socio.id_socio;
+
+      setSociosList(prev =>
+        prev.map(s => (s.id_socio === socioId ? socio : s))
+      );
+
+    } else {
+
+      const bodyToSend = {
+        ...newSocio,
+        estatus: newSocio.estatus === 'activo',
+        fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
+      };
+
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/socios`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           apikey: SUPABASE_ANON_KEY,
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           Prefer: 'return=representation',
         },
-        body: JSON.stringify(patchBody),
+        body: JSON.stringify(bodyToSend),
+      });
+
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.message || res.statusText);
       }
-    );
 
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      throw new Error(
-        `Error al actualizar socio: ${res.statusText} - ${e.message || ''}`
-      );
+      const inserted = await res.json();
+      socio = inserted[0];
+      socioId = socio.id_socio;
+
+      setSociosList(prev => [...prev, socio]);
     }
 
-    const updated = await res.json();
-    console.log("RESPUESTA PATCH:", updated);
+    // ================= BENEFICIARIO =================
+    if (beneficiario.nombre.trim() !== '') {
 
-    const socio = updated[0];
-
-    if (!socio) {
-      throw new Error("PATCH no devolvió registro");
-    }
-
-    socioId = socio.id_socio;
-
-    setSociosList(prev =>
-      prev.map(s => (s.id_socio === socioId ? socio : s))
-    );
-
-  } else {
-
-    const bodyToSend = {
-      ...newSocio,
-      estatus: newSocio.estatus === 'activo',
-      fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
-    };
-
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/socios`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        Prefer: 'return=representation',
-      },
-      body: JSON.stringify(bodyToSend),
-    });
-
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      throw new Error(
-        `Error al registrar socio: ${res.statusText} - ${e.message || ''}`
-      );
-    }
-
-    const inserted = await res.json();
-    const socio = inserted[0];
-    socioId = socio.id_socio;
-
-    setSociosList(prev => [...prev, socio]);
-  }
-
-  // ✅ cerrar formulario correctamente
-  resetForm();
-  setShowForm(false);
-
-} catch (err) {
-
-  console.error("ERROR GENERAL:", err);
-  setError(err.message);
-
-} finally {
-
-  setSaving(false);
-}
-
-
-// ================= GUARDAR REFERENCIA (EDITAR) =================
-if (referencia.nombre.trim() !== '') {
-  await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'Prefer': 'return=minimal',
-    },
-    body: JSON.stringify({
-      id_socio: socioId,
-      ...referencia
-    }),
-  });
-}
-
-        if (photoFile) {
-          const url = await uploadPhotoToSupabase(socioId);
-          if (url) {
-            const r2 = await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioId}`, {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': SUPABASE_ANON_KEY,
-                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                'Prefer': 'return=representation',
-              },
-              body: JSON.stringify({ foto_url: url }),
-            });
-            if (r2.ok) {
-              const j2 = await r2.json();
-              setSociosList((prev) => prev.map((s) => (s.id_socio === socioId ? j2[0] : s)));
-            }
-          }
-        } else {
-          setSociosList((prev) => prev.map((s) => (s.id_socio === socioId ? socio : s)));
+      const checkRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${socioId}`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
         }
+      );
+
+      const existing = await checkRes.json();
+
+      if (existing && existing.length > 0) {
+
+        await fetch(
+          `${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${socioId}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({
+              ...beneficiario
+            }),
+          }
+        );
+
       } else {
-        const bodyToSend = {
-          ...newSocio,
-          estatus: newSocio.estatus === 'activo',
-          fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
-        };
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/socios`, {
+
+        await fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Prefer': 'return=representation',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           },
-          body: JSON.stringify(bodyToSend),
+          body: JSON.stringify({
+            id_socio: socioId,
+            ...beneficiario
+          }),
         });
-        if (!res.ok) {
-          const e = await res.json().catch(() => ({}));
-          if (e?.message?.toLowerCase?.().includes('duplicate') || e?.message?.includes('unique')) {
-            throw new Error('El correo ya existe, por favor use otro.');
-          }
-          throw new Error(`Error al registrar socio: ${res.statusText} - ${e.message || ''}`);
-        }
-        const inserted = await res.json();
-        const socio = inserted[0];
-        const socioIdNew = socio.id_socio;
-        socioId = socioIdNew;
 
-        // ================= GUARDAR REFERENCIA (OPCIONAL) =================
-if (referencia.nombre.trim() !== '') {
-  await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'Prefer': 'return=minimal',
-    },
-    body: JSON.stringify({
-      id_socio: socioId,
-      ...referencia
-    }),
-  });
-}
-
-// ================= GUARDAR BENEFICIARIO (OPCIONAL) =================
-if (beneficiario.nombre.trim() !== '') {
-
-  let fotoUrl = null;
-  let documentoUrl = null;
-
-  if (beneficiarioFoto) {
-    const path = `socio_${socioIdNew}_foto_${Date.now()}.jpg`;
-
-    const uploadRes = await fetch(
-      `${SUPABASE_URL}/storage/v1/object/beneficiarios_fondo/${path}?upsert=true`,
-      {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': beneficiarioFoto.type,
-          'x-upsert': 'true'
-        },
-        body: beneficiarioFoto
       }
-    );
-
-    if (!uploadRes.ok) {
-      const errorText = await uploadRes.text();
-      console.error("ERROR SUBIENDO FOTO:", errorText);
-      throw new Error("No se pudo subir la foto del beneficiario");
     }
 
-    fotoUrl = `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_fondo/${path}`;
+    resetForm();
+
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setSaving(false);
   }
-
-  if (beneficiarioDocumento) {
-    const pathDoc = `socio_${socioIdNew}_doc_${Date.now()}.pdf`;
-
-    const uploadResDoc = await fetch(
-      `${SUPABASE_URL}/storage/v1/object/beneficiarios_fondo/${pathDoc}?upsert=true`,
-      {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/pdf',
-          'x-upsert': 'true'
-        },
-        body: beneficiarioDocumento
-      }
-    );
-
-    if (!uploadResDoc.ok) {
-      const errorText = await uploadResDoc.text();
-      console.error("ERROR SUBIENDO PDF:", errorText);
-      throw new Error("No se pudo subir el documento del beneficiario");
-    }
-
-    documentoUrl = `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_fondo/${pathDoc}`;
-  }
-
-  await fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'Prefer': 'return=minimal',
-    },
-    body: JSON.stringify({
-      id_socio: socioId,
-      ...beneficiario,
-      foto_url: fotoUrl,
-      documentos_url: documentoUrl
-    }),
-  });
-}
-
-// ================= GUARDAR REFERENCIA BANCARIA (OPCIONAL) =================
-if (referenciaBancaria.entidad_bancaria.trim() !== '') {
-
-  const bancoFinal =
-    referenciaBancaria.entidad_bancaria === "OTRO"
-      ? referenciaBancaria.banco_otro
-      : referenciaBancaria.entidad_bancaria;
-
-  await fetch(`${SUPABASE_URL}/rest/v1/referencias_bancarias`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'Prefer': 'return=minimal',
-    },
-    body: JSON.stringify({
-      id_socio: socioId,
-      entidad_bancaria: bancoFinal,
-      titular_cuenta: referenciaBancaria.titular_cuenta,
-      numero_cuenta: referenciaBancaria.numero_cuenta,
-      cuenta_clave: referenciaBancaria.cuenta_clave,
-      pais: referenciaBancaria.pais || "México",
-    }),
-  });
-}
-
-
-
-        // 🔹 Registrar pago de afiliación si hay monto
-if (montoAfiliacion && parseFloat(montoAfiliacion) > 0) {
-  const pagoBody = {
-    id_socio: socioIdNew,
-    afiliacion_papeleria: true,
-    monto_afiliacion_papeleria: parseFloat(montoAfiliacion),
-    fecha_hora: new Date().toISOString(),
-    estatus: 'AFILIACION PAGADA',
-  };
-
-  const pagoRes = await fetch(`${SUPABASE_URL}/rest/v1/pago_afiliaciones`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'Prefer': 'return=minimal',
-    },
-    body: JSON.stringify(pagoBody),
-  });
-
-  if (!pagoRes.ok) {
-    const e = await pagoRes.json().catch(() => ({}));
-    console.warn('Error registrando pago afiliación:', e?.message || pagoRes.statusText);
-  }
-}
-
-
-      // 🔹 Si seleccionó ahorro para el retiro, duplicar en AFORE
-if (ahorroRetiro) {
-  let fotoAforeUrl = null;
-
-  if (photoFile) {
-    fotoAforeUrl = await uploadPhotoToAforeBucket(socioIdNew);
-  }
-
-  const aforePayload = {
-    id_afiliado: socioIdNew,
-    nombre: newSocio.nombre,
-    apellido_paterno: newSocio.apellido_paterno,
-    apellido_materno: newSocio.apellido_materno,
-    email: newSocio.email,
-    contraseña: newSocio.contrasena,
-    telefono: newSocio.telefono,
-    direccion: newSocio.direccion,
-    cp: newSocio.cp,
-    miembro_desde: new Date().toISOString(),
-    fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
-    estatus: newSocio.estatus === 'activo' ? 'activo' : 'inactivo',
-    foto_url: fotoAforeUrl,
-  };
-
-  const aforeRes = await fetch(`${SUPABASE_URL}/rest/v1/afore_afiliados`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'Prefer': 'return=minimal',
-    },
-    body: JSON.stringify(aforePayload),
-  });
-
-  if (!aforeRes.ok) {
-    const e = await aforeRes.json().catch(() => ({}));
-    throw new Error(`Error creando afiliado AFORE: ${e.message || aforeRes.statusText}`);
-  }
-}
-
-
-        if (photoFile) {
-          const url = await uploadPhotoToSupabase(socioIdNew);
-          if (url) {
-            await fetch(`${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioIdNew}`, {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': SUPABASE_ANON_KEY,
-                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                'Prefer': 'return=representation',
-              },
-              body: JSON.stringify({ foto_url: url }),
-            });
-            await fetchSocios();
-          } else {
-            setSociosList((prev) => [...prev, socio]);
-          }
-        } else {
-          setSociosList((prev) => [...prev, socio]);
-        }
-
-        const usernameFromEmail = newSocio.email.split('@')[0];
-        const newUserSystem = {
-          usuario: usernameFromEmail,
-          email: newSocio.email,
-          contrasena: newSocio.contrasena,
-          rol: 'usuario',
-          id_socio: socioIdNew,
-        };
-        const sysRes = await fetch(`${SUPABASE_URL}/rest/v1/usuarios_sistema`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Prefer': 'return=representation',
-          },
-          body: JSON.stringify(newUserSystem),
-        });
-        if (!sysRes.ok) {
-          const e = await sysRes.json().catch(() => ({}));
-          console.warn('Usuario de sistema no creado:', e?.message || sysRes.statusText);
-        }
-      }
-
-      resetForm();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+};
 
  const handleEditClick = (socio) => {
   setEditingSocio(socio);
