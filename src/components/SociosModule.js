@@ -367,13 +367,6 @@ const uploadPhotoToAforeBucket = async (socioId) => {
 
     // ================= SOCIO =================
     if (editingSocio) {
-
-      const patchBody = {
-        ...newSocio,
-        estatus: newSocio.estatus === 'activo',
-        fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
-      };
-
       const res = await fetch(
         `${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${editingSocio.id_socio}`,
         {
@@ -384,14 +377,15 @@ const uploadPhotoToAforeBucket = async (socioId) => {
             Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
             Prefer: 'return=representation',
           },
-          body: JSON.stringify(patchBody),
+          body: JSON.stringify({
+            ...newSocio,
+            estatus: newSocio.estatus === 'activo',
+            fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
+          }),
         }
       );
 
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e.message || res.statusText);
-      }
+      if (!res.ok) throw new Error('Error actualizando socio');
 
       const updated = await res.json();
       socio = updated[0];
@@ -402,13 +396,6 @@ const uploadPhotoToAforeBucket = async (socioId) => {
       );
 
     } else {
-
-      const bodyToSend = {
-        ...newSocio,
-        estatus: newSocio.estatus === 'activo',
-        fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
-      };
-
       const res = await fetch(`${SUPABASE_URL}/rest/v1/socios`, {
         method: 'POST',
         headers: {
@@ -417,13 +404,14 @@ const uploadPhotoToAforeBucket = async (socioId) => {
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           Prefer: 'return=representation',
         },
-        body: JSON.stringify(bodyToSend),
+        body: JSON.stringify({
+          ...newSocio,
+          estatus: newSocio.estatus === 'activo',
+          fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
+        }),
       });
 
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e.message || res.statusText);
-      }
+      if (!res.ok) throw new Error('Error creando socio');
 
       const inserted = await res.json();
       socio = inserted[0];
@@ -431,55 +419,55 @@ const uploadPhotoToAforeBucket = async (socioId) => {
 
       setSociosList(prev => [...prev, socio]);
     }
-// ================= REFERENCIA PERSONAL =================
-if (referencia.nombre.trim() !== '') {
 
-  if (referenciaId) {
+    // ================= REFERENCIA PERSONAL =================
+    if (referencia.nombre.trim() !== '') {
 
-    // ACTUALIZAR por ID real
-    await fetch(
-      `${SUPABASE_URL}/rest/v1/refs_fondo?id_referencia=eq.${referenciaId}`,
-      {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          Prefer: 'return=representation'
-        },
-        body: JSON.stringify({
-          ...referencia
-        }),
+      const checkRef = await fetch(
+        `${SUPABASE_URL}/rest/v1/refs_fondo?id_socio=eq.${socioId}`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+        }
+      );
+
+      const existingRef = await checkRef.json();
+
+      if (existingRef?.length > 0) {
+        await fetch(
+          `${SUPABASE_URL}/rest/v1/refs_fondo?id_referencia=eq.${existingRef[0].id_referencia}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({ ...referencia }),
+          }
+        );
+      } else {
+        await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            id_socio: socioId,
+            ...referencia
+          }),
+        });
       }
-    );
-
-  } else {
-
-    // INSERTAR nuevo
-    const resRef = await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        Prefer: 'return=representation'
-      },
-      body: JSON.stringify({
-        id_socio: socioId,
-        ...referencia
-      }),
-    });
-
-    const insertedRef = await resRef.json();
-    if (insertedRef?.length > 0) {
-      setReferenciaId(insertedRef[0].id_referencia);
     }
-  }
-}
+
     // ================= BENEFICIARIO =================
     if (beneficiario.nombre.trim() !== '') {
 
-      const checkRes = await fetch(
+      const checkBen = await fetch(
         `${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${socioId}`,
         {
           headers: {
@@ -489,12 +477,11 @@ if (referencia.nombre.trim() !== '') {
         }
       );
 
-      const existing = await checkRes.json();
+      const existingBen = await checkBen.json();
 
-      if (existing && existing.length > 0) {
-
+      if (existingBen?.length > 0) {
         await fetch(
-          `${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${socioId}`,
+          `${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_beneficiario=eq.${existingBen[0].id_beneficiario}`,
           {
             method: 'PATCH',
             headers: {
@@ -507,9 +494,7 @@ if (referencia.nombre.trim() !== '') {
             }),
           }
         );
-
       } else {
-
         await fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo`, {
           method: 'POST',
           headers: {
@@ -522,7 +507,52 @@ if (referencia.nombre.trim() !== '') {
             ...beneficiario
           }),
         });
+      }
+    }
 
+    // ================= REFERENCIA BANCARIA =================
+    if (referenciaBancaria.entidad_bancaria !== '') {
+
+      const checkBanco = await fetch(
+        `${SUPABASE_URL}/rest/v1/referencias_bancarias?id_socio=eq.${socioId}`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+        }
+      );
+
+      const existingBanco = await checkBanco.json();
+
+      if (existingBanco?.length > 0) {
+        await fetch(
+          `${SUPABASE_URL}/rest/v1/referencias_bancarias?id_referencia_bancaria=eq.${existingBanco[0].id_referencia_bancaria}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({
+              ...referenciaBancaria
+            }),
+          }
+        );
+      } else {
+        await fetch(`${SUPABASE_URL}/rest/v1/referencias_bancarias`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            id_socio: socioId,
+            ...referenciaBancaria
+          }),
+        });
       }
     }
 
@@ -534,69 +564,6 @@ if (referencia.nombre.trim() !== '') {
     setSaving(false);
   }
 };
-
- const handleEditClick = (socio) => {
-  setEditingSocio(socio);
-  setNewSocio({
-    nombre: socio.nombre || '',
-    apellido_paterno: socio.apellido_paterno || '',
-    apellido_materno: socio.apellido_materno || '',
-    email: socio.email || '',
-    contrasena: socio.contrasena || '',
-    telefono: socio.telefono || '',
-    direccion: socio.direccion || '',
-    cp: socio.cp || '',
-    estatus: socio.estatus ? 'activo' : 'inactivo',
-    fecha_nacimiento: toDateInput(socio.fecha_nacimiento) || '',
-  });
-
-  setPhotoFile(null);
-  setPhotoPreview(socio.foto_url || '');
-  setPhotoError('');
-  setShowForm(true);
-
-  // REFERENCIAS
-  fetch(`${SUPABASE_URL}/rest/v1/refs_fondo?id_socio=eq.${socio.id_socio}`, {
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-  })
-    .then(res => res.json())
-   .then(data => {
-  if (data?.length > 0) {
-    setReferencia(data[0]);
-    setReferenciaId(data[0].id_referencia);
-  } else {
-    setReferenciaId(null);
-  }
-});
-
-  // BENEFICIARIO
-  fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${socio.id_socio}`, {
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data?.length > 0) setBeneficiario(data[0]);
-    });
-
-  // BANCO
-  fetch(`${SUPABASE_URL}/rest/v1/referencias_bancarias?id_socio=eq.${socio.id_socio}`, {
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data?.length > 0) setReferenciaBancaria(data[0]);
-    });
-
-};   // ✅ AQUÍ TERMINA
 
 
  /** Ficha */
