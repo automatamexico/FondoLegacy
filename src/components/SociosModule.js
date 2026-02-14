@@ -81,13 +81,16 @@ const SociosModule = () => {
   const [error, setError] = useState(null);
   const [errorMonto, setErrorMonto] = useState('');
 // ================= REFERENCIAS =================
-const [referenciaId, setReferenciaId] = useState(null);
+const [referencia, setReferencia] = useState({
   nombre: '',
   apellido_paterno: '',
   apellido_materno: '',
   telefono: '',
   direccion: ''
 });
+
+const [referenciaId, setReferenciaId] = useState(null);
+
 
 // ================= BENEFICIARIO =================
 const [beneficiario, setBeneficiario] = useState({
