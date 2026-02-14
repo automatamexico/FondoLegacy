@@ -903,6 +903,57 @@ const openFicha = async (socio) => {
   value={referencia.direccion}
   onChange={(e) => setReferencia({ ...referencia, direccion: e.target.value })}
 />
+// ================= REFERENCIA PERSONAL =================
+if (referencia.nombre.trim() !== '') {
+
+  const checkRef = await fetch(
+    `${SUPABASE_URL}/rest/v1/refs_fondo?id_socio=eq.${socioId}`,
+    {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    }
+  );
+
+  const existingRef = await checkRef.json();
+
+  if (existingRef && existingRef.length > 0) {
+
+    // ACTUALIZAR
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/refs_fondo?id_socio=eq.${socioId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          ...referencia
+        }),
+      }
+    );
+
+  } else {
+
+    // INSERTAR
+    await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        id_socio: socioId,
+        ...referencia
+      }),
+    });
+
+  }
+}
 
 {/* ================= BENEFICIARIO ================= */}
 <div className="col-span-full border-t-2 border-blue-600 pt-6 mt-6">
