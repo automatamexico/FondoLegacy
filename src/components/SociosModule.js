@@ -81,7 +81,7 @@ const SociosModule = () => {
   const [error, setError] = useState(null);
   const [errorMonto, setErrorMonto] = useState('');
 // ================= REFERENCIAS =================
-const [referencia, setReferencia] = useState({
+const [referenciaId, setReferenciaId] = useState(null);
   nombre: '',
   apellido_paterno: '',
   apellido_materno: '',
@@ -431,29 +431,18 @@ const uploadPhotoToAforeBucket = async (socioId) => {
 // ================= REFERENCIA PERSONAL =================
 if (referencia.nombre.trim() !== '') {
 
-  const checkRef = await fetch(
-    `${SUPABASE_URL}/rest/v1/refs_fondo?id_socio=eq.${socioId}`,
-    {
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-    }
-  );
+  if (referenciaId) {
 
-  const existingRef = await checkRef.json();
-
-  if (existingRef && existingRef.length > 0) {
-
-    // ACTUALIZAR
+    // ACTUALIZAR por ID real
     await fetch(
-      `${SUPABASE_URL}/rest/v1/refs_fondo?id_socio=eq.${socioId}`,
+      `${SUPABASE_URL}/rest/v1/refs_fondo?id_referencia=eq.${referenciaId}`,
       {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           apikey: SUPABASE_ANON_KEY,
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=representation'
         },
         body: JSON.stringify({
           ...referencia
@@ -463,13 +452,14 @@ if (referencia.nombre.trim() !== '') {
 
   } else {
 
-    // INSERTAR
-    await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo`, {
+    // INSERTAR nuevo
+    const resRef = await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Prefer: 'return=representation'
       },
       body: JSON.stringify({
         id_socio: socioId,
@@ -477,6 +467,10 @@ if (referencia.nombre.trim() !== '') {
       }),
     });
 
+    const insertedRef = await resRef.json();
+    if (insertedRef?.length > 0) {
+      setReferenciaId(insertedRef[0].id_referencia);
+    }
   }
 }
     // ================= BENEFICIARIO =================
@@ -566,9 +560,14 @@ if (referencia.nombre.trim() !== '') {
     },
   })
     .then(res => res.json())
-    .then(data => {
-      if (data?.length > 0) setReferencia(data[0]);
-    });
+   .then(data => {
+  if (data?.length > 0) {
+    setReferencia(data[0]);
+    setReferenciaId(data[0].id_referencia);
+  } else {
+    setReferenciaId(null);
+  }
+});
 
   // BENEFICIARIO
   fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${socio.id_socio}`, {
