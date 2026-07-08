@@ -18,11 +18,69 @@ import AforeDashboardMain from './components/AforeDashboardMain';
 import AforeSidebar from './components/afore/AforeSidebar';
 import AforeAfiliadosModule from './components/afore/AforeAfiliadosModule';
 
+const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [activeSection, setActiveSection] = useState('dashboard');
-  const [workMode, setWorkMode] = useState(null); // 'fondo' | 'afore'
+  const [workMode, setWorkMode] = useState(null);
+  const [userPermissions, setUserPermissions] = useState([]);
+
+  const getUserRole = (user) => user?.role || user?.rol || '';
+  const getUserId = (user) => user?.id_usuario || user?.id || user?.usuario_id || null;
+
+  const isAdminUser = (user) => {
+    const role = getUserRole(user);
+    return role === 'admin' || role === 'administrador' || role === 'superadmin';
+  };
+
+  const loadUserPermissions = async (user) => {
+    if (!user) return;
+
+    if (isAdminUser(user)) {
+      setUserPermissions(['*']);
+      return;
+    }
+
+    const userId = getUserId(user);
+    if (!userId) {
+      setUserPermissions([]);
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/permisos_modulos_fondo?id_usuario=eq.${userId}&puede_ver=eq.true&select=modulo`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        setUserPermissions([]);
+        return;
+      }
+
+      const data = await res.json();
+      setUserPermissions(data.map((p) => p.modulo));
+    } catch (err) {
+      console.error('Error cargando permisos:', err);
+      setUserPermissions([]);
+    }
+  };
+
+  const canAccess = (moduleId) => {
+    if (!currentUser) return false;
+    if (isAdminUser(currentUser)) return true;
+    if (userPermissions.includes('*')) return true;
+    return userPermissions.includes(moduleId);
+  };
 
   useEffect(() => {
     const storedUser = localStorage.getItem('currentUser');
@@ -30,9 +88,12 @@ function App() {
       const user = JSON.parse(storedUser);
       setCurrentUser(user);
       setIsAuthenticated(true);
-      if (user.role === 'usuario' && user.id_socio) {
+
+      if (getUserRole(user) === 'usuario' && user.id_socio) {
         localStorage.setItem('id_socio', user.id_socio);
       }
+
+      loadUserPermissions(user);
     }
   }, []);
 
@@ -41,12 +102,13 @@ function App() {
     setIsAuthenticated(true);
     localStorage.setItem('currentUser', JSON.stringify(user));
 
-    if (user.role === 'usuario' && user.id_socio) {
+    if (getUserRole(user) === 'usuario' && user.id_socio) {
       localStorage.setItem('id_socio', user.id_socio);
     } else {
       localStorage.removeItem('id_socio');
     }
 
+    loadUserPermissions(user);
     setWorkMode(null);
     setActiveSection('dashboard');
   };
@@ -54,6 +116,7 @@ function App() {
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
+    setUserPermissions([]);
     setWorkMode(null);
     localStorage.removeItem('currentUser');
     localStorage.removeItem('id_socio');
@@ -65,9 +128,19 @@ function App() {
     setActiveSection('dashboard');
   };
 
+  const AccessDenied = () => (
+    <div className="p-8">
+      <div className="bg-white rounded-2xl border border-red-200 p-6 text-center">
+        <h2 className="text-xl font-bold text-red-600 mb-2">Acceso no autorizado</h2>
+        <p className="text-slate-600">No tienes permiso para ver este módulo.</p>
+      </div>
+    </div>
+  );
+
   const renderActiveSection = () => {
-    // Vista de USUARIO (socio)
-    if (currentUser && currentUser.role === 'usuario') {
+    const role = getUserRole(currentUser);
+
+    if (currentUser && role === 'usuario') {
       const idSocio = localStorage.getItem('id_socio');
       if (!idSocio) {
         handleLogout();
@@ -90,18 +163,19 @@ function App() {
       }
     }
 
-    // Vista de ADMIN
+    if (!canAccess(activeSection)) {
+      return <AccessDenied />;
+    }
+
     switch (activeSection) {
       case 'dashboard':
         return <DashboardMain />;
 
-      // AFORE (aislado)
       case 'afore-dashboard':
         return <AforeDashboardMain />;
       case 'afore-afiliados':
         return <AforeAfiliadosModule />;
 
-      // Fondo (intacto)
       case 'socios':
         return <SociosModule />;
       case 'ahorros':
@@ -126,20 +200,18 @@ function App() {
     }
   };
 
-  // Login
   if (!isAuthenticated) {
     return <LoginForm onLogin={handleLogin} />;
   }
 
-  // Pantalla de selección de módulo
   if (isAuthenticated && !workMode) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
-        <h1 className="text-4xl font-extrabold mb-12 text-black text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white px-4">
+        <h1 className="text-3xl md:text-4xl font-extrabold mb-12 text-black text-center">
           SELECCIONA EL MÓDULO DE<br />TRABAJO
         </h1>
 
-        <div className="flex gap-20">
+        <div className="flex flex-col md:flex-row gap-6 md:gap-20 w-full md:w-auto max-w-md md:max-w-none">
           <button
             onClick={() => {
               setWorkMode('afore');
@@ -174,12 +246,15 @@ function App() {
             activeSection={activeSection}
             onSectionChange={setActiveSection}
             onBackToHome={backToHomeSelect}
+            currentUser={currentUser}
+            userPermissions={userPermissions}
           />
         ) : (
           <DashboardSidebar
             activeSection={activeSection}
             onSectionChange={setActiveSection}
             currentUser={currentUser}
+            userPermissions={userPermissions}
           />
         )}
 
