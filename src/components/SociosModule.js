@@ -57,7 +57,7 @@ const cleanDate = (v) => (v && String(v).trim() ? v : null);
 const onlyDigits = (v = '') => String(v).replace(/\D/g, '');
 const onlyDigitsMax = (v = '', max = 999) => onlyDigits(v).slice(0, max);
 
-const SociosModule = () => {
+const SociosModule = ({ currentUser }) => {
   const [sociosList, setSociosList] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [showConfirmRegistro, setShowConfirmRegistro] = useState(false);
@@ -139,12 +139,72 @@ const [bancoPersonalizado, setBancoPersonalizado] = useState({
 const [refsFicha, setRefsFicha] = useState([]);
 const [benefFicha, setBenefFicha] = useState([]);
 const [bancoFicha, setBancoFicha] = useState([]);
+  const [permisosSocios, setPermisosSocios] = useState({
+  puede_crear: false,
+  puede_editar: false,
+  puede_eliminar: false,
+});
+
+const isAdmin =
+  currentUser?.rol === 'admin' ||
+  currentUser?.role === 'admin' ||
+  currentUser?.rol === 'administrador' ||
+  currentUser?.role === 'administrador' ||
+  currentUser?.rol === 'superadmin' ||
+  currentUser?.role === 'superadmin';
+
+const getCurrentUserId = () =>
+  currentUser?.id_usuario || currentUser?.id || currentUser?.usuario_id || null;
 
 
   useEffect(() => {
     fetchSocios();
   }, []);
+useEffect(() => {
+  const cargarPermisosSocios = async () => {
+    if (isAdmin) {
+      setPermisosSocios({
+        puede_crear: true,
+        puede_editar: true,
+        puede_eliminar: true,
+      });
+      return;
+    }
 
+    const idUsuario = getCurrentUserId();
+
+    if (!idUsuario) return;
+
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/permisos_modulos_fondo?id_usuario=eq.${idUsuario}&modulo=eq.socios&select=puede_crear,puede_editar,puede_eliminar`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+        }
+      );
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+
+      if (data.length > 0) {
+        setPermisosSocios({
+          puede_crear: !!data[0].puede_crear,
+          puede_editar: !!data[0].puede_editar,
+          puede_eliminar: !!data[0].puede_eliminar,
+        });
+      }
+    } catch (err) {
+      console.error('Error cargando permisos socios:', err);
+    }
+  };
+
+  cargarPermisosSocios();
+}, [currentUser]);
   const fetchSocios = async () => {
     setLoading(true);
     setError(null);
