@@ -696,9 +696,36 @@ const openFicha = async (socio) => {
           }}
           className="px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
         >
-          {showForm ? 'Cancelar' : 'Nuevo Socio'}
-        </button>
-      </div>
+      {(permisosSocios.puede_crear || showForm) && (
+  <button
+    onClick={() => {
+      if (showForm) {
+        resetForm();
+      } else {
+        setShowForm(true);
+        setEditingSocio(null);
+        setNewSocio({
+          nombre: '',
+          apellido_paterno: '',
+          apellido_materno: '',
+          email: '',
+          contrasena: '',
+          telefono: '',
+          direccion: '',
+          cp: '',
+          estatus: 'activo',
+          fecha_nacimiento: '',
+        });
+        setPhotoFile(null);
+        setPhotoPreview('');
+        setPhotoError('');
+      }
+    }}
+    className="px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
+  >
+    {showForm ? 'Cancelar' : 'Nuevo Socio'}
+  </button>
+)}
 
       {/* Formulario */}
       {showForm && (
