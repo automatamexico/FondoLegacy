@@ -177,7 +177,7 @@ function App() {
         return <AforeAfiliadosModule />;
 
       case 'socios':
-        return <SociosModule />;
+  return <SociosModule currentUser={currentUser} />;
       case 'ahorros':
         return <AhorrosModule />;
       case 'prestamos':
