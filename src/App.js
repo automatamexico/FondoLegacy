@@ -240,7 +240,7 @@ function App() {
     <div className="h-screen flex flex-col">
       <DashboardHeader user={currentUser} onLogout={handleLogout} />
 
-      <div className="flex h-[calc(100vh-80px)]">
+      <div className="flex flex-col md:flex-row h-[calc(100vh-80px)]">
         {workMode === 'afore' ? (
           <AforeSidebar
             activeSection={activeSection}
