@@ -647,9 +647,10 @@ const addPeriod = (dateISO, tipo, k) => {
             {!loading && !error && sociosConPrestamosActivos.length === 0 && (
               <p className="text-center text-slate-600">No hay socios con préstamos activos.</p>
             )}
-            {!loading && !error && sociosConPrestamosActivos.length > 0 && (
-         {/* Vista móvil */}
-<div className="md:hidden space-y-3">
+           {!loading && !error && sociosConPrestamosActivos.length > 0 && (
+  <>
+    {/* Vista móvil */}
+    <div className="md:hidden space-y-3">
   {sociosConPrestamosActivos.map((socio) => (
     <div
       key={socio.id_socio}
