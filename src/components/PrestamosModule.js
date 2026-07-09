@@ -539,16 +539,16 @@ const addPeriod = (dateISO, tipo, k) => {
   // Render
   // ============================
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+ <div className="p-4 md:p-6 space-y-5 md:space-y-6">
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Préstamos</h2>
+        <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-1 md:mb-2">Préstamos</h2>
           <p className="text-slate-600">Consulta el detalle de los préstamos de los socios</p>
         </div>
         {currentUserRole === 'admin' && (
           <button
             onClick={() => setShowAddPrestamoModal(true)}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium"
+          className="w-full md:w-auto px-4 py-3 md:py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium"
           >
             Registrar nuevo préstamo
           </button>
@@ -557,7 +557,7 @@ const addPeriod = (dateISO, tipo, k) => {
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -566,12 +566,12 @@ const addPeriod = (dateISO, tipo, k) => {
             </div>
             <div>
               <h3 className="font-semibold text-slate-900">Total de Socios con Préstamo</h3>
-              <p className="text-2xl font-bold text-orange-600">{totalSociosConPrestamo.toLocaleString()}</p>
+              <p className="text-xl md:text-2xl font-bold text-orange-600">{totalSociosConPrestamo.toLocaleString()}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -580,15 +580,15 @@ const addPeriod = (dateISO, tipo, k) => {
             </div>
             <div>
               <h3 className="font-semibold text-slate-900">Total de Dinero Prestado</h3>
-              <p className="text-2xl font-bold text-purple-600">{formatCurrency(totalDineroPrestado)}</p>
+              <p className="text-xl md:text-2xl font-bold text-purple-600">{formatCurrency(totalDineroPrestado)}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Búsqueda */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h3 className="text-xl font-semibold text-slate-900 mb-4">Buscar Socio</h3>
+      <div cclassName="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+      <h3 className="text-lg md:text-xl font-semibold text-slate-900 mb-4">Buscar Socio</h3>
         <input
           type="text"
           placeholder="Buscar por ID de Socio o Nombre Completo..."
@@ -605,11 +605,11 @@ const addPeriod = (dateISO, tipo, k) => {
               s => s.id_socio.toString().includes(searchTerm) ||
               `${s.nombre} ${s.apellido_paterno} ${s.apellido_materno}`.toLowerCase().includes(searchTerm)
             ).map((socio) => (
-              <div key={socio.id_socio} className="flex justify-between items-center p-3 bg-slate-100 rounded-lg">
-                <span className="text-slate-800">
+            <div key={socio.id_socio} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-3 bg-slate-100 rounded-lg">
+            <span className="text-slate-800 text-sm md:text-base">
                   ID: {socio.id_socio} - {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}
                 </span>
-                <div className="flex space-x-2">
+             <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                   <button
                     onClick={() => handleVerHistorialPrestamosSocio(socio)}
                     className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
@@ -640,16 +640,16 @@ const addPeriod = (dateISO, tipo, k) => {
         sociosConPrestamosActivos.length > 0 &&
         !showPrestamoHistorial &&
         !showEditPrestamosModal && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <h3 className="text-xl font-semibold text-slate-900 mb-4">Socios con Préstamos Activos</h3>
+          <div cclassName="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+          <h3 className="text-lg md:text-xl font-semibold text-slate-900 mb-4">Socios con Préstamos Activos</h3>
             {loading && <p className="text-center text-slate-600">Cargando socios con préstamos...</p>}
             {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
             {!loading && !error && sociosConPrestamosActivos.length === 0 && (
               <p className="text-center text-slate-600">No hay socios con préstamos activos.</p>
             )}
             {!loading && !error && sociosConPrestamosActivos.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full">
+          <div className="overflow-x-auto -mx-4 md:mx-0">
+               <table className="w-full min-w-[640px]">
                   <thead>
                     <tr className="border-b border-slate-200">
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">ID Socio</th>
@@ -665,7 +665,7 @@ const addPeriod = (dateISO, tipo, k) => {
                           {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}
                         </td>
                         <td className="py-4 px-4">
-                          <div className="flex space-x-2">
+                        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                             <button
                               onClick={() => handleVerHistorialPrestamosSocio(socio)}
                               className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
@@ -691,12 +691,12 @@ const addPeriod = (dateISO, tipo, k) => {
 
       {/* Tabla de préstamos del socio */}
       {!showPrestamoHistorial && !showEditPrestamosModal && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
           {loading && <p className="text-center text-slate-600">Cargando préstamos...</p>}
           {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
           {!loading && !error && prestamosList.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full">
+           <div className="overflow-x-auto -mx-4 md:mx-0">
+          <table className="w-full min-w-[640px]">
                 <thead>
                   <tr className="border-b border-slate-200">
                     <th className="text-left py-3 px-4 font-semibold text-slate-700">ID Préstamo</th>
@@ -734,7 +734,7 @@ const addPeriod = (dateISO, tipo, k) => {
                         </span>
                       </td>
                       <td className="py-4 px-4">
-                        <div className="flex space-x-2">
+                    <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                           <button
                             onClick={() => handleVerDetallesPrestamo(prestamo)}
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -757,7 +757,7 @@ const addPeriod = (dateISO, tipo, k) => {
 
       {/* Historial de préstamos del socio */}
       {showPrestamoHistorial && selectedSocioForHistorial && !showEditPrestamosModal && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
           <h3 className="text-xl font-bold text-slate-900 mb-4">
             Historial de Préstamos de {selectedSocioForHistorial.nombre} {selectedSocioForHistorial.apellido_paterno}
           </h3>
@@ -801,7 +801,7 @@ const addPeriod = (dateISO, tipo, k) => {
 
       {/* Edición de préstamos del socio */}
       {showEditPrestamosModal && selectedSocioForHistorial && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
           <h3 className="text-xl font-bold text-slate-900 mb-4">
             Editar Préstamos de {selectedSocioForHistorial.nombre} {selectedSocioForHistorial.apellido_paterno}
           </h3>
@@ -861,7 +861,7 @@ const addPeriod = (dateISO, tipo, k) => {
 
             {!loading && !error && historialPagosPrestamo.length > 0 && (
               <div className="max-h-[60vh] overflow-y-auto">
-                <table className="w-full">
+              <table className="w-full min-w-[640px]">
                   <thead>
                     <tr className="border-b border-slate-200">
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">#</th>
