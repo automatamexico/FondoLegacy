@@ -587,7 +587,7 @@ const addPeriod = (dateISO, tipo, k) => {
       </div>
 
       {/* Búsqueda */}
-      <div cclassName="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
       <h3 className="text-lg md:text-xl font-semibold text-slate-900 mb-4">Buscar Socio</h3>
         <input
           type="text"
