@@ -648,40 +648,47 @@ const addPeriod = (dateISO, tipo, k) => {
               <p className="text-center text-slate-600">No hay socios con préstamos activos.</p>
             )}
             {!loading && !error && sociosConPrestamosActivos.length > 0 && (
-          <div className="overflow-x-auto -mx-4 md:mx-0">
-               <table className="w-full min-w-[640px]">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">ID Socio</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Nombre Completo</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sociosConPrestamosActivos.map((socio) => (
-                      <tr key={socio.id_socio} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="py-4 px-4 text-slate-700">{socio.id_socio}</td>
-                        <td className="py-4 px-4 font-medium text-slate-900">
-                          {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}
-                        </td>
-                        <td className="py-4 px-4">
-                        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-                            <button
-                              onClick={() => handleVerHistorialPrestamosSocio(socio)}
-                              className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
-                            >
-                              Ver Historial de Préstamos
-                            </button>
-                            <button
-                              onClick={() => handleEditarPrestamosSocio(socio)}
-                              className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
-                            >
-                              Editar
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+         {/* Vista móvil */}
+<div className="md:hidden space-y-3">
+  {sociosConPrestamosActivos.map((socio) => (
+    <div
+      key={socio.id_socio}
+      className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3"
+    >
+      <div>
+        <p className="text-xs text-slate-500">ID Socio</p>
+        <p className="font-semibold text-slate-900">{socio.id_socio}</p>
+      </div>
+
+      <div>
+        <p className="text-xs text-slate-500">Nombre Completo</p>
+        <p className="font-semibold text-slate-900">
+          {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2 pt-2">
+        <button
+          onClick={() => handleVerHistorialPrestamosSocio(socio)}
+          className="w-full px-3 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
+        >
+          Ver Historial de Préstamos
+        </button>
+
+        <button
+          onClick={() => handleEditarPrestamosSocio(socio)}
+          className="w-full px-3 py-2 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
+        >
+          Editar
+        </button>
+      </div>
+    </div>
+  ))}
+</div>
+
+{/* Vista escritorio */}
+<div className="hidden md:block overflow-x-auto">
+  <table className="w-full">
                   </tbody>
                 </table>
               </div>
