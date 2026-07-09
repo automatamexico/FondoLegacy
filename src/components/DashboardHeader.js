@@ -1,13 +1,21 @@
 import React from 'react';
 
-const DashboardHeader = ({ user, onLogout }) => {
+const DashboardHeader = ({ user, onLogout, onMenuClick }) => {
   const displayName = user?.name || user?.nombre || user?.email || 'Usuario';
   const role = user?.role || user?.rol || '';
 
   return (
     <header className="bg-white border-b border-slate-200 px-3 md:px-6 py-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center space-x-3 min-w-0">
+
+        <div className="flex items-center gap-3 min-w-0">
+          <button
+            onClick={onMenuClick}
+            className="md:hidden w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-800"
+          >
+            ☰
+          </button>
+
           <div
             className="w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center shrink-0"
             style={{ backgroundColor: '#0ea15a' }}
