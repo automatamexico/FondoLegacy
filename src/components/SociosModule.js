@@ -1627,7 +1627,7 @@ const openFicha = async (socio) => {
         </div>
       )}
 
-    </div>      {/* ESTE ES EL DIV PRINCIPAL */}
+    </div>
 
   );
 };
