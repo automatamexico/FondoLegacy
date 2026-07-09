@@ -13,13 +13,12 @@ import ReportesModule from './components/ReportesModule';
 import RetirosModule from './components/RetirosModule';
 import MultasRenovacionesModule from './components/MultasRenovacionesModule';
 
-// AFORE
 import AforeDashboardMain from './components/AforeDashboardMain';
 import AforeSidebar from './components/afore/AforeSidebar';
 import AforeAfiliadosModule from './components/afore/AforeAfiliadosModule';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -29,105 +28,57 @@ function App() {
   const [userPermissions, setUserPermissions] = useState([]);
 
   const getUserRole = (user) => user?.role || user?.rol || '';
- const getUserId = (user) =>
-  user?.id_usuario || user?.id || user?.usuario_id || user?.id_user || null;
+  const getUserId = (user) =>
+    user?.id_usuario || user?.id || user?.usuario_id || user?.id_user || null;
 
   const isAdminUser = (user) => {
     const role = getUserRole(user);
     return role === 'admin' || role === 'administrador' || role === 'superadmin';
   };
 
-const loadUserPermissions = async (user) => {
-  if (!user) return [];
-
-  if (isAdminUser(user)) {
-    setUserPermissions(['*']);
-    return ['*'];
-  }
-
-  try {
-    let userId = getUserId(user);
-
-    // Si el login no trae id_usuario, lo buscamos por email
-    if (!userId && user.email) {
-      const userRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/usuarios_sistema?email=eq.${encodeURIComponent(user.email)}&select=id_usuario`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-        }
-      );
-
-      const userData = await userRes.json();
-
-      if (userData?.length > 0) {
-        userId = userData[0].id_usuario;
-
-        const updatedUser = {
-          ...user,
-          id_usuario: userId,
-        };
-
-        setCurrentUser(updatedUser);
-        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-      }
-    }
-
-    if (!userId) {
-      setUserPermissions([]);
-      return [];
-    }
-
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/permisos_modulos_fondo?id_usuario=eq.${userId}&puede_ver=eq.true&select=modulo`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-      }
-    );
-
-    if (!res.ok) {
-      setUserPermissions([]);
-      return [];
-    }
-
-    const data = await res.json();
-    const permisos = data.map((p) => p.modulo);
-
-    setUserPermissions(permisos);
-
-    // Si está en dashboard pero no tiene dashboard, manda al primer módulo permitido
-    if (permisos.length > 0 && !permisos.includes(activeSection)) {
-      setActiveSection(permisos[0]);
-    }
-
-    return permisos;
-  } catch (err) {
-    console.error('Error cargando permisos:', err);
-    setUserPermissions([]);
-    return [];
-  }
-};
-    if (!user) return;
+  const loadUserPermissions = async (user) => {
+    if (!user) return [];
 
     if (isAdminUser(user)) {
       setUserPermissions(['*']);
-      return;
-    }
-
-    const userId = getUserId(user);
-    if (!userId) {
-      setUserPermissions([]);
-      return;
+      return ['*'];
     }
 
     try {
+      let userId = getUserId(user);
+
+      if (!userId && user.email) {
+        const userRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/usuarios_sistema?email=eq.${encodeURIComponent(user.email)}&select=id_usuario`,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+          }
+        );
+
+        const userData = await userRes.json();
+
+        if (userData?.length > 0) {
+          userId = userData[0].id_usuario;
+
+          const updatedUser = {
+            ...user,
+            id_usuario: userId,
+          };
+
+          setCurrentUser(updatedUser);
+          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        }
+      }
+
+      if (!userId) {
+        setUserPermissions([]);
+        return [];
+      }
+
       const res = await fetch(
         `${SUPABASE_URL}/rest/v1/permisos_modulos_fondo?id_usuario=eq.${userId}&puede_ver=eq.true&select=modulo`,
         {
@@ -141,14 +92,23 @@ const loadUserPermissions = async (user) => {
 
       if (!res.ok) {
         setUserPermissions([]);
-        return;
+        return [];
       }
 
       const data = await res.json();
-      setUserPermissions(data.map((p) => p.modulo));
+      const permisos = data.map((p) => p.modulo);
+
+      setUserPermissions(permisos);
+
+      if (permisos.length > 0 && !permisos.includes(activeSection)) {
+        setActiveSection(permisos[0]);
+      }
+
+      return permisos;
     } catch (err) {
       console.error('Error cargando permisos:', err);
       setUserPermissions([]);
+      return [];
     }
   };
 
@@ -161,6 +121,7 @@ const loadUserPermissions = async (user) => {
 
   useEffect(() => {
     const storedUser = localStorage.getItem('currentUser');
+
     if (storedUser) {
       const user = JSON.parse(storedUser);
       setCurrentUser(user);
@@ -174,7 +135,7 @@ const loadUserPermissions = async (user) => {
     }
   }, []);
 
-  const handleLogin = (user) => {
+  const handleLogin = async (user) => {
     setCurrentUser(user);
     setIsAuthenticated(true);
     localStorage.setItem('currentUser', JSON.stringify(user));
@@ -185,9 +146,10 @@ const loadUserPermissions = async (user) => {
       localStorage.removeItem('id_socio');
     }
 
-    loadUserPermissions(user);
+    const permisos = await loadUserPermissions(user);
+
     setWorkMode(null);
-    setActiveSection('dashboard');
+    setActiveSection(permisos?.[0] || 'dashboard');
   };
 
   const handleLogout = () => {
@@ -247,14 +209,12 @@ const loadUserPermissions = async (user) => {
     switch (activeSection) {
       case 'dashboard':
         return <DashboardMain />;
-
       case 'afore-dashboard':
         return <AforeDashboardMain />;
       case 'afore-afiliados':
         return <AforeAfiliadosModule />;
-
       case 'socios':
-  return <SociosModule currentUser={currentUser} />;
+        return <SociosModule currentUser={currentUser} />;
       case 'ahorros':
         return <AhorrosModule />;
       case 'prestamos':
@@ -271,7 +231,6 @@ const loadUserPermissions = async (user) => {
         return <ReportesModule />;
       case 'multas-renovaciones':
         return <MultasRenovacionesModule />;
-
       default:
         return <DashboardMain />;
     }
@@ -302,7 +261,7 @@ const loadUserPermissions = async (user) => {
           <button
             onClick={() => {
               setWorkMode('fondo');
-              setActiveSection('dashboard');
+              setActiveSection(userPermissions?.[0] || 'dashboard');
             }}
             className="px-10 py-6 rounded-2xl bg-blue-600 text-white text-2xl font-bold hover:bg-blue-700"
           >
