@@ -72,17 +72,21 @@ const PrestamosModule = ({ idSocio }) => {
 
   // Normaliza string fecha a YYYY-MM-DD para Supabase
   const toISODate = (val) => {
-    if (!val) return new Date().toISOString().slice(0, 10);
-    // ya viene ISO
-    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
-    // dd/mm/yyyy o d/m/yyyy
-    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(val)) {
-      const [d, m, y] = val.split('/').map(n => parseInt(n, 10));
-      const dt = new Date(y, (m - 1), d);
-      const mm = String(dt.getMonth() + 1).padStart(2, '0');
-      const dd = String(dt.getDate()).padStart(2, '0');
-      return `${dt.getFullYear()}-${mm}-${dd}`;
-    }
+   const dt = new Date(val);
+
+if (!isNaN(dt.getTime())) {
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+const hoy = new Date();
+const y = hoy.getFullYear();
+const m = String(hoy.getMonth() + 1).padStart(2, '0');
+const d = String(hoy.getDate()).padStart(2, '0');
+
+return `${y}-${m}-${d}`;
     // fallback: Date parseable
     const dt = new Date(val);
     if (!isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
@@ -90,12 +94,11 @@ const PrestamosModule = ({ idSocio }) => {
   };
 
   const addPeriod = (dateISO, tipo, k) => {
-    const d = new Date(dateISO);
-    if (tipo === 'semanal') d.setDate(d.getDate() + 7 * k);
-    else if (tipo === 'quincenal') d.setDate(d.getDate() + 14 * k);
-    else d.setMonth(d.getMonth() + k); // mensual
-    return d.toISOString().slice(0, 10);
-  };
+    const y = d.getFullYear();
+const m = String(d.getMonth() + 1).padStart(2, '0');
+const day = String(d.getDate()).padStart(2, '0');
+
+return `${y}-${m}-${day}`;
 
   // --- RLS helper: marcar liquidado si corresponde ---
   const checkAndMarkLiquidado = async (id_prestamo) => {
