@@ -745,16 +745,34 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
                   required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
-                <input
-                  type="date"
-                  name="fecha"
-                  value={editingAhorro.fecha}
-                  onChange={handleEditInputChange}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+            <div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Fecha
+  </label>
+
+  <div className="flex gap-2">
+    <input
+      type="date"
+      name="fecha"
+      value={editingAhorro.fecha}
+      onChange={handleEditInputChange}
+      className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+    />
+
+    <button
+      type="button"
+      onClick={() =>
+        setEditingAhorro((prev) => ({
+          ...prev,
+          fecha: new Date().toISOString().split('T')[0],
+        }))
+      }
+      className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200"
+    >
+      Hoy
+    </button>
+  </div>
+</div>
               {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
               <div className="flex justify-end space-x-4 mt-6">
                 <button
