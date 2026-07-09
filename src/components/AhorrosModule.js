@@ -472,8 +472,8 @@ fecha_hora: obtenerFechaHoraLocalISO(),
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+   <div className="p-3 md:p-6 space-y-6">
+     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Ahorros</h2>
           <p className="text-slate-600">Consulta el detalle de las cuentas de los socios</p>
@@ -482,7 +482,7 @@ fecha_hora: obtenerFechaHoraLocalISO(),
           <div className="flex space-x-4">
             <button
               onClick={() => setShowAddAhorroModal(true)}
-              className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
+            className="w-full md:w-auto px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
             >
               Registrar nuevo ahorro
             </button>
@@ -492,7 +492,7 @@ fecha_hora: obtenerFechaHoraLocalISO(),
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Tarjeta: Total de Socios con Ahorro */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6"
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -507,7 +507,7 @@ fecha_hora: obtenerFechaHoraLocalISO(),
         </div>
 
         {/* Tarjeta: Ahorro Acumulado */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -522,7 +522,7 @@ fecha_hora: obtenerFechaHoraLocalISO(),
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+    <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
         <div className="mb-6">
           <input
             type="text"
@@ -590,7 +590,7 @@ fecha_hora: obtenerFechaHoraLocalISO(),
       {/* Modal para Registrar Nuevo Ahorro */}
       {showAddAhorroModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
+          <div className="className="bg-white rounded-2xl shadow-xl p-4 md:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold text-slate-900 mb-4">Registrar Nuevo Ahorro</h3>
             <form onSubmit={handleRegisterAhorro} className="space-y-4">
               <div>
@@ -675,7 +675,7 @@ fecha_hora: obtenerFechaHoraLocalISO(),
       {/* Modal para Ver Detalles de Ahorros */}
       {showDetailsModal && selectedSocioAhorros && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-2xl w-full">
+          <div className="bg-white rounded-2xl shadow-xl p-4 md:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold text-slate-900 mb-4">Detalles de Ahorros para {selectedSocioAhorros.nombre_completo}</h3>
             <div className="overflow-x-auto mb-4">
               <table className="w-full">
@@ -719,7 +719,7 @@ fecha_hora: obtenerFechaHoraLocalISO(),
       {/* Modal para Editar Ahorro */}
       {showEditModal && editingAhorro && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
+          <div className="bg-white rounded-2xl shadow-xl p-4 md:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold text-slate-900 mb-4">Editar Ahorro</h3>
             <form onSubmit={handleUpdateAhorro} className="space-y-4">
               <div>
@@ -798,7 +798,7 @@ fecha_hora: obtenerFechaHoraLocalISO(),
       {/* Modal para Retirar Ahorro (sigue presente pero sin botón para abrirlo) */}
       {showRetiroModal && socioParaRetiro && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
+          <div className="bg-white rounded-2xl shadow-xl p-4 md:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold text-slate-900 mb-4">Retirar Ahorro</h3>
             <form onSubmit={(e) => { e.preventDefault(); handleAplicarRetiro(); }} className="space-y-4">
               <div>
