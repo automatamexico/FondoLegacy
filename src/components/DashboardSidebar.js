@@ -22,33 +22,35 @@ const DashboardSidebar = ({
   const menuItems = [
     { id: 'dashboard', name: 'Tablero', icon: '📊' },
     { id: 'socios', name: 'Socios', icon: '👥' },
-    { id: 'multas-renovaciones', name: 'Multas y Renovaciones', icon: '📅' },
+    { id: 'multas-renovaciones', name: 'Multas', icon: '📅' },
     { id: 'ahorros', name: 'Ahorros', icon: '💰' },
     { id: 'prestamos', name: 'Préstamos', icon: '💳' },
     { id: 'pagos', name: 'Pagos', icon: '🏦' },
     { id: 'retiros', name: 'Retiros', icon: '📤' },
-    { id: 'digital', name: 'Centro Digital', icon: '💻' },
+    { id: 'digital', name: 'Digital', icon: '💻' },
     { id: 'reportes', name: 'Reportes', icon: '📄' },
-    { id: 'usuarios', name: 'Control Usuarios', icon: '⚙️' }
+    { id: 'usuarios', name: 'Usuarios', icon: '⚙️' }
   ];
 
   const visibleItems = menuItems.filter((item) => canView(item.id));
 
   return (
-    <aside className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-slate-200 md:h-full">
-      <nav className="p-3 md:p-4 flex md:block gap-2 md:space-y-2 overflow-x-auto md:overflow-x-visible">
+    <aside className="w-20 md:w-64 bg-white border-r border-slate-200 h-full overflow-y-auto shrink-0">
+      <nav className="p-2 md:p-4 space-y-2">
         {visibleItems.map((item) => (
           <button
             key={item.id}
             onClick={() => onSectionChange(item.id)}
-            className={`min-w-max md:min-w-0 md:w-full flex items-center space-x-2 md:space-x-3 px-4 py-3 rounded-xl text-left transition-all ${
+            className={`w-full flex flex-col md:flex-row items-center md:space-x-3 px-2 md:px-4 py-3 rounded-xl text-center md:text-left transition-all ${
               activeSection === item.id
                 ? 'bg-blue-50 text-blue-700 border border-blue-200'
                 : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
             }`}
           >
             <span className="text-lg">{item.icon}</span>
-            <span className="font-medium text-sm md:text-base">{item.name}</span>
+            <span className="font-medium text-[11px] md:text-base leading-tight mt-1 md:mt-0">
+              {item.name}
+            </span>
           </button>
         ))}
       </nav>
