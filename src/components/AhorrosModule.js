@@ -205,8 +205,8 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
     }
 
     const currentDate = new Date();
-    const fecha = currentDate.toISOString().split('T')[0];
-    const fecha_hora = currentDate.toISOString();
+   const fecha = obtenerFechaLocal();
+const fecha_hora = obtenerFechaHoraLocalISO();
 
     try {
       const ahorroData = {
@@ -409,7 +409,7 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
       setToastMessage('');
       try {
         const currentDate = new Date();
-        const fechaRetiro = currentDate.toISOString();
+       const fechaRetiro = obtenerFechaHoraLocalISO();
 
         const retiroData = {
           id_socio: socioParaRetiro.id_socio,
@@ -434,8 +434,8 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
         const nuevoAhorroRegistro = {
           id_socio: socioParaRetiro.id_socio,
           ahorro_aportado: -monto,
-          fecha: currentDate.toISOString().split('T')[0],
-          fecha_hora: currentDate.toISOString(),
+         fecha: obtenerFechaLocal(),
+fecha_hora: obtenerFechaHoraLocalISO(),
           es_retiro: true
         };
 
@@ -764,7 +764,7 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
       onClick={() =>
         setEditingAhorro((prev) => ({
           ...prev,
-          fecha: new Date().toISOString().split('T')[0],
+          fecha: obtenerFechaLocal(),
         }))
       }
       className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200"
