@@ -492,7 +492,7 @@ fecha_hora: obtenerFechaHoraLocalISO(),
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Tarjeta: Total de Socios con Ahorro */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+   <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -507,7 +507,7 @@ fecha_hora: obtenerFechaHoraLocalISO(),
         </div>
 
         {/* Tarjeta: Ahorro Acumulado */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+     <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -522,7 +522,7 @@ fecha_hora: obtenerFechaHoraLocalISO(),
         </div>
       </div>
 
-    <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+   <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
         <div className="mb-6">
           <input
             type="text"
@@ -590,7 +590,7 @@ fecha_hora: obtenerFechaHoraLocalISO(),
       {/* Modal para Registrar Nuevo Ahorro */}
       {showAddAhorroModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="className="bg-white rounded-2xl shadow-xl p-4 md:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="bg-white rounded-2xl shadow-xl p-4 md:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold text-slate-900 mb-4">Registrar Nuevo Ahorro</h3>
             <form onSubmit={handleRegisterAhorro} className="space-y-4">
               <div>
