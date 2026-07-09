@@ -26,6 +26,7 @@ function App() {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [workMode, setWorkMode] = useState(null);
   const [userPermissions, setUserPermissions] = useState([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const getUserRole = (user) => user?.role || user?.rol || '';
   const getUserId = (user) =>
@@ -274,7 +275,11 @@ function App() {
 
   return (
     <div className="h-screen flex flex-col">
-      <DashboardHeader user={currentUser} onLogout={handleLogout} />
+      <DashboardHeader
+  user={currentUser}
+  onLogout={handleLogout}
+  onMenuClick={() => setMobileMenuOpen(true)}
+/>
 
       <div className="flex h-[calc(100vh-72px)]">
         {workMode === 'afore' ? (
@@ -286,12 +291,17 @@ function App() {
             userPermissions={userPermissions}
           />
         ) : (
-          <DashboardSidebar
-            activeSection={activeSection}
-            onSectionChange={setActiveSection}
-            currentUser={currentUser}
-            userPermissions={userPermissions}
-          />
+         <DashboardSidebar
+  activeSection={activeSection}
+  onSectionChange={(section) => {
+    setActiveSection(section);
+    setMobileMenuOpen(false);
+  }}
+  currentUser={currentUser}
+  userPermissions={userPermissions}
+  mobileMenuOpen={mobileMenuOpen}
+  onCloseMobileMenu={() => setMobileMenuOpen(false)}
+/>
         )}
 
         <main className="flex-1 overflow-y-auto">
