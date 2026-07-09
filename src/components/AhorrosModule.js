@@ -597,118 +597,125 @@ fecha_hora: obtenerFechaHoraLocalISO(),
         )}
       </div>
 
-      {/* Modal para Registrar Nuevo Ahorro */}
-      {showAddAhorroModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-2xl shadow-xl p-4 md:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-slate-900 mb-4">Registrar Nuevo Ahorro</h3>
-            <form onSubmit={handleRegisterAhorro} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Seleccionar Socio</label>
-                <select
-                  name="id_socio"
-                  value={newAhorro.id_socio}
-                  onChange={handleAddInputChange}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Seleccione un socio</option>
-                  {sociosList.map(socio => (
-                    <option key={socio.id_socio} value={socio.id_socio}>
-                      {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Ahorro Aportado</label>
-                <input
-                  type="number"
-                  name="ahorro_aportado"
-                  value={newAhorro.ahorro_aportado}
-                  onChange={handleAddInputChange}
-                  placeholder="Ej: 100.00"
-                  step="0.01"
-                  min="0.01"
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-                    <div>
-  <label className="block text-sm font-medium text-slate-700 mb-1">
-    Fecha
-  </label>
+    {/* Modal para Registrar Nuevo Ahorro */}
+{showAddAhorroModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="bg-white rounded-2xl shadow-xl p-4 md:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <h3 className="text-xl font-bold text-slate-900 mb-4">Registrar Nuevo Ahorro</h3>
 
-  <div className="flex gap-2">
-    <input
-      type="date"
-      name="fecha"
-      value={newAhorro.fecha}
-      onChange={handleAddInputChange}
-      className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-      required
-    />
+      <form onSubmit={handleRegisterAhorro} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Seleccionar Socio</label>
+          <select
+            name="id_socio"
+            value={newAhorro.id_socio}
+            onChange={handleAddInputChange}
+            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          >
+            <option value="">Seleccione un socio</option>
+            {sociosList.map(socio => (
+              <option key={socio.id_socio} value={socio.id_socio}>
+                {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}
+              </option>
+            ))}
+          </select>
+        </div>
 
-    <button
-      type="button"
-      onClick={() =>
-        setNewAhorro((prev) => ({
-          ...prev,
-          fecha: obtenerFechaLocal(),
-        }))
-      }
-      className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200"
-    >
-      Hoy
-    </button>
-  </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Multa por Hoja (monto)</label>
-                <input
-                  type="number"
-                  name="multa_hoja_monto"
-                  value={newAhorro.multa_hoja_monto}
-                  onChange={handleAddInputChange}
-                  placeholder="Ej: 5.00"
-                  step="0.01"
-                  min="0"
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Afiliación Papelería (monto)</label>
-                <input
-                  type="number"
-                  name="afiliacion_papeleria_monto"
-                  value={newAhorro.afiliacion_papeleria_monto}
-                  onChange={handleAddInputChange}
-                  placeholder="Ej: 15.00"
-                  step="0.01"
-                  min="0"
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-              <div className="flex justify-end space-x-4 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowAddAhorroModal(false)}
-                  className="px-5 py-2 bg-slate-200 text-slate-800 rounded-xl hover:bg-slate-300 transition-colors font-medium"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
-                  disabled={loading}
-                >
-                  {loading ? 'Guardando...' : 'Guardar Ahorro'}
-                </button>
-              </div>
-            </form>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Ahorro Aportado</label>
+          <input
+            type="number"
+            name="ahorro_aportado"
+            value={newAhorro.ahorro_aportado}
+            onChange={handleAddInputChange}
+            placeholder="Ej: 100.00"
+            step="0.01"
+            min="0.01"
+            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
+
+          <div className="flex gap-2">
+            <input
+              type="date"
+              name="fecha"
+              value={newAhorro.fecha}
+              onChange={handleAddInputChange}
+              className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+
+            <button
+              type="button"
+              onClick={() =>
+                setNewAhorro((prev) => ({
+                  ...prev,
+                  fecha: obtenerFechaLocal(),
+                }))
+              }
+              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200"
+            >
+              Hoy
+            </button>
           </div>
         </div>
-      )}
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Multa por Hoja (monto)</label>
+          <input
+            type="number"
+            name="multa_hoja_monto"
+            value={newAhorro.multa_hoja_monto}
+            onChange={handleAddInputChange}
+            placeholder="Ej: 5.00"
+            step="0.01"
+            min="0"
+            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Afiliación Papelería (monto)</label>
+          <input
+            type="number"
+            name="afiliacion_papeleria_monto"
+            value={newAhorro.afiliacion_papeleria_monto}
+            onChange={handleAddInputChange}
+            placeholder="Ej: 15.00"
+            step="0.01"
+            min="0"
+            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+
+        <div className="flex justify-end space-x-4 mt-6">
+          <button
+            type="button"
+            onClick={() => setShowAddAhorroModal(false)}
+            className="px-5 py-2 bg-slate-200 text-slate-800 rounded-xl hover:bg-slate-300 transition-colors font-medium"
+          >
+            Cancelar
+          </button>
+
+          <button
+            type="submit"
+            className="px-5 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
+            disabled={loading}
+          >
+            {loading ? 'Guardando...' : 'Guardar Ahorro'}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
 
       {/* Modal para Ver Detalles de Ahorros */}
       {showDetailsModal && selectedSocioAhorros && (
