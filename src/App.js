@@ -29,14 +29,91 @@ function App() {
   const [userPermissions, setUserPermissions] = useState([]);
 
   const getUserRole = (user) => user?.role || user?.rol || '';
-  const getUserId = (user) => user?.id_usuario || user?.id || user?.usuario_id || null;
+ const getUserId = (user) =>
+  user?.id_usuario || user?.id || user?.usuario_id || user?.id_user || null;
 
   const isAdminUser = (user) => {
     const role = getUserRole(user);
     return role === 'admin' || role === 'administrador' || role === 'superadmin';
   };
 
-  const loadUserPermissions = async (user) => {
+const loadUserPermissions = async (user) => {
+  if (!user) return [];
+
+  if (isAdminUser(user)) {
+    setUserPermissions(['*']);
+    return ['*'];
+  }
+
+  try {
+    let userId = getUserId(user);
+
+    // Si el login no trae id_usuario, lo buscamos por email
+    if (!userId && user.email) {
+      const userRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/usuarios_sistema?email=eq.${encodeURIComponent(user.email)}&select=id_usuario`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+        }
+      );
+
+      const userData = await userRes.json();
+
+      if (userData?.length > 0) {
+        userId = userData[0].id_usuario;
+
+        const updatedUser = {
+          ...user,
+          id_usuario: userId,
+        };
+
+        setCurrentUser(updatedUser);
+        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      }
+    }
+
+    if (!userId) {
+      setUserPermissions([]);
+      return [];
+    }
+
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/permisos_modulos_fondo?id_usuario=eq.${userId}&puede_ver=eq.true&select=modulo`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      setUserPermissions([]);
+      return [];
+    }
+
+    const data = await res.json();
+    const permisos = data.map((p) => p.modulo);
+
+    setUserPermissions(permisos);
+
+    // Si está en dashboard pero no tiene dashboard, manda al primer módulo permitido
+    if (permisos.length > 0 && !permisos.includes(activeSection)) {
+      setActiveSection(permisos[0]);
+    }
+
+    return permisos;
+  } catch (err) {
+    console.error('Error cargando permisos:', err);
+    setUserPermissions([]);
+    return [];
+  }
+};
     if (!user) return;
 
     if (isAdminUser(user)) {
