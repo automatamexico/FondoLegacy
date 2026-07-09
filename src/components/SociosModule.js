@@ -140,6 +140,8 @@ const [bancoPersonalizado, setBancoPersonalizado] = useState({
 const [refsFicha, setRefsFicha] = useState([]);
 const [benefFicha, setBenefFicha] = useState([]);
 const [bancoFicha, setBancoFicha] = useState([]);
+  const [previewFile, setPreviewFile] = useState(null);
+const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [permisosSocios, setPermisosSocios] = useState({
   puede_crear: false,
   puede_editar: false,
@@ -165,6 +167,11 @@ const getCurrentUserId = () =>
   useEffect(() => {
     fetchSocios();
   }, []);
+  useEffect(() => {
+  const resize = () => setIsMobile(window.innerWidth < 768);
+  window.addEventListener('resize', resize);
+  return () => window.removeEventListener('resize', resize);
+}, []);
 useEffect(() => {
   const cargarPermisosSocios = async () => {
     if (isAdmin) {
@@ -1515,19 +1522,47 @@ const openFicha = async (socio) => {
         <p><strong>Teléfono:</strong> {b.telefono}</p>
         <p><strong>Dirección:</strong> {b.direccion}</p>
 
-        {b.foto_url && (
-          <a href={b.foto_url} target="_blank" rel="noreferrer"
-            className="inline-block mt-2 mr-2 px-3 py-1 bg-blue-600 text-white rounded-lg text-xs">
-            Ver Foto
-          </a>
-        )}
+      {b.foto_url && (
+  isMobile ? (
+    <button
+      type="button"
+      onClick={() => setPreviewFile({ type: 'image', url: b.foto_url })}
+      className="inline-block mt-2 mr-2 px-3 py-1 bg-blue-600 text-white rounded-lg text-xs"
+    >
+      Ver Foto
+    </button>
+  ) : (
+    <a
+      href={b.foto_url}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-block mt-2 mr-2 px-3 py-1 bg-blue-600 text-white rounded-lg text-xs"
+    >
+      Ver Foto
+    </a>
+  )
+)}
 
-        {b.documentos_url && (
-          <a href={b.documentos_url} target="_blank" rel="noreferrer"
-            className="inline-block mt-2 px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs">
-            Ver Documento
-          </a>
-        )}
+{b.documentos_url && (
+  isMobile ? (
+    <button
+      type="button"
+      onClick={() => setPreviewFile({ type: 'pdf', url: b.documentos_url })}
+      className="inline-block mt-2 px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs"
+    >
+      Ver Documento
+    </button>
+  ) : (
+    <a
+      href={b.documentos_url}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-block mt-2 px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs"
+    >
+      Ver Documento
+    </a>
+  )
+)}
       </div>
     ))}
   </div>
@@ -1555,12 +1590,47 @@ const openFicha = async (socio) => {
                     </div>
         </div>
       )}
+      )}
+      
+      {/* MODAL PREVIEW SOLO MÓVIL */}
+      {previewFile && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-3 z-[9999]">
+          <div className="bg-white rounded-2xl shadow-xl w-full h-[90vh] relative overflow-hidden">
 
-    </div>
+            <button
+              type="button"
+              onClick={() => setPreviewFile(null)}
+              className="absolute top-3 right-3 z-10 bg-red-600 text-white w-9 h-9 rounded-full font-bold"
+            >
+              ✕
+            </button>
+
+            {previewFile.type === "image" && (
+              <div className="w-full h-full flex items-center justify-center bg-slate-100 p-4">
+                <img
+                  src={previewFile.url}
+                  alt=""
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+            )}
+
+            {previewFile.type === "pdf" && (
+              <iframe
+                src={previewFile.url}
+                title="Documento"
+                className="w-full h-full"
+              />
+            )}
+
+          </div>
+        </div>
+      )}
+
+    </div>      {/* ESTE ES EL DIV PRINCIPAL */}
 
   );
 };
 
 export default SociosModule;
-
 
