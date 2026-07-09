@@ -72,8 +72,10 @@ const PrestamosModule = ({ idSocio }) => {
 
   // Normaliza string fecha a YYYY-MM-DD para Supabase
  const toISODate = (val) => {
+   const now = new Date();
+now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   if (!val) {
-    const hoy = new Date();
+  const hoy = now;
     const y = hoy.getFullYear();
     const m = String(hoy.getMonth() + 1).padStart(2, '0');
     const d = String(hoy.getDate()).padStart(2, '0');
@@ -98,7 +100,7 @@ const PrestamosModule = ({ idSocio }) => {
     return `${y}-${m}-${d}`;
   }
 
-  const hoy = new Date();
+  const hoy = now;
   const y = hoy.getFullYear();
   const m = String(hoy.getMonth() + 1).padStart(2, '0');
   const d = String(hoy.getDate()).padStart(2, '0');
@@ -994,16 +996,27 @@ const addPeriod = (dateISO, tipo, k) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-slate-700 mb-1">Fecha de solicitud</label>
-                  <input
-                    type="date"
-                    className="w-full px-3 py-2 border rounded-lg"
-                    value={
-                      /^\d{4}-\d{2}-\d{2}$/.test(newPrestamo.fecha_solicitud)
-                        ? newPrestamo.fecha_solicitud
-                        : ''
-                    }
-                    onChange={(e) => setNewPrestamo((p) => ({ ...p, fecha_solicitud: e.target.value }))}
-                  />
+                 <input
+  type="date"
+  className="w-full px-3 py-2 border rounded-lg"
+  value={
+    /^\d{4}-\d{2}-\d{2}$/.test(newPrestamo.fecha_solicitud)
+      ? newPrestamo.fecha_solicitud
+      : ''
+  }
+  onFocus={(e) => {
+    if (e.target.showPicker) e.target.showPicker();
+  }}
+  onClick={(e) => {
+    if (e.target.showPicker) e.target.showPicker();
+  }}
+  onChange={(e) =>
+    setNewPrestamo((p) => ({
+      ...p,
+      fecha_solicitud: e.target.value
+    }))
+  }
+/>
                 </div>
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
                   <div className="text-sm text-slate-700">
