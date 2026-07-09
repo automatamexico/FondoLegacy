@@ -215,7 +215,7 @@ const horaLocal =
   ':' +
   String(ahora.getSeconds()).padStart(2, '0');
 
-const fecha_hora = `${fecha}T${horaLocal}`;
+const fecha_hora = `${fecha}T${horaLocal}-06:00`;
 
     try {
       const ahorroData = {
@@ -445,7 +445,7 @@ const fecha_hora = `${fecha}T${horaLocal}`;
           id_socio: socioParaRetiro.id_socio,
           ahorro_aportado: -monto,
          fecha: obtenerFechaLocal(),
-fecha_hora: obtenerFechaHoraLocalISO(),
+fecha_hora: `${obtenerFechaLocal()}T${new Date().toTimeString().slice(0, 8)}-06:00`,
           es_retiro: true
         };
 
