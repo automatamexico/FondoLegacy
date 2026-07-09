@@ -14,12 +14,13 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedSocioAhorros, setSelectedSocioAhorros] = useState(null);
   const [editingAhorro, setEditingAhorro] = useState(null);
-  const [newAhorro, setNewAhorro] = useState({
-    id_socio: '',
-    ahorro_aportado: '',
-    multa_hoja_monto: '',
-    afiliacion_papeleria_monto: ''
-  });
+ const [newAhorro, setNewAhorro] = useState({
+  id_socio: '',
+  ahorro_aportado: '',
+  multa_hoja_monto: '',
+  afiliacion_papeleria_monto: '',
+  fecha: obtenerFechaLocal()
+});
   const [toastMessage, setToastMessage] = useState('');
   const [totalSociosConAhorro, setTotalSociosConAhorro] = useState(0);
   const [totalAhorroAcumulado, setTotalAhorroAcumulado] = useState(0);
@@ -204,9 +205,17 @@ const AhorrosModule = ({ idSocio: propIdSocio }) => {
       return;
     }
 
-    const currentDate = new Date();
-   const fecha = obtenerFechaLocal();
-const fecha_hora = obtenerFechaHoraLocalISO();
+    const fecha = newAhorro.fecha || obtenerFechaLocal();
+
+const ahora = new Date();
+const horaLocal =
+  String(ahora.getHours()).padStart(2, '0') +
+  ':' +
+  String(ahora.getMinutes()).padStart(2, '0') +
+  ':' +
+  String(ahora.getSeconds()).padStart(2, '0');
+
+const fecha_hora = `${fecha}T${horaLocal}`;
 
     try {
       const ahorroData = {
@@ -290,12 +299,13 @@ const fecha_hora = obtenerFechaHoraLocalISO();
 
       setToastMessage('Ahorro registrado exitosamente');
       setShowAddAhorroModal(false);
-      setNewAhorro({
-        id_socio: '',
-        ahorro_aportado: '',
-        multa_hoja_monto: '',
-        afiliacion_papeleria_monto: ''
-      });
+     setNewAhorro({
+  id_socio: '',
+  ahorro_aportado: '',
+  multa_hoja_monto: '',
+  afiliacion_papeleria_monto: '',
+  fecha: obtenerFechaLocal()
+});
       fetchGlobalAhorroStats();
       if (currentUserRole === 'usuario' && propIdSocio) {
         fetchAhorrosForUser(propIdSocio);
@@ -624,6 +634,34 @@ fecha_hora: obtenerFechaHoraLocalISO(),
                   required
                 />
               </div>
+                    <div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Fecha
+  </label>
+
+  <div className="flex gap-2">
+    <input
+      type="date"
+      name="fecha"
+      value={newAhorro.fecha}
+      onChange={handleAddInputChange}
+      className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+      required
+    />
+
+    <button
+      type="button"
+      onClick={() =>
+        setNewAhorro((prev) => ({
+          ...prev,
+          fecha: obtenerFechaLocal(),
+        }))
+      }
+      className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200"
+    >
+      Hoy
+    </button>
+  </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Multa por Hoja (monto)</label>
                 <input
