@@ -665,8 +665,8 @@ const openFicha = async (socio) => {
   setBancoFicha([]);
 };
   return (
-    <div className="p-6 space-y-6">
-     <div className="flex items-center justify-between">
+    <div className="p-3 md:p-6 space-y-6">
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
   <div>
     <h2 className="text-2xl font-bold text-slate-900 mb-2">Gestión de Socios</h2>
   </div>
@@ -696,7 +696,7 @@ const openFicha = async (socio) => {
           setPhotoError('');
         }
       }}
-      className="px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
+     className="w-full md:w-auto px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
     >
       {showForm ? 'Cancelar' : 'Nuevo Socio'}
     </button>
@@ -705,7 +705,7 @@ const openFicha = async (socio) => {
 
       {/* Formulario */}
       {showForm && (
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-6">
+       <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 md:p-6 mb-6">
           <h3 className="text-xl font-semibold text-slate-900 mb-4">
             {editingSocio ? 'Editar Socio' : 'Registrar Nuevo Socio'}
           </h3>
@@ -1187,7 +1187,7 @@ const openFicha = async (socio) => {
       )}
 
       {!loading && !error && sociosList.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+       <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
           <h3 className="text-xl font-semibold text-slate-900 mb-4">Todos los Socios</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -1408,7 +1408,7 @@ const openFicha = async (socio) => {
 {showFicha && socioFicha && (
 
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-4xl w-full relative max-h-[90vh] overflow-y-auto text-base">
+       <div className="bg-white rounded-2xl shadow-xl p-5 md:p-8 max-w-4xl w-full relative max-h-[90vh] overflow-y-auto text-base">
 
  
             <button
@@ -1432,7 +1432,7 @@ const openFicha = async (socio) => {
               </div>
             </div>
 
-          <div className="grid grid-cols-2 gap-6 text-lg">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-base md:text-lg">
 
   <div>
     <span className="font-semibold">ID Socio:</span>
