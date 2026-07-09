@@ -39,3 +39,25 @@ export function convertirFechaHoraLocal(fechaUTC) {
     };
   }
 }
+export const obtenerFechaLocal = () => {
+  const hoy = new Date();
+
+  const year = hoy.getFullYear();
+  const month = String(hoy.getMonth() + 1).padStart(2, '0');
+  const day = String(hoy.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+};
+
+export const obtenerFechaHoraLocalISO = () => {
+  const hoy = new Date();
+
+  const year = hoy.getFullYear();
+  const month = String(hoy.getMonth() + 1).padStart(2, '0');
+  const day = String(hoy.getDate()).padStart(2, '0');
+  const hours = String(hoy.getHours()).padStart(2, '0');
+  const minutes = String(hoy.getMinutes()).padStart(2, '0');
+  const seconds = String(hoy.getSeconds()).padStart(2, '0');
+
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+};
