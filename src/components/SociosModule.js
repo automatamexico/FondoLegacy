@@ -59,6 +59,7 @@ const onlyDigitsMax = (v = '', max = 999) => onlyDigits(v).slice(0, max);
 
 const SociosModule = ({ currentUser }) => {
   const [sociosList, setSociosList] = useState([]);
+  const [searchSocio, setSearchSocio] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showConfirmRegistro, setShowConfirmRegistro] = useState(false);
   const [editingSocio, setEditingSocio] = useState(null);
@@ -155,6 +156,10 @@ const isAdmin =
 
 const getCurrentUserId = () =>
   currentUser?.id_usuario || currentUser?.id || currentUser?.usuario_id || null;
+  const sociosFiltrados = sociosList.filter((socio) => {
+  const texto = `${socio.id_socio} ${socio.nombre || ''} ${socio.apellido_paterno || ''} ${socio.apellido_materno || ''}`.toLowerCase();
+  return texto.includes(searchSocio.toLowerCase());
+});
 
 
   useEffect(() => {
@@ -1189,6 +1194,15 @@ const openFicha = async (socio) => {
       {!loading && !error && sociosList.length > 0 && (
        <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
           <h3 className="text-xl font-semibold text-slate-900 mb-4">Todos los Socios</h3>
+        <div className="mb-4">
+  <input
+    type="text"
+    value={searchSocio}
+    onChange={(e) => setSearchSocio(e.target.value)}
+    placeholder="Buscar por ID o nombre del socio..."
+    className="w-full px-4 py-3 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+  />
+</div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -1203,7 +1217,7 @@ const openFicha = async (socio) => {
                 </tr>
               </thead>
               <tbody>
-                {sociosList.map((socio) => (
+               {sociosFiltrados.map((socio) => (
                   <tr
                     key={socio.id_socio}
                     className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
