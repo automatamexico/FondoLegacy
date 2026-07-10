@@ -1,5 +1,5 @@
 // src/components/PagosModule.js
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
@@ -108,6 +108,7 @@ const PagosModule = ({ idSocio }) => {
   const [buscarSocioTerm, setBuscarSocioTerm] = useState('');
   const [sugSocios, setSugSocios] = useState([]);
   const [socioSel, setSocioSel] = useState(null);
+  const buscarSocioRef = useRef(null);
 
   const [prestamosSocio, setPrestamosSocio] = useState([]);
   const [prestamoSel, setPrestamoSel] = useState(null);
@@ -349,11 +350,21 @@ const PagosModule = ({ idSocio }) => {
           <p className="text-slate-600">Consulta el detalle de pago de los socios</p>
         </div>
         <button
-          onClick={() => {}}
-          className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
-        >
-          Realizar pago
-        </button>
+  type="button"
+  onClick={() => {
+    buscarSocioRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    });
+
+    setTimeout(() => {
+      buscarSocioRef.current?.focus();
+    }, 400);
+  }}
+  className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+>
+  Realizar pago
+</button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -406,6 +417,7 @@ const PagosModule = ({ idSocio }) => {
 
         <div className="grid grid-cols-1 md:grid-cols-1 gap-3 items-center">
           <input
+               ref={buscarSocioRef}
             type="text"
             className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl"
             placeholder="ID o Nombre completo…"
