@@ -100,8 +100,8 @@ const AforeAfiliadosModule = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 bg-slate-50 min-h-full">
-      <div className="flex items-center justify-between">
+    <div className="p-3 md:p-6 space-y-6 bg-slate-50 min-h-full">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
           <h2 className="text-3xl font-bold text-slate-900">Afiliados AFORE</h2>
           <p className="text-slate-600 mt-1">Administra los afiliados del módulo AFORE.</p>
@@ -112,7 +112,7 @@ const AforeAfiliadosModule = () => {
             setEditAfiliado(null);
             setShowForm(true);
           }}
-          className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 transition-all"
+className="w-full md:w-auto px-5 py-2 bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 transition-all"
         >
           + Nuevo Afiliado
         </button>
@@ -135,74 +135,186 @@ const AforeAfiliadosModule = () => {
           />
         </div>
 
-        {!loading && filtered.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-700">
-                  <th className="py-3 px-4">Foto</th>
-                  <th className="py-3 px-4">ID</th>
-                  <th className="py-3 px-4">Nombre Completo</th>
-                  <th className="py-3 px-4">Email</th>
-                  <th className="py-3 px-4">Teléfono</th>
-                  <th className="py-3 px-4">Estatus</th>
-                  <th className="py-3 px-4">Acciones</th>
-                </tr>
-              </thead>
+       {!loading && filtered.length > 0 && (
+  <>
+    {/* Vista móvil */}
+    <div className="md:hidden space-y-3">
+      {filtered.map((a) => (
+        <div
+          key={a.id_afiliado}
+          onClick={() => setFicha(a)}
+          className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4 cursor-pointer"
+        >
+          <div className="flex items-center gap-3">
+            <img
+              src={a.foto_url || avatarFallback(a)}
+              className="w-14 h-14 rounded-full object-cover border shrink-0"
+              alt="foto"
+            />
 
-              <tbody>
-                {filtered.map((a) => (
-                  <tr
-                    key={a.id_afiliado}
-                    className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
-                    onClick={() => setFicha(a)}
-                  >
-                    <td className="py-4 px-4">
-                      <img
-                        src={a.foto_url || avatarFallback(a)}
-                        className="w-10 h-10 rounded-full object-cover border"
-                        alt="foto"
-                      />
-                    </td>
-                    <td className="py-4 px-4">{a.id_afiliado}</td>
-                    <td className="py-4 px-4 font-medium">
-                      {a.nombre} {a.apellido_paterno} {a.apellido_materno}
-                    </td>
-                    <td className="py-4 px-4">{a.email}</td>
-                    <td className="py-4 px-4">{a.telefono || "-"}</td>
-                    <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs ${estatusBadge(a.estatus)}`}>
-                        {a.estatus}
-                      </span>
-                    </td>
-                    <td
-                      className="py-4 px-4"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            setEditAfiliado(a);
-                            setShowForm(true);
-                          }}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => setConfirmDelete(a)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500">
+                Afiliado #{a.id_afiliado}
+              </p>
+
+              <p className="font-semibold text-slate-900 break-words">
+                {a.nombre} {a.apellido_paterno} {a.apellido_materno}
+              </p>
+            </div>
           </div>
-        )}
+
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs text-slate-500">Correo electrónico</p>
+              <p className="text-sm font-medium text-slate-800 break-all">
+                {a.email || "-"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">Teléfono</p>
+              <p className="text-sm font-medium text-slate-800">
+                {a.telefono || "-"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">Estatus</p>
+              <span
+                className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-medium ${estatusBadge(
+                  a.estatus
+                )}`}
+              >
+                {a.estatus || "Sin estatus"}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 pt-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setFicha(a);
+              }}
+              className="w-full px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium"
+            >
+              Ver detalles
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditAfiliado(a);
+                setShowForm(true);
+              }}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium"
+            >
+              Editar
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setConfirmDelete(a);
+              }}
+              className="w-full px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium"
+            >
+              Eliminar
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    {/* Vista escritorio */}
+    <div className="hidden md:block overflow-x-auto">
+      <table className="w-full text-left">
+        <thead>
+          <tr className="border-b border-slate-200 text-slate-700">
+            <th className="py-3 px-4">Foto</th>
+            <th className="py-3 px-4">ID</th>
+            <th className="py-3 px-4">Nombre Completo</th>
+            <th className="py-3 px-4">Email</th>
+            <th className="py-3 px-4">Teléfono</th>
+            <th className="py-3 px-4">Estatus</th>
+            <th className="py-3 px-4">Acciones</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {filtered.map((a) => (
+            <tr
+              key={a.id_afiliado}
+              className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+              onClick={() => setFicha(a)}
+            >
+              <td className="py-4 px-4">
+                <img
+                  src={a.foto_url || avatarFallback(a)}
+                  className="w-10 h-10 rounded-full object-cover border"
+                  alt="foto"
+                />
+              </td>
+
+              <td className="py-4 px-4">
+                {a.id_afiliado}
+              </td>
+
+              <td className="py-4 px-4 font-medium">
+                {a.nombre} {a.apellido_paterno} {a.apellido_materno}
+              </td>
+
+              <td className="py-4 px-4">
+                {a.email}
+              </td>
+
+              <td className="py-4 px-4">
+                {a.telefono || "-"}
+              </td>
+
+              <td className="py-4 px-4">
+                <span
+                  className={`px-3 py-1 rounded-full text-xs ${estatusBadge(
+                    a.estatus
+                  )}`}
+                >
+                  {a.estatus}
+                </span>
+              </td>
+
+              <td
+                className="py-4 px-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setEditAfiliado(a);
+                      setShowForm(true);
+                    }}
+                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                  >
+                    ✏️
+                  </button>
+
+                  <button
+                    onClick={() => setConfirmDelete(a)}
+                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </>
+)}
       </div>
 
       {showForm && (
