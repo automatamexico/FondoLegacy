@@ -636,7 +636,91 @@ const uploadPhotoToAforeBucket = async (socioId) => {
     setSaving(false);
   }
 };
+const handleEditClick = async (socio) => {
+  setEditingSocio(socio);
 
+  setNewSocio({
+    nombre: socio.nombre || '',
+    apellido_paterno: socio.apellido_paterno || '',
+    apellido_materno: socio.apellido_materno || '',
+    email: socio.email || '',
+    contrasena: socio.contrasena || '',
+    telefono: socio.telefono || '',
+    direccion: socio.direccion || '',
+    cp: socio.cp || '',
+    estatus: socio.estatus ? 'activo' : 'inactivo',
+    fecha_nacimiento: toDateInput(socio.fecha_nacimiento),
+  });
+
+  setPhotoFile(null);
+  setPhotoPreview(socio.foto_url || '');
+  setPhotoError('');
+  setMontoAfiliacion('');
+  setErrorMonto('');
+
+  try {
+    const { data: refs } = await supabase
+      .from('refs_fondo')
+      .select('*')
+      .eq('id_socio', socio.id_socio)
+      .limit(1);
+
+    const { data: beneficiarios } = await supabase
+      .from('beneficiarios_fondo')
+      .select('*')
+      .eq('id_socio', socio.id_socio)
+      .limit(1);
+
+    const { data: bancos } = await supabase
+      .from('referencias_bancarias')
+      .select('*')
+      .eq('id_socio', socio.id_socio)
+      .limit(1);
+
+    const ref = refs?.[0];
+
+    setReferencia({
+      nombre: ref?.nombre || '',
+      apellido_paterno: ref?.apellido_paterno || '',
+      apellido_materno: ref?.apellido_materno || '',
+      telefono: ref?.telefono || '',
+      direccion: ref?.direccion || '',
+    });
+
+    setReferenciaId(ref?.id_referencia || null);
+
+    const ben = beneficiarios?.[0];
+
+    setBeneficiario({
+      nombre: ben?.nombre || '',
+      apellido_paterno: ben?.apellido_paterno || '',
+      apellido_materno: ben?.apellido_materno || '',
+      telefono: ben?.telefono || '',
+      direccion: ben?.direccion || '',
+    });
+
+    const banco = bancos?.[0];
+
+    setReferenciaBancaria({
+      entidad_bancaria: banco?.entidad_bancaria || '',
+      titular_cuenta: banco?.titular_cuenta || '',
+      numero_cuenta: banco?.numero_cuenta || '',
+      cuenta_clave: banco?.cuenta_clave || '',
+      pais: banco?.pais || 'México',
+      banco_otro: banco?.banco_otro || '',
+    });
+  } catch (err) {
+    console.error('Error cargando información del socio:', err);
+  }
+
+  setShowFicha(false);
+  setShowForm(true);
+
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth',
+  });
+};
 
  /** Ficha */
 const openFicha = async (socio) => {
