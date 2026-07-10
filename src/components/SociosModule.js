@@ -716,11 +716,12 @@ const handleEditClick = async (socio) => {
   setShowFicha(false);
   setShowForm(true);
 
+  if (window.innerWidth >= 768) {
   window.scrollTo({
     top: 0,
     behavior: 'smooth',
   });
-};
+}
 
  /** Ficha */
 const openFicha = async (socio) => {
@@ -799,12 +800,48 @@ const openFicha = async (socio) => {
   )}
 </div>
 
-      {/* Formulario */}
-      {showForm && (
-       <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 md:p-6 mb-6">
-          <h3 className="text-xl font-semibold text-slate-900 mb-4">
-            {editingSocio ? 'Editar Socio' : 'Registrar Nuevo Socio'}
+    {/* Formulario */}
+{showForm && (
+  <>
+    {/* Fondo oscuro solo al editar en móvil */}
+    {editingSocio && (
+      <div
+        className="fixed inset-0 z-40 bg-black/50 md:hidden"
+        onClick={resetForm}
+      />
+    )}
+
+    <div
+      className={`bg-white rounded-2xl shadow-lg border border-slate-200 p-4 md:p-6 mb-6 ${
+        editingSocio
+          ? 'fixed inset-3 z-50 max-h-[94vh] overflow-y-auto md:static md:max-h-none md:overflow-visible'
+          : ''
+      }`}
+    >
+      {/* Encabezado del modal móvil */}
+      {editingSocio && (
+        <div className="md:hidden sticky top-0 z-10 flex items-center justify-between bg-white border-b border-slate-200 -mx-4 px-4 pb-3 mb-4">
+          <h3 className="text-lg font-semibold text-slate-900">
+            Editar Socio
           </h3>
+
+          <button
+            type="button"
+            onClick={resetForm}
+            className="px-3 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
+
+      <h3
+        className={`text-xl font-semibold text-slate-900 mb-4 ${
+          editingSocio ? 'hidden md:block' : ''
+        }`}
+      >
+        {editingSocio ? 'Editar Socio' : 'Registrar Nuevo Socio'}
+      </h3>
 
           {error && (
             <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
