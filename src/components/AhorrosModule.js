@@ -549,54 +549,158 @@ fecha_hora: `${obtenerFechaLocal()}T${new Date().toTimeString().slice(0, 8)}-06:
         {!loading && !error && filteredAhorrosBySocio.length === 0 && (
           <p className="text-center text-slate-600">No hay ahorros registrados para los criterios de búsqueda.</p>
         )}
-
-        {!loading && !error && filteredAhorrosBySocio.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">ID Socio</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Nombre Completo</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Ahorro Acumulado</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAhorrosBySocio.map((socioAhorro) => (
-                  <tr key={socioAhorro.id_socio} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="py-4 px-4 text-slate-700">{socioAhorro.id_socio}</td>
-                    <td className="py-4 px-4 font-medium text-slate-900">{socioAhorro.nombre_completo}</td>
-                    <td className="py-4 px-4 font-bold text-slate-900">
-                      {formatCurrency(socioAhorro.ahorro_acumulado)}
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex space-x-2">
-                        <button onClick={() => handleVerDetalles(socioAhorro)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center">
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                          Ver Detalles
-                        </button>
-                        {socioAhorro.ahorros_detalles.length > 0 && (
-                          <button onClick={() => handleEditarAhorro(socioAhorro.ahorros_detalles[0])} className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors flex items-center">
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            Editar
-                          </button>
-                        )}
-                        {/* Botón "Retirar ahorro" eliminado */}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+{!loading && !error && filteredAhorrosBySocio.length > 0 && (
+  <>
+    {/* Vista móvil */}
+    <div className="md:hidden space-y-3">
+      {filteredAhorrosBySocio.map((socioAhorro) => (
+        <div
+          key={socioAhorro.id_socio}
+          className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3"
+        >
+          <div>
+            <p className="text-xs text-slate-500">ID Socio</p>
+            <p className="font-semibold text-slate-900">
+              {socioAhorro.id_socio}
+            </p>
           </div>
-        )}
-      </div>
 
+          <div>
+            <p className="text-xs text-slate-500">Nombre Completo</p>
+            <p className="font-semibold text-slate-900">
+              {socioAhorro.nombre_completo}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-slate-500">Ahorro Acumulado</p>
+            <p className="text-lg font-bold text-green-600">
+              {formatCurrency(socioAhorro.ahorro_acumulado)}
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2 pt-2">
+            <button
+              onClick={() => handleVerDetalles(socioAhorro)}
+              className="w-full px-3 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+            >
+              Ver Detalles
+            </button>
+
+            {socioAhorro.ahorros_detalles.length > 0 && (
+              <button
+                onClick={() =>
+                  handleEditarAhorro(socioAhorro.ahorros_detalles[0])
+                }
+                className="w-full px-3 py-2 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600 transition-colors"
+              >
+                Editar
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    {/* Vista escritorio */}
+    <div className="hidden md:block overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-slate-200">
+            <th className="text-left py-3 px-4 font-semibold text-slate-700">
+              ID Socio
+            </th>
+            <th className="text-left py-3 px-4 font-semibold text-slate-700">
+              Nombre Completo
+            </th>
+            <th className="text-left py-3 px-4 font-semibold text-slate-700">
+              Ahorro Acumulado
+            </th>
+            <th className="text-left py-3 px-4 font-semibold text-slate-700">
+              Acciones
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {filteredAhorrosBySocio.map((socioAhorro) => (
+            <tr
+              key={socioAhorro.id_socio}
+              className="border-b border-slate-100 hover:bg-slate-50"
+            >
+              <td className="py-4 px-4 text-slate-700">
+                {socioAhorro.id_socio}
+              </td>
+
+              <td className="py-4 px-4 font-medium text-slate-900">
+                {socioAhorro.nombre_completo}
+              </td>
+
+              <td className="py-4 px-4 font-bold text-slate-900">
+                {formatCurrency(socioAhorro.ahorro_acumulado)}
+              </td>
+
+              <td className="py-4 px-4">
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => handleVerDetalles(socioAhorro)}
+                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center"
+                  >
+                    <svg
+                      className="w-4 h-4 mr-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                      />
+                    </svg>
+                    Ver Detalles
+                  </button>
+
+                  {socioAhorro.ahorros_detalles.length > 0 && (
+                    <button
+                      onClick={() =>
+                        handleEditarAhorro(socioAhorro.ahorros_detalles[0])
+                      }
+                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors flex items-center"
+                    >
+                      <svg
+                        className="w-4 h-4 mr-1"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        />
+                      </svg>
+                      Editar
+                    </button>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </>
+)}
+</div>
     {/* Modal para Registrar Nuevo Ahorro */}
 {showAddAhorroModal && (
   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
