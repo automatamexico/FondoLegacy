@@ -210,7 +210,11 @@ function App() {
 
     switch (activeSection) {
       case 'dashboard':
-        return <DashboardMain />;
+  return (
+    <DashboardMain
+      onBackToHome={backToHomeSelect}
+    />
+  );
       case 'afore-dashboard':
         return <AforeDashboardMain />;
       case 'afore-afiliados':
