@@ -12,6 +12,7 @@ import PagosModule from './components/PagosModule';
 import ReportesModule from './components/ReportesModule';
 import RetirosModule from './components/RetirosModule';
 import MultasRenovacionesModule from './components/MultasRenovacionesModule';
+import SocioPortalModule from './components/SocioPortalModule';
 
 import AforeDashboardMain from './components/AforeDashboardMain';
 import AforeSidebar from './components/afore/AforeSidebar';
@@ -239,6 +240,10 @@ function App() {
 
   if (!isAuthenticated) {
     return <LoginForm onLogin={handleLogin} />;
+  }
+
+  if (getUserRole(currentUser) === 'usuario') {
+    return <SocioPortalModule currentUser={currentUser} onLogout={handleLogout} />;
   }
 
   if (isAuthenticated && !workMode) {
