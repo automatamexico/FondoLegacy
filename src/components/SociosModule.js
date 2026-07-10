@@ -1185,115 +1185,274 @@ const openFicha = async (socio) => {
           </form>
         </div>
       )}
+{/* Tabla principal */}
+{loading && (
+  <p className="text-center text-slate-600">
+    Cargando socios...
+  </p>
+)}
 
+{error && !loading && !showForm && (
+  <p className="text-center text-red-500">
+    Error: {error}
+  </p>
+)}
 
+{!loading && !error && sociosList.length === 0 && (
+  <p className="text-center text-slate-600">
+    No hay socios registrados.
+  </p>
+)}
 
-      {/* Tabla principal */}
-      {loading && <p className="text-center text-slate-600">Cargando socios...</p>}
-      {error && !loading && !showForm && (
-        <p className="text-center text-red-500">Error: {error}</p>
-      )}
+{!loading && !error && sociosList.length > 0 && (
+  <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+    <h3 className="text-xl font-semibold text-slate-900 mb-4">
+      Todos los Socios
+    </h3>
 
-      {!loading && !error && sociosList.length === 0 && (
-        <p className="text-center text-slate-600">No hay socios registrados.</p>
-      )}
+    <div className="mb-4">
+      <input
+        type="text"
+        value={searchSocio}
+        onChange={(e) => setSearchSocio(e.target.value)}
+        placeholder="Buscar por ID o nombre del socio..."
+        className="w-full px-4 py-3 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+      />
+    </div>
 
-      {!loading && !error && sociosList.length > 0 && (
-       <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
-          <h3 className="text-xl font-semibold text-slate-900 mb-4">Todos los Socios</h3>
-        <div className="mb-4">
-  <input
-    type="text"
-    value={searchSocio}
-    onChange={(e) => setSearchSocio(e.target.value)}
-    placeholder="Buscar por ID o nombre del socio..."
-    className="w-full px-4 py-3 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-  />
-</div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Foto</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">ID</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Nombre Completo</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Email</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Teléfono</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Estatus</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-               {sociosFiltrados.map((socio) => (
-                  <tr
-                    key={socio.id_socio}
-                    className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
-                    onClick={() => openFicha(socio)}
-                  >
-                    <td className="py-3 px-4">
-                      <img
-                        src={socio.foto_url || avatarFallback(socio)}
-                        alt="avatar"
-                        className="w-10 h-10 rounded-full object-cover border"
-                      />
-                    </td>
-                    <td className="py-3 px-4 text-slate-700">{socio.id_socio}</td>
-                    <td className="py-3 px-4">
-                      <div className="font-medium text-slate-900">
-                        {socio.nombre} {socio.apellido_paterno} {socio.apellido_materno}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-slate-700">{socio.email}</td>
-                    <td className="py-3 px-4 text-slate-700">{socio.telefono}</td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          socio.estatus ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                        }`}
-                      >
-                        {socio.estatus ? 'activo' : 'inactivo'}
-                      </span>
-                    </td>
-                 <td className="py-3 px-4">
-  <div className="flex space-x-2">
-    {permisosSocios.puede_editar && (
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          handleEditClick(socio);
-        }}
-        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-        title="Editar"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-        </svg>
-      </button>
-    )}
+    {/* Vista móvil */}
+    <div className="md:hidden space-y-3">
+      {sociosFiltrados.map((socio) => (
+        <div
+          key={socio.id_socio}
+          onClick={() => openFicha(socio)}
+          className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4 cursor-pointer"
+        >
+          <div className="flex items-center gap-3">
+            <img
+              src={socio.foto_url || avatarFallback(socio)}
+              alt="avatar"
+              className="w-14 h-14 rounded-full object-cover border shrink-0"
+            />
 
-    {permisosSocios.puede_eliminar && (
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          handleDeleteClick(socio);
-        }}
-        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-        title="Eliminar"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-        </svg>
-      </button>
-    )}
-  </div>
-</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500">
+                Socio #{socio.id_socio}
+              </p>
+
+              <p className="font-semibold text-slate-900 break-words">
+                {socio.nombre} {socio.apellido_paterno}{' '}
+                {socio.apellido_materno}
+              </p>
+            </div>
           </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <p className="text-xs text-slate-500">Correo electrónico</p>
+              <p className="text-sm font-medium text-slate-800 break-all">
+                {socio.email || '-'}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">Teléfono</p>
+              <p className="text-sm font-medium text-slate-800">
+                {socio.telefono || '-'}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">Estatus</p>
+
+              <span
+                className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-medium ${
+                  socio.estatus
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-red-100 text-red-700'
+                }`}
+              >
+                {socio.estatus ? 'Activo' : 'Inactivo'}
+              </span>
+            </div>
+          </div>
+
+          {(permisosSocios.puede_editar ||
+            permisosSocios.puede_eliminar) && (
+            <div className="flex flex-col gap-2 pt-2">
+              {permisosSocios.puede_editar && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditClick(socio);
+                  }}
+                  className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                >
+                  Editar
+                </button>
+              )}
+
+              {permisosSocios.puede_eliminar && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteClick(socio);
+                  }}
+                  className="w-full px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+                >
+                  Eliminar
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      )}
+      ))}
+    </div>
+
+    {/* Vista escritorio */}
+    <div className="hidden md:block overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-slate-200">
+            <th className="text-left py-3 px-4 font-semibold text-slate-700">
+              Foto
+            </th>
+
+            <th className="text-left py-3 px-4 font-semibold text-slate-700">
+              ID
+            </th>
+
+            <th className="text-left py-3 px-4 font-semibold text-slate-700">
+              Nombre Completo
+            </th>
+
+            <th className="text-left py-3 px-4 font-semibold text-slate-700">
+              Email
+            </th>
+
+            <th className="text-left py-3 px-4 font-semibold text-slate-700">
+              Teléfono
+            </th>
+
+            <th className="text-left py-3 px-4 font-semibold text-slate-700">
+              Estatus
+            </th>
+
+            <th className="text-left py-3 px-4 font-semibold text-slate-700">
+              Acciones
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {sociosFiltrados.map((socio) => (
+            <tr
+              key={socio.id_socio}
+              className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+              onClick={() => openFicha(socio)}
+            >
+              <td className="py-3 px-4">
+                <img
+                  src={socio.foto_url || avatarFallback(socio)}
+                  alt="avatar"
+                  className="w-10 h-10 rounded-full object-cover border"
+                />
+              </td>
+
+              <td className="py-3 px-4 text-slate-700">
+                {socio.id_socio}
+              </td>
+
+              <td className="py-3 px-4">
+                <div className="font-medium text-slate-900">
+                  {socio.nombre} {socio.apellido_paterno}{' '}
+                  {socio.apellido_materno}
+                </div>
+              </td>
+
+              <td className="py-3 px-4 text-slate-700">
+                {socio.email}
+              </td>
+
+              <td className="py-3 px-4 text-slate-700">
+                {socio.telefono}
+              </td>
+
+              <td className="py-3 px-4">
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    socio.estatus
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-red-100 text-red-700'
+                  }`}
+                >
+                  {socio.estatus ? 'activo' : 'inactivo'}
+                </span>
+              </td>
+
+              <td className="py-3 px-4">
+                <div className="flex space-x-2">
+                  {permisosSocios.puede_editar && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditClick(socio);
+                      }}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Editar"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        />
+                      </svg>
+                    </button>
+                  )}
+
+                  {permisosSocios.puede_eliminar && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteClick(socio);
+                      }}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Eliminar"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+)}
+     
       {/* Modal Confirmar Registro */}
       {showConfirmRegistro && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
