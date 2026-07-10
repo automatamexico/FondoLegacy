@@ -1028,15 +1028,44 @@ const addPeriod = (dateISO, tipo, k) => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-700 mb-1">Interés por periodo (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    className="w-full px-3 py-2 border rounded-lg"
-                    value={newPrestamo.interes}
-                    onChange={(e) => setNewPrestamo((p) => ({ ...p, interes: e.target.value }))}
-                  />
+                <div className="flex gap-2">
+  <input
+    type="number"
+    min="0"
+    step="0.01"
+    className="w-full px-3 py-2 border rounded-lg"
+    value={newPrestamo.interes}
+    onChange={(e) => setNewPrestamo((p) => ({ ...p, interes: e.target.value }))}
+  />
+
+  <div className="flex flex-col gap-1">
+    <button
+      type="button"
+      className="w-10 h-9 bg-slate-100 border border-slate-200 rounded-lg text-slate-700"
+      onClick={() =>
+        setNewPrestamo((p) => ({
+          ...p,
+          interes: String(((parseFloat(p.interes) || 0) + 0.5).toFixed(2))
+        }))
+      }
+    >
+      +
+    </button>
+
+    <button
+      type="button"
+      className="w-10 h-9 bg-slate-100 border border-slate-200 rounded-lg text-slate-700"
+      onClick={() =>
+        setNewPrestamo((p) => ({
+          ...p,
+          interes: String(Math.max(0, (parseFloat(p.interes) || 0) - 0.5).toFixed(2))
+        }))
+      }
+    >
+      −
+    </button>
+  </div>
+</div>
                 </div>
               </div>
 
