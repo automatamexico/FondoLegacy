@@ -286,7 +286,13 @@ function App() {
   onMenuClick={() => setMobileMenuOpen(true)}
 />
 
-      <div className="flex h-[calc(100vh-72px)]">
+     <div
+  className={`h-[calc(100vh-72px)] ${
+    workMode === 'afore'
+      ? 'flex flex-col md:flex-row overflow-y-auto md:overflow-hidden'
+      : 'flex'
+  }`}
+>
         {workMode === 'afore' ? (
           <AforeSidebar
             activeSection={activeSection}
@@ -309,7 +315,7 @@ function App() {
 />
         )}
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 min-w-0 w-full overflow-y-auto">
           {renderActiveSection()}
         </main>
       </div>
