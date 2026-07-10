@@ -1303,9 +1303,11 @@ const openFicha = async (socio) => {
     ? (editingSocio ? 'Actualizando…' : 'Registrando…')
     : (editingSocio ? 'Actualizar Socio' : 'Registrar Socio')}
 </button>
-          </form>
+                   </form>
         </div>
-      )}
+      </>
+    )}
+
 {/* Tabla principal */}
 {loading && (
   <p className="text-center text-slate-600">
