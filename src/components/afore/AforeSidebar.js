@@ -7,17 +7,19 @@ const AforeSidebar = ({ activeSection, onSectionChange, onBackToHome }) => {
   ];
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 h-full">
-      <nav className="p-4 space-y-3">
+    <aside className="w-full md:w-64 bg-white md:border-r border-slate-200 md:h-full shrink-0">
+      <nav className="p-4">
+
         <button
           onClick={onBackToHome}
-          className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-left text-slate-700 hover:bg-slate-50"
+          className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-left text-slate-700 hover:bg-slate-50 mb-4"
         >
           <span className="text-xl">‹</span>
           <span className="font-medium">Regresar al Inicio</span>
         </button>
 
-        <div className="pt-2 space-y-2">
+        {/* Escritorio */}
+        <div className="hidden md:flex flex-col gap-2">
           {menuItems.map((item) => (
             <button
               key={item.id}
@@ -32,6 +34,24 @@ const AforeSidebar = ({ activeSection, onSectionChange, onBackToHome }) => {
             </button>
           ))}
         </div>
+
+        {/* Móvil */}
+        <div className="grid grid-cols-2 gap-2 md:hidden">
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => onSectionChange(item.id)}
+              className={`px-3 py-3 rounded-xl text-center text-sm transition-all ${
+                activeSection === item.id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              {item.name}
+            </button>
+          ))}
+        </div>
+
       </nav>
     </aside>
   );
