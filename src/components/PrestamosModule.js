@@ -1013,64 +1013,40 @@ const addPeriod = (dateISO, tipo, k) => {
                 </div>
               </div>
 
-              {/* Tipo de plazo / Interés */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-slate-700 mb-1">Tipo de plazo</label>
-                  <select
-                    className="w-full px-3 py-2 border rounded-lg"
-                    value={newPrestamo.tipo_plazo}
-                    onChange={(e) => setNewPrestamo((p) => ({ ...p, tipo_plazo: e.target.value }))}
-                  >
-                    <option value="mensual">Mensual</option>
-                    <option value="quincenal">Quincenal</option>
-                    <option value="semanal">Semanal</option>
-                  </select>
-                </div>
-                <div>
-              <div>
-  <label className="block text-sm text-slate-700 mb-1">
-    Interés por periodo (%)
-  </label>
+{/* Tipo de plazo / Interés */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div>
+    <label className="block text-sm text-slate-700 mb-1">
+      Tipo de plazo
+    </label>
 
-  {/* Escritorio: control original */}
-  <input
-    type="number"
-    min="0"
-    step="0.01"
-    className="hidden md:block w-full px-3 py-2 border rounded-lg"
-    value={newPrestamo.interes}
-    onChange={(e) =>
-      setNewPrestamo((p) => ({
-        ...p,
-        interes: e.target.value
-      }))
-    }
-  />
-
-  {/* Móvil: control con botones propios */}
-  <div className="flex md:hidden items-stretch gap-2">
-    <button
-      type="button"
-      className="w-11 shrink-0 rounded-lg border border-slate-200 bg-slate-100 text-lg font-semibold text-slate-700 active:bg-slate-200"
-      onClick={() =>
+    <select
+      className="w-full px-3 py-2 border rounded-lg"
+      value={newPrestamo.tipo_plazo}
+      onChange={(e) =>
         setNewPrestamo((p) => ({
           ...p,
-          interes: String(
-            Math.max(0, (parseFloat(p.interes) || 0) - 0.5).toFixed(2)
-          )
+          tipo_plazo: e.target.value
         }))
       }
     >
-      −
-    </button>
+      <option value="mensual">Mensual</option>
+      <option value="quincenal">Quincenal</option>
+      <option value="semanal">Semanal</option>
+    </select>
+  </div>
 
+  <div>
+    <label className="block text-sm text-slate-700 mb-1">
+      Interés por periodo (%)
+    </label>
+
+    {/* Escritorio */}
     <input
       type="number"
       min="0"
       step="0.01"
-      inputMode="decimal"
-      className="min-w-0 flex-1 px-3 py-2 border rounded-lg text-center"
+      className="hidden md:block w-full px-3 py-2 border rounded-lg"
       value={newPrestamo.interes}
       onChange={(e) =>
         setNewPrestamo((p) => ({
@@ -1080,54 +1056,58 @@ const addPeriod = (dateISO, tipo, k) => {
       }
     />
 
-    <button
-      type="button"
-      className="w-11 shrink-0 rounded-lg border border-slate-200 bg-slate-100 text-lg font-semibold text-slate-700 active:bg-slate-200"
-      onClick={() =>
-        setNewPrestamo((p) => ({
-          ...p,
-          interes: String(
-            ((parseFloat(p.interes) || 0) + 0.5).toFixed(2)
-          )
-        }))
-      }
-    >
-      +
-    </button>
+    {/* Móvil */}
+    <div className="flex md:hidden items-stretch gap-2">
+      <button
+        type="button"
+        className="w-11 shrink-0 rounded-lg border border-slate-200 bg-slate-100 text-lg font-semibold text-slate-700 active:bg-slate-200"
+        onClick={() =>
+          setNewPrestamo((p) => ({
+            ...p,
+            interes: String(
+              Math.max(
+                0,
+                (parseFloat(p.interes) || 0) - 0.5
+              ).toFixed(2)
+            )
+          }))
+        }
+      >
+        −
+      </button>
+
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        inputMode="decimal"
+        className="min-w-0 flex-1 px-3 py-2 border rounded-lg text-center"
+        value={newPrestamo.interes}
+        onChange={(e) =>
+          setNewPrestamo((p) => ({
+            ...p,
+            interes: e.target.value
+          }))
+        }
+      />
+
+      <button
+        type="button"
+        className="w-11 shrink-0 rounded-lg border border-slate-200 bg-slate-100 text-lg font-semibold text-slate-700 active:bg-slate-200"
+        onClick={() =>
+          setNewPrestamo((p) => ({
+            ...p,
+            interes: String(
+              ((parseFloat(p.interes) || 0) + 0.5).toFixed(2)
+            )
+          }))
+        }
+      >
+        +
+      </button>
+    </div>
   </div>
 </div>
-  />
-
-  <div className="flex flex-col gap-1">
-    <button
-      type="button"
-      className="w-10 h-9 bg-slate-100 border border-slate-200 rounded-lg text-slate-700"
-      onClick={() =>
-        setNewPrestamo((p) => ({
-          ...p,
-          interes: String(((parseFloat(p.interes) || 0) + 0.5).toFixed(2))
-        }))
-      }
-    >
-      +
-    </button>
-
-    <button
-      type="button"
-      className="w-10 h-9 bg-slate-100 border border-slate-200 rounded-lg text-slate-700"
-      onClick={() =>
-        setNewPrestamo((p) => ({
-          ...p,
-          interes: String(Math.max(0, (parseFloat(p.interes) || 0) - 0.5).toFixed(2))
-        }))
-      }
-    >
-      −
-    </button>
-  </div>
-</div>
-                </div>
-              </div>
 
               {/* Fecha de solicitud + Resumen */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
