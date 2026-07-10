@@ -716,14 +716,15 @@ const handleEditClick = async (socio) => {
   setShowFicha(false);
   setShowForm(true);
 
-  if (window.innerWidth >= 768) {
+ if (window.innerWidth >= 768) {
   window.scrollTo({
     top: 0,
     behavior: 'smooth',
   });
 }
+};
 
- /** Ficha */
+/** Ficha */
 const openFicha = async (socio) => {
 
   setSocioFicha({ ...socio }); // importante: nuevo objeto
