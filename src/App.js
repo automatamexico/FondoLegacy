@@ -237,8 +237,12 @@ function App() {
         return <ReportesModule />;
       case 'multas-renovaciones':
         return <MultasRenovacionesModule />;
-      default:
-        return <DashboardMain />;
+     default:
+  return (
+    <DashboardMain
+      onBackToHome={backToHomeSelect}
+    />
+  );
     }
   };
 
