@@ -509,66 +509,239 @@ const PagosModule = ({ idSocio }) => {
               <button className="px-3 py-1 rounded-lg bg-slate-100" onClick={() => setShowPagoModal(false)}>Cerrar</button>
             </div>
 
-            <div className="p-4 max-h-[70vh] overflow-y-auto">
+          <div className="p-4 max-h-[78vh] overflow-y-auto">
               {(!pagosProgramados || pagosProgramados.length === 0) ? (
                 <p className="text-slate-600">Sin pagos programados.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-200">
-                        <th className="text-left py-2 px-3">No</th>
-                        <th className="text-left py-2 px-3">Fecha programada</th>
-                        <th className="text-left py-2 px-3">Monto a pagar</th>
-                        <th className="text-left py-2 px-3">Interés</th>
-                        <th className="text-left py-2 px-3">Capital</th>
-                        <th className="text-left py-2 px-3">Fecha/Hora pago</th>
-                        <th className="text-left py-2 px-3">Forma de pago</th>
-                        <th className="text-left py-2 px-3">Nota</th>
-                        <th className="text-left py-2 px-3">Estatus</th>
-                        <th className="text-left py-2 px-3">Acción</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pagosProgramados.map(row => {
-                        const fechaTxt = row.fecha_hora_pago ? fmt12h(row.fecha_hora_pago) : (row.fecha_pago || '—');
-                        const isPagado = (row.estatus || '').toLowerCase() === 'pagado';
-                        return (
-                          <tr key={row.id_pago} className="border-b border-slate-100">
-                            <td className="py-2 px-3">{row.numero_pago}</td>
-                            <td className="py-2 px-3">{fmtLongDate(row.fecha_programada)}</td>
-                            <td className="py-2 px-3">{fmtMoney(row.monto_pago)}</td>
-                            <td className="py-2 px-3">{row.interes_pagado != null ? fmtMoney(row.interes_pagado) : '—'}</td>
-                            <td className="py-2 px-3">{row.capital_pagado != null ? fmtMoney(row.capital_pagado) : '—'}</td>
-                            <td className="py-2 px-3">{fechaTxt}</td>
-                            <td className="py-2 px-3">{row.forma_pago || '—'}</td>
-                            <td className="py-2 px-3">
-                              {row.nota
-                                ? <button
-                                    className="px-3 py-1 bg-slate-200 rounded-lg hover:bg-slate-300"
-                                    onClick={() => { setNotaTexto(row.nota); setShowNotaModal(true); }}
-                                  >
-                                    Ver nota
-                                  </button>
-                                : '—'}
-                            </td>
-                            <td className="py-2 px-3">{isPagado ? 'pagado' : 'pendiente'}</td>
-                            <td className="py-2 px-3">
-                              {!isPagado && (
-                                <button
-                                  className="px-3 py-1 bg-blue-600 text-white rounded-lg"
-                                  onClick={() => onClickRealizarPagoFila(row)}
-                                >
-                                  Realizar pago
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+    <>
+  {/* Vista móvil */}
+  <div className="md:hidden space-y-3">
+    {pagosProgramados.map((row) => {
+      const fechaTxt = row.fecha_hora_pago
+        ? fmt12h(row.fecha_hora_pago)
+        : row.fecha_pago || '—';
+
+      const isPagado =
+        (row.estatus || '').toLowerCase() === 'pagado';
+
+      return (
+        <div
+          key={row.id_pago}
+          className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-slate-500">Pago</p>
+              <p className="font-bold text-slate-900">
+                #{row.numero_pago}
+              </p>
+            </div>
+
+            <span
+              className={`px-3 py-1 rounded-full text-xs font-medium ${
+                isPagado
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-yellow-100 text-yellow-700'
+              }`}
+            >
+              {isPagado ? 'Pagado' : 'Pendiente'}
+            </span>
+          </div>
+
+          <div>
+            <p className="text-xs text-slate-500">
+              Fecha programada
+            </p>
+            <p className="font-medium text-slate-900">
+              {fmtLongDate(row.fecha_programada)}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-slate-500">
+              Monto a pagar
+            </p>
+            <p className="text-lg font-bold text-blue-600">
+              {fmtMoney(row.monto_pago)}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-slate-500">Interés</p>
+              <p className="font-medium text-slate-900">
+                {row.interes_pagado != null
+                  ? fmtMoney(row.interes_pagado)
+                  : '—'}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">Capital</p>
+              <p className="font-medium text-slate-900">
+                {row.capital_pagado != null
+                  ? fmtMoney(row.capital_pagado)
+                  : '—'}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs text-slate-500">
+              Fecha/Hora de pago
+            </p>
+            <p className="font-medium text-slate-900">
+              {fechaTxt}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-slate-500">
+              Forma de pago
+            </p>
+            <p className="font-medium text-slate-900">
+              {row.forma_pago || '—'}
+            </p>
+          </div>
+
+          {row.nota && (
+            <button
+              type="button"
+              className="w-full px-3 py-2 bg-slate-200 rounded-lg text-sm font-medium hover:bg-slate-300"
+              onClick={() => {
+                setNotaTexto(row.nota);
+                setShowNotaModal(true);
+              }}
+            >
+              Ver nota
+            </button>
+          )}
+
+          {!isPagado && (
+            <button
+              type="button"
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+              onClick={() => onClickRealizarPagoFila(row)}
+            >
+              Realizar pago
+            </button>
+          )}
+        </div>
+      );
+    })}
+  </div>
+
+  {/* Vista escritorio */}
+  <div className="hidden md:block overflow-x-auto">
+    <table className="w-full">
+      <thead>
+        <tr className="border-b border-slate-200">
+          <th className="text-left py-2 px-3">No</th>
+          <th className="text-left py-2 px-3">
+            Fecha programada
+          </th>
+          <th className="text-left py-2 px-3">
+            Monto a pagar
+          </th>
+          <th className="text-left py-2 px-3">Interés</th>
+          <th className="text-left py-2 px-3">Capital</th>
+          <th className="text-left py-2 px-3">
+            Fecha/Hora pago
+          </th>
+          <th className="text-left py-2 px-3">
+            Forma de pago
+          </th>
+          <th className="text-left py-2 px-3">Nota</th>
+          <th className="text-left py-2 px-3">Estatus</th>
+          <th className="text-left py-2 px-3">Acción</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {pagosProgramados.map((row) => {
+          const fechaTxt = row.fecha_hora_pago
+            ? fmt12h(row.fecha_hora_pago)
+            : row.fecha_pago || '—';
+
+          const isPagado =
+            (row.estatus || '').toLowerCase() === 'pagado';
+
+          return (
+            <tr
+              key={row.id_pago}
+              className="border-b border-slate-100"
+            >
+              <td className="py-2 px-3">
+                {row.numero_pago}
+              </td>
+
+              <td className="py-2 px-3">
+                {fmtLongDate(row.fecha_programada)}
+              </td>
+
+              <td className="py-2 px-3">
+                {fmtMoney(row.monto_pago)}
+              </td>
+
+              <td className="py-2 px-3">
+                {row.interes_pagado != null
+                  ? fmtMoney(row.interes_pagado)
+                  : '—'}
+              </td>
+
+              <td className="py-2 px-3">
+                {row.capital_pagado != null
+                  ? fmtMoney(row.capital_pagado)
+                  : '—'}
+              </td>
+
+              <td className="py-2 px-3">
+                {fechaTxt}
+              </td>
+
+              <td className="py-2 px-3">
+                {row.forma_pago || '—'}
+              </td>
+
+              <td className="py-2 px-3">
+                {row.nota ? (
+                  <button
+                    className="px-3 py-1 bg-slate-200 rounded-lg hover:bg-slate-300"
+                    onClick={() => {
+                      setNotaTexto(row.nota);
+                      setShowNotaModal(true);
+                    }}
+                  >
+                    Ver nota
+                  </button>
+                ) : (
+                  '—'
+                )}
+              </td>
+
+              <td className="py-2 px-3">
+                {isPagado ? 'pagado' : 'pendiente'}
+              </td>
+
+              <td className="py-2 px-3">
+                {!isPagado && (
+                  <button
+                    className="px-3 py-1 bg-blue-600 text-white rounded-lg"
+                    onClick={() =>
+                      onClickRealizarPagoFila(row)
+                    }
+                  >
+                    Realizar pago
+                  </button>
+                )}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+</>
               )}
             </div>
           </div>
