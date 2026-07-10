@@ -1,6 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import AhorrosModule from './AhorrosModule';
-import PrestamosModule from './PrestamosModule';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
@@ -198,7 +196,184 @@ const SocioPortalModule = ({ currentUser, onLogout }) => {
       )}
     </div>
   );
+const MisAhorros = () => (
+  <div className="space-y-4">
+    <div>
+      <h2 className="text-2xl font-bold text-slate-900">Mis ahorros</h2>
+      <p className="text-slate-600">
+        Consulta exclusivamente tus aportaciones y movimientos.
+      </p>
+    </div>
 
+    <div className="bg-gradient-to-br from-emerald-900 to-emerald-600 text-white rounded-3xl p-6 shadow-lg">
+      <p className="text-emerald-100 text-sm">Ahorro acumulado</p>
+      <p className="text-3xl font-extrabold mt-1">
+        {money(saldoAhorro)}
+      </p>
+      <p className="text-emerald-100 text-xs mt-2">
+        Saldo correspondiente al socio #{idSocio}
+      </p>
+    </div>
+
+    {ahorros.length === 0 ? (
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center text-slate-500">
+        No tienes movimientos de ahorro registrados.
+      </div>
+    ) : (
+      <div className="space-y-3">
+        {ahorros.map((movimiento) => {
+          const monto = Number(movimiento.ahorro_aportado || 0);
+          const esRetiro = monto < 0 || movimiento.es_retiro;
+
+          return (
+            <div
+              key={movimiento.id_ahorro}
+              className="bg-white rounded-2xl border border-slate-200 p-4"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs text-slate-500">
+                    {esRetiro ? 'Retiro' : 'Aportación'}
+                  </p>
+
+                  <p
+                    className={`text-xl font-bold ${
+                      esRetiro ? 'text-red-600' : 'text-emerald-600'
+                    }`}
+                  >
+                    {money(monto)}
+                  </p>
+                </div>
+
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    esRetiro
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-emerald-100 text-emerald-700'
+                  }`}
+                >
+                  {esRetiro ? 'Retiro' : 'Ahorro'}
+                </span>
+              </div>
+
+              <div className="mt-4">
+                <p className="text-xs text-slate-500">Fecha</p>
+                <p className="font-medium text-slate-900">
+                  {dateText(movimiento.fecha)}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+);
+const MisPrestamos = () => (
+  <div className="space-y-4">
+    <div>
+      <h2 className="text-2xl font-bold text-slate-900">Mis préstamos</h2>
+      <p className="text-slate-600">
+        Consulta únicamente los préstamos asociados a tu cuenta.
+      </p>
+    </div>
+
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <p className="text-sm text-slate-500">Préstamos activos</p>
+        <p className="text-3xl font-bold text-blue-600 mt-1">
+          {prestamosActivos.length}
+        </p>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <p className="text-sm text-slate-500">Próximo pago</p>
+        <p className="text-2xl font-bold text-slate-900 mt-1">
+          {proximoPago ? money(proximoPago.monto_pago) : 'Sin pendientes'}
+        </p>
+
+        {proximoPago && (
+          <p className="text-xs text-slate-500 mt-1">
+            {dateText(proximoPago.fecha_programada)}
+          </p>
+        )}
+      </div>
+    </div>
+
+    {prestamos.length === 0 ? (
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center text-slate-500">
+        No tienes préstamos registrados.
+      </div>
+    ) : (
+      <div className="space-y-3">
+        {prestamos.map((prestamo) => {
+          const activo = !['liquidado', 'cancelado'].includes(
+            String(prestamo.estatus || '').toLowerCase()
+          );
+
+          return (
+            <div
+              key={prestamo.id_prestamo}
+              className="bg-white rounded-2xl border border-slate-200 p-5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Préstamo #{prestamo.id_prestamo}
+                  </p>
+
+                  <p className="text-2xl font-bold text-slate-900">
+                    {money(prestamo.monto_solicitado)}
+                  </p>
+                </div>
+
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    activo
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {activo ? 'Activo' : prestamo.estatus || 'Finalizado'}
+                </span>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-slate-500">Número de plazos</p>
+                  <p className="font-semibold text-slate-900">
+                    {prestamo.numero_plazos || '—'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-slate-500">Tipo de plazo</p>
+                  <p className="font-semibold text-slate-900 capitalize">
+                    {prestamo.tipo_plazo || '—'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-slate-500">Interés</p>
+                  <p className="font-semibold text-slate-900">
+                    {prestamo.interes || 0}%
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-slate-500">Fecha de solicitud</p>
+                  <p className="font-semibold text-slate-900">
+                    {dateText(prestamo.fecha_solicitud)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+);
   const Pagos = () => (
     <div className="space-y-4">
       <div><h2 className="text-2xl font-bold text-slate-900">Mis pagos</h2><p className="text-slate-600">Historial y próximos pagos de tus préstamos.</p></div>
@@ -267,8 +442,8 @@ const SocioPortalModule = ({ currentUser, onLogout }) => {
 
         <main className="flex-1 min-w-0 p-4 md:p-6 pb-24 md:pb-8">
           {active === 'inicio' && <Inicio />}
-          {active === 'ahorros' && <AhorrosModule idSocio={idSocio} />}
-          {active === 'prestamos' && <PrestamosModule idSocio={idSocio} />}
+         {active === 'ahorros' && <MisAhorros />}
+{active === 'prestamos' && <MisPrestamos />}
           {active === 'pagos' && <Pagos />}
           {active === 'afore' && <Afore />}
           {active === 'perfil' && <Perfil />}
@@ -276,8 +451,12 @@ const SocioPortalModule = ({ currentUser, onLogout }) => {
       </div>
 
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 px-2 py-2 shadow-2xl">
-        <div className="flex justify-around overflow-x-auto">
-          {navItems.map((item) => <button key={item.id} onClick={() => setActive(item.id)} className={`min-w-[64px] px-2 py-1 rounded-xl text-center ${active === item.id ? 'text-emerald-700 bg-emerald-50' : 'text-slate-500'}`}><span className="block text-lg">{item.icon}</span><span className="text-[10px] font-medium">{item.label}</span></button>)}
+      <div
+  className={`grid ${
+    navItems.length === 6 ? 'grid-cols-6' : 'grid-cols-5'
+  } gap-1`}
+>
+          {navItems.map((item) => <button key={item.id} onClick={() => setActive(item.id)} className={`min-w-[64px] px-2 py-1 rounded-xl text-center ${active === item.id ? 'text-emerald-700 bg-emerald-50' : 'text-slate-500'}`}><span className="block text-lg">{item.icon}</span><span className="block text-[9px] leading-tight font-medium truncate">{item.label}</span></button>)}
         </div>
       </nav>
     </div>
