@@ -60,7 +60,8 @@ const LoginForm = ({ onLogin }) => {
         id: user.id_usuario,
         name: user.nombre_usuario || user.email,
         role: user.rol,
-        id_socio: user.id_socio
+        id_socio: user.id_socio,
+        email: user.email
       });
 
     } catch (err) {
