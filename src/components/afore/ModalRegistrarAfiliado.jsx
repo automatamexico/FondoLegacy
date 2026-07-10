@@ -48,7 +48,16 @@ const ModalRegistrarAfiliado = ({
   const [beneficiarioDoc, setBeneficiarioDoc] = useState(null);
   const [cobroAfiliacion, setCobroAfiliacion] = useState(false);
   const [montoAfiliacion, setMontoAfiliacion] = useState("");
+const [referenciaBancaria, setReferenciaBancaria] = useState({
+  entidad_bancaria: "",
+  banco_otro: "",
+  titular_cuenta: "",
+  numero_cuenta: "",
+  cuenta_clabe: "",
+  pais: "México",
+});
 
+const [referenciaBancariaId, setReferenciaBancariaId] = useState(null);
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -75,6 +84,33 @@ const ModalRegistrarAfiliado = ({
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
+  const cargarReferenciaBancaria = async () => {
+  const { data, error } = await supabase
+    .from("referencias_bancarias_afore")
+    .select("*")
+    .eq("id_afiliado", afiliado.id_afiliado)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error cargando referencia bancaria:", error);
+    return;
+  }
+
+  if (data) {
+    setReferenciaBancariaId(data.id_referencia_bancaria);
+
+    setReferenciaBancaria({
+      entidad_bancaria: data.entidad_bancaria || "",
+      banco_otro: data.banco_otro || "",
+      titular_cuenta: data.titular_cuenta || "",
+      numero_cuenta: data.numero_cuenta || "",
+      cuenta_clabe: data.cuenta_clabe || "",
+      pais: data.pais || "México",
+    });
+  }
+};
+
+cargarReferenciaBancaria();
 
   const inputStyle =
     "w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500";
@@ -220,7 +256,48 @@ const ModalRegistrarAfiliado = ({
 
         if (benError) throw benError;
       }
+// 🔹 Guardar referencia bancaria AFORE
+const tieneDatosBancarios =
+  referenciaBancaria.entidad_bancaria ||
+  referenciaBancaria.titular_cuenta ||
+  referenciaBancaria.numero_cuenta ||
+  referenciaBancaria.cuenta_clabe;
 
+if (tieneDatosBancarios) {
+  const bancoPayload = {
+    id_afiliado: afiliadoId,
+    entidad_bancaria: referenciaBancaria.entidad_bancaria,
+    banco_otro:
+      referenciaBancaria.entidad_bancaria === "OTRO"
+        ? referenciaBancaria.banco_otro
+        : null,
+    titular_cuenta: referenciaBancaria.titular_cuenta,
+    numero_cuenta: referenciaBancaria.numero_cuenta,
+    cuenta_clabe: referenciaBancaria.cuenta_clabe,
+    pais: referenciaBancaria.pais || "México",
+  };
+
+  if (referenciaBancariaId) {
+    const { error: bancoError } = await supabase
+      .from("referencias_bancarias_afore")
+      .update(bancoPayload)
+      .eq("id_referencia_bancaria", referenciaBancariaId);
+
+    if (bancoError) throw bancoError;
+  } else {
+    const { data: bancoData, error: bancoError } = await supabase
+      .from("referencias_bancarias_afore")
+      .insert([bancoPayload])
+      .select("id_referencia_bancaria")
+      .single();
+
+    if (bancoError) throw bancoError;
+
+    setReferenciaBancariaId(
+      bancoData?.id_referencia_bancaria || null
+    );
+  }
+}
       // 🔹 Guardar pago de afiliación
       if (cobroAfiliacion && montoAfiliacion) {
         const { error: pagoError } = await supabase
@@ -344,7 +421,134 @@ const ModalRegistrarAfiliado = ({
             <input type="file" onChange={(e)=>setBeneficiarioDoc(e.target.files[0])}/>
           </div>
         </div>
+{/* REFERENCIAS BANCARIAS */}
+<div className="mt-6 border-t-4 border-blue-600 pt-4">
+  <div className="font-bold mb-3">
+    Referencias Bancarias
+  </div>
 
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <select
+      className={inputStyle + " md:col-span-2"}
+      value={referenciaBancaria.entidad_bancaria}
+      onChange={(e) =>
+        setReferenciaBancaria((prev) => ({
+          ...prev,
+          entidad_bancaria: e.target.value,
+          banco_otro:
+            e.target.value === "OTRO"
+              ? prev.banco_otro
+              : "",
+        }))
+      }
+    >
+      <option value="">
+        Seleccione entidad bancaria
+      </option>
+
+      <option value="BBVA México">BBVA México</option>
+      <option value="Banco Santander México">
+        Banco Santander México
+      </option>
+      <option value="Banco Mercantil del Norte (Banorte)">
+        Banco Mercantil del Norte (Banorte)
+      </option>
+      <option value="Banco Nacional de México (Citibanamex)">
+        Banco Nacional de México (Citibanamex)
+      </option>
+      <option value="HSBC México">HSBC México</option>
+      <option value="Scotiabank Inverlat">
+        Scotiabank Inverlat
+      </option>
+      <option value="Banco Inbursa">
+        Banco Inbursa
+      </option>
+      <option value="Banco Azteca">
+        Banco Azteca
+      </option>
+      <option value="BanCoppel">BanCoppel</option>
+      <option value="Banco del Bajío">
+        Banco del Bajío
+      </option>
+      <option value="Nubank (Nu México)">
+        Nubank (Nu México)
+      </option>
+      <option value="SPIN By OXXO">
+        SPIN By OXXO
+      </option>
+      <option value="OTRO">Otro</option>
+    </select>
+
+    {referenciaBancaria.entidad_bancaria === "OTRO" && (
+      <input
+        className={inputStyle + " md:col-span-2"}
+        placeholder="Nombre del banco"
+        value={referenciaBancaria.banco_otro}
+        onChange={(e) =>
+          setReferenciaBancaria((prev) => ({
+            ...prev,
+            banco_otro: e.target.value,
+          }))
+        }
+      />
+    )}
+
+    <input
+      className={inputStyle}
+      placeholder="Titular de la cuenta"
+      value={referenciaBancaria.titular_cuenta}
+      onChange={(e) =>
+        setReferenciaBancaria((prev) => ({
+          ...prev,
+          titular_cuenta: e.target.value,
+        }))
+      }
+    />
+
+    <input
+      className={inputStyle}
+      type="tel"
+      inputMode="numeric"
+      placeholder="Número de cuenta"
+      value={referenciaBancaria.numero_cuenta}
+      onChange={(e) =>
+        setReferenciaBancaria((prev) => ({
+          ...prev,
+          numero_cuenta: e.target.value.replace(/\D/g, ""),
+        }))
+      }
+    />
+
+    <input
+      className={inputStyle}
+      type="tel"
+      inputMode="numeric"
+      maxLength={18}
+      placeholder="Cuenta CLABE"
+      value={referenciaBancaria.cuenta_clabe}
+      onChange={(e) =>
+        setReferenciaBancaria((prev) => ({
+          ...prev,
+          cuenta_clabe: e.target.value
+            .replace(/\D/g, "")
+            .slice(0, 18),
+        }))
+      }
+    />
+
+    <input
+      className={inputStyle}
+      placeholder="País"
+      value={referenciaBancaria.pais}
+      onChange={(e) =>
+        setReferenciaBancaria((prev) => ({
+          ...prev,
+          pais: e.target.value,
+        }))
+      }
+    />
+  </div>
+</div>
         {/* COBRO AFILIACION */}
 <div className="mt-6 border-t-4 border-blue-600 pt-4">
   <div className="font-bold mb-3">Cobro Afiliación</div>
