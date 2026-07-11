@@ -320,6 +320,7 @@ function App() {
   userPermissions={userPermissions}
   mobileMenuOpen={mobileMenuOpen}
   onCloseMobileMenu={() => setMobileMenuOpen(false)}
+    onBackToHome={backToHomeSelect}
 />
         )}
 
