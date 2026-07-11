@@ -1,10 +1,11 @@
 import React from 'react';
 
 const AforeSidebar = ({ activeSection, onSectionChange, onBackToHome }) => {
-  const menuItems = [
-    { id: 'afore-dashboard', name: 'Control de AFORE' },
-    { id: 'afore-afiliados', name: 'Afiliados AFORE' },
-  ];
+ const menuItems = [
+  { id: 'afore-dashboard', name: 'Control de AFORE' },
+  { id: 'afore-afiliados', name: 'Afiliados AFORE' },
+  { id: 'afore-aportaciones', name: 'Aportaciones AFORE' },
+];
 
   return (
     <aside className="w-full md:w-64 bg-white md:border-r border-slate-200 md:h-full shrink-0">
@@ -36,7 +37,7 @@ const AforeSidebar = ({ activeSection, onSectionChange, onBackToHome }) => {
         </div>
 
         {/* Móvil */}
-        <div className="grid grid-cols-2 gap-2 md:hidden">
+<div className="grid grid-cols-3 gap-2 md:hidden">
           {menuItems.map((item) => (
             <button
               key={item.id}
