@@ -60,7 +60,7 @@ const [referenciaBancaria, setReferenciaBancaria] = useState({
 const [referenciaBancariaId, setReferenciaBancariaId] = useState(null);
 
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+const [showConfirmSave, setShowConfirmSave] = useState(false);
 
   useEffect(() => {
     if (modo === "edit" && afiliado) {
@@ -141,10 +141,13 @@ cargarReferenciaBancaria();
       return;
     }
 
-    if (!window.confirm("¿Estas seguro de guardar los cambios realizados?"))
-      return;
+   setShowConfirmSave(true);
+return;
+};
 
-    setLoading(true);
+const guardarCambios = async () => {
+  setShowConfirmSave(false);
+  setLoading(true);
 
     try {
       let foto_url = afiliado?.foto_url || null;
@@ -594,6 +597,55 @@ if (tieneDatosBancarios) {
             {loading ? "Guardando..." : "Guardar"}
           </button>
         </div>
+        {showConfirmSave && (
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[9999]">
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+      <div className="text-center">
+        <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
+          <svg
+            className="w-7 h-7 text-blue-600"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+        </div>
+
+        <h3 className="text-xl font-bold text-slate-900 mb-2">
+          Confirmar cambios
+        </h3>
+
+        <p className="text-slate-600 mb-6">
+          ¿Estás seguro de guardar los cambios realizados?
+        </p>
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => setShowConfirmSave(false)}
+            className="flex-1 px-4 py-3 bg-slate-100 text-slate-700 rounded-xl font-medium hover:bg-slate-200"
+          >
+            Cancelar
+          </button>
+
+          <button
+            type="button"
+            onClick={guardarCambios}
+            className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700"
+          >
+            Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
       </div>
     </div>
   );
