@@ -62,25 +62,59 @@ const [referenciaBancariaId, setReferenciaBancariaId] = useState(null);
   const [error, setError] = useState("");
 const [showConfirmSave, setShowConfirmSave] = useState(false);
 
-  useEffect(() => {
-    if (modo === "edit" && afiliado) {
-      setForm({
-        nombre: afiliado.nombre || "",
-        apellido_paterno: afiliado.apellido_paterno || "",
-        apellido_materno: afiliado.apellido_materno || "",
-        email: afiliado.email || "",
-        contraseña: afiliado.contraseña || "",
-        telefono: afiliado.telefono || "",
-        direccion: afiliado.direccion || "",
-        cp: afiliado.cp || "",
-        fecha_nacimiento: afiliado.fecha_nacimiento || "",
-        miembro_desde: afiliado.miembro_desde || "",
-        estatus: afiliado.estatus || "activo",
-        es_referido: afiliado.es_referido ?? false,
-        nombre_referido: afiliado.nombre_referido || "",
+ useEffect(() => {
+  const cargarDatos = async () => {
+    if (modo !== "edit" || !afiliado) return;
+
+    setForm({
+      nombre: afiliado.nombre || "",
+      apellido_paterno: afiliado.apellido_paterno || "",
+      apellido_materno: afiliado.apellido_materno || "",
+      email: afiliado.email || "",
+      contraseña: afiliado.contraseña || "",
+      telefono: afiliado.telefono || "",
+      direccion: afiliado.direccion || "",
+      cp: afiliado.cp || "",
+      fecha_nacimiento: afiliado.fecha_nacimiento || "",
+      miembro_desde: afiliado.miembro_desde || "",
+      estatus: afiliado.estatus || "activo",
+      es_referido: afiliado.es_referido ?? false,
+      nombre_referido: afiliado.nombre_referido || "",
+    });
+
+    const { data } = await supabase
+      .from("referencias_bancarias_afore")
+      .select("*")
+      .eq("id_afiliado", afiliado.id_afiliado)
+      .maybeSingle();
+
+    if (data) {
+      setReferenciaBancariaId(data.id_referencia_bancaria);
+
+      setReferenciaBancaria({
+        entidad_bancaria: data.entidad_bancaria || "",
+        banco_otro: data.banco_otro || "",
+        titular_cuenta: data.titular_cuenta || "",
+        numero_cuenta: data.numero_cuenta || "",
+        cuenta_clabe: data.cuenta_clabe || "",
+        pais: data.pais || "México",
+      });
+    } else {
+      setReferenciaBancariaId(null);
+
+      setReferenciaBancaria({
+        entidad_bancaria: "",
+        banco_otro: "",
+        titular_cuenta: "",
+        numero_cuenta: "",
+        cuenta_clabe: "",
+        pais: "México",
       });
     }
-  }, [modo, afiliado]);
+  };
+
+  cargarDatos();
+}, [modo, afiliado]);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
