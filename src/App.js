@@ -13,7 +13,7 @@ import ReportesModule from './components/ReportesModule';
 import RetirosModule from './components/RetirosModule';
 import MultasRenovacionesModule from './components/MultasRenovacionesModule';
 import SocioPortalModule from './components/SocioPortalModule';
-
+import AforeAportacionesModule from './components/afore/AforeAportacionesModule';
 import AforeDashboardMain from './components/AforeDashboardMain';
 import AforeSidebar from './components/afore/AforeSidebar';
 import AforeAfiliadosModule from './components/afore/AforeAfiliadosModule';
@@ -219,6 +219,8 @@ function App() {
         return <AforeDashboardMain />;
       case 'afore-afiliados':
         return <AforeAfiliadosModule />;
+          case 'afore-aportaciones':
+  return <AforeAportacionesModule />;
       case 'socios':
         return <SociosModule currentUser={currentUser} />;
       case 'ahorros':
