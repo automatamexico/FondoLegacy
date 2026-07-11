@@ -37,7 +37,9 @@ const MultasRenovacionesModule = () => {
   const [acumAfiliaciones, setAcumAfiliaciones] = useState(0);          // suma de pago_afiliaciones.monto_afiliacion_papeleria
   const [acumMultasHoja, setAcumMultasHoja] = useState(0);              // NUEVO: suma de pago_multas.monto_multa_hoja
   const [acumMoras, setAcumMoras] = useState(0);                        // placeholder si ya lo usas en otro lado
-
+const [afiliacionesPagadas, setAfiliacionesPagadas] = useState([]);
+const [showAfiliacionesPagadas, setShowAfiliacionesPagadas] = useState(false);
+  
   // ---- Modal de “Próximas Renovaciones”
   const [showRenovacionesModal, setShowRenovacionesModal] = useState(false);
   const [renovSel, setRenovSel] = useState(null); // socio seleccionado para renovar
@@ -54,10 +56,41 @@ const MultasRenovacionesModule = () => {
         });
         const socios = await rSoc.json();
 
-        const rAf = await fetch(`${SUPABASE_URL}/rest/v1/pago_afiliaciones?select=id_socio,fecha_hora,estatus`, {
+    const rAf = await fetch(
+  `${SUPABASE_URL}/rest/v1/pago_afiliaciones?select=id_socio,fecha_hora,estatus,monto_afiliacion_papeleria`,
+  {
           headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
         });
         const pagosAf = await rAf.json();
+        const pagosCompletados = (pagosAf || [])
+  .filter(
+    (p) =>
+      String(p.estatus || '').toUpperCase() ===
+      'AFILIACION PAGADA'
+  )
+  .map((p) => {
+    const socio = (socios || []).find(
+      (s) => String(s.id_socio) === String(p.id_socio)
+    );
+
+    return {
+      ...p,
+      nombreCompleto: socio
+        ? `${socio.nombre || ''} ${socio.apellido_paterno || ''} ${
+            socio.apellido_materno || ''
+          }`
+            .replace(/\s+/g, ' ')
+            .trim()
+        : 'Socio no localizado'
+    };
+  })
+  .sort(
+    (a, b) =>
+      new Date(b.fecha_hora || 0) -
+      new Date(a.fecha_hora || 0)
+  );
+
+setAfiliacionesPagadas(pagosCompletados);
 
         const hoy = new Date();
 
@@ -198,18 +231,34 @@ const MultasRenovacionesModule = () => {
           <p className="text-xs text-slate-500">Click para ver el detalle</p>
         </button>
 
-        {/* Acumulado de Afiliaciones */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <div className="flex items-center space-x-3 mb-2">
-            <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-              <span className="text-emerald-600">💳</span>
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-900">Acumulado de Afiliaciones</h3>
-              <p className="text-2xl font-bold text-emerald-600">{fmtMoney(acumAfiliaciones)}</p>
-            </div>
-          </div>
-        </div>
+       {/* Acumulado de Afiliaciones */}
+<div className="bg-white rounded-2xl border border-slate-200 p-6">
+  <div className="flex items-center space-x-3 mb-2">
+    <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center shrink-0">
+      <span className="text-emerald-600">💳</span>
+    </div>
+
+    <div className="min-w-0">
+      <h3 className="font-semibold text-slate-900">
+        Acumulado de Afiliaciones
+      </h3>
+
+      <p className="text-2xl font-bold text-emerald-600">
+        {fmtMoney(acumAfiliaciones)}
+      </p>
+    </div>
+  </div>
+
+  <div className="flex justify-end mt-3">
+    <button
+      type="button"
+      onClick={() => setShowAfiliacionesPagadas(true)}
+      className="text-xs md:text-sm font-medium text-emerald-700 hover:text-emerald-800 hover:underline"
+    >
+      Ver afiliaciones pagadas →
+    </button>
+  </div>
+</div>
 
         {/* Acumulado de multas por hoja (NUEVO cálculo mostrado) */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
@@ -237,6 +286,159 @@ const MultasRenovacionesModule = () => {
           </div>
         </div>
       </div>
+
+{/* MODAL: Afiliaciones pagadas */}
+{showAfiliacionesPagadas && (
+  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div className="bg-white rounded-2xl w-full max-w-3xl shadow-xl max-h-[88vh] overflow-hidden">
+      <div className="flex items-center justify-between gap-4 p-4 border-b border-slate-200">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900">
+            Afiliaciones pagadas
+          </h3>
+
+          <p className="text-sm text-slate-500">
+            Total de registros: {afiliacionesPagadas.length}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowAfiliacionesPagadas(false)}
+          className="px-3 py-2 rounded-lg bg-slate-100 text-slate-700"
+        >
+          Cerrar
+        </button>
+      </div>
+
+      <div className="p-4 max-h-[72vh] overflow-y-auto">
+        {afiliacionesPagadas.length === 0 ? (
+          <p className="text-center text-slate-500 py-8">
+            No existen afiliaciones pagadas.
+          </p>
+        ) : (
+          <>
+            {/* Móvil */}
+            <div className="md:hidden space-y-3">
+              {afiliacionesPagadas.map((pago, index) => (
+                <div
+                  key={`${pago.id_socio}-${pago.fecha_hora}-${index}`}
+                  className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3"
+                >
+                  <div>
+                    <p className="text-xs text-slate-500">
+                      Socio #{pago.id_socio}
+                    </p>
+
+                    <p className="font-semibold text-slate-900">
+                      {pago.nombreCompleto}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-slate-500">
+                      Monto pagado
+                    </p>
+
+                    <p className="text-xl font-bold text-emerald-600">
+                      {fmtMoney(
+                        pago.monto_afiliacion_papeleria
+                      )}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-slate-500">
+                      Fecha del pago
+                    </p>
+
+                    <p className="text-sm font-medium text-slate-900">
+                      {pago.fecha_hora
+                        ? new Date(
+                            pago.fecha_hora
+                          ).toLocaleString('es-MX')
+                        : '—'}
+                    </p>
+                  </div>
+
+                  <span className="inline-block px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
+                    {pago.estatus}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Escritorio */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="text-left px-3 py-3">
+                      Socio
+                    </th>
+
+                    <th className="text-left px-3 py-3">
+                      Nombre
+                    </th>
+
+                    <th className="text-left px-3 py-3">
+                      Monto
+                    </th>
+
+                    <th className="text-left px-3 py-3">
+                      Fecha
+                    </th>
+
+                    <th className="text-left px-3 py-3">
+                      Estatus
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {afiliacionesPagadas.map((pago, index) => (
+                    <tr
+                      key={`${pago.id_socio}-${pago.fecha_hora}-${index}`}
+                      className="border-b border-slate-100"
+                    >
+                      <td className="px-3 py-3">
+                        #{pago.id_socio}
+                      </td>
+
+                      <td className="px-3 py-3 font-medium">
+                        {pago.nombreCompleto}
+                      </td>
+
+                      <td className="px-3 py-3 font-semibold text-emerald-600">
+                        {fmtMoney(
+                          pago.monto_afiliacion_papeleria
+                        )}
+                      </td>
+
+                      <td className="px-3 py-3">
+                        {pago.fecha_hora
+                          ? new Date(
+                              pago.fecha_hora
+                            ).toLocaleString('es-MX')
+                          : '—'}
+                      </td>
+
+                      <td className="px-3 py-3">
+                        <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
+                          {pago.estatus}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  </div>
+)}
 
       {/* MODAL: Listado de Próximas Renovaciones */}
       {showRenovacionesModal && (
