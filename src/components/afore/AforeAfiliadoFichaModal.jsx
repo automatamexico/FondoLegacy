@@ -272,7 +272,7 @@ setReferenciaBancaria(null);
                     </div>
 
                     {(foto || doc) && (
-                      <div className="text-sm text-slate-700 mt-2 flex flex-col gap-1">
+                      <div className="text-sm text-slate-700 mt-2 flex flex-col items-start gap-1">
       {foto && (
   <button
     type="button"
