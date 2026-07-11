@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
-const DashboardMain = ({ onBackToHome }) => {
+const DashboardMain = () => {
   const [stats, setStats] = useState({
     totalSocios: 0,
     ahorrosAcumulados: 0,
@@ -165,7 +165,7 @@ const DashboardMain = ({ onBackToHome }) => {
       textColor: 'text-blue-800',
     },
     {
-      title: 'Ahorros acumulados',
+      title: 'Ahorro acumulado',
       value: formatCurrency(stats.ahorrosAcumulados),
       icon: (
         <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -246,14 +246,7 @@ const DashboardMain = ({ onBackToHome }) => {
 
   return (
   <div className="p-3 md:p-6 space-y-8 bg-slate-50 min-h-full">
-    <button
-      type="button"
-      onClick={onBackToHome}
-      className="flex items-center gap-2 px-4 py-3 rounded-xl text-slate-700 hover:bg-white transition-colors"
-    >
-      <span className="text-xl">‹</span>
-      <span className="font-medium">Regresar al Inicio</span>
-    </button>
+    
 
     <div className="text-center">
         <h1 className="text-4xl font-extrabold text-slate-900 mb-2">Panel de Control Financiero</h1>
