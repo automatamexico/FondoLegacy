@@ -320,28 +320,7 @@ setAfiliacionesPagadas(pagosCompletados);
   }
 };
 
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/pago_afiliaciones`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          Prefer: 'return=representation'
-        },
-        body: JSON.stringify(body)
-      });
-      if (!r.ok) throw new Error('No se pudo registrar la afiliación');
 
-      // Refrescar tarjetas mínimas relacionadas
-      setAcumAfiliaciones(prev => prev + Number(montoAfiliacion || 0));
-      // Sacar al socio del listado de pendientes
-      setProximasRenovaciones(prev => prev.filter(s => s.id_socio !== renovSel.id_socio));
-
-      cerrarRenovar();
-    } catch (e) {
-      alert('No se pudo renovar la afiliación.');
-    }
-  };
 const afiliacionesFiltradas = useMemo(() => {
   const texto = busquedaAfiliacion.trim().toLowerCase();
 
