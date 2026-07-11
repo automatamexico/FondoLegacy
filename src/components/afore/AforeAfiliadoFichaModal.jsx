@@ -6,6 +6,7 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
 
   const [refs, setRefs] = useState([]);
   const [beneficiarios, setBeneficiarios] = useState([]);
+  const [referenciaBancaria, setReferenciaBancaria] = useState(null);
   const [loadingExtras, setLoadingExtras] = useState(false);
   const [extrasError, setExtrasError] = useState("");
 
@@ -80,14 +81,25 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
         .eq("id_afiliado", afiliado.id_afiliado)
         .order("created_at", { ascending: false });
 
-      if (benErr) throw benErr;
+    if (benErr) throw benErr;
 
-      setRefs(refsData || []);
-      setBeneficiarios(benData || []);
+// REFERENCIA BANCARIA
+const { data: bancoData, error: bancoErr } = await supabase
+  .from("referencias_bancarias_afore")
+  .select("*")
+  .eq("id_afiliado", afiliado.id_afiliado)
+  .maybeSingle();
+
+if (bancoErr) throw bancoErr;
+
+setRefs(refsData || []);
+setBeneficiarios(benData || []);
+setReferenciaBancaria(bancoData || null);
     } catch (e) {
       setExtrasError(e?.message || "No se pudieron cargar referencias/beneficiarios.");
-      setRefs([]);
-      setBeneficiarios([]);
+     setRefs([]);
+setBeneficiarios([]);
+setReferenciaBancaria(null);
     } finally {
       setLoadingExtras(false);
     }
@@ -132,9 +144,7 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
               {afiliado.nombre} {afiliado.apellido_paterno} {afiliado.apellido_materno}
             </div>
 
-            <div className="text-xs text-slate-500 mt-1">
-              Bucket: <span className="font-medium">{bucketName}</span>
-            </div>
+            
           </div>
         </div>
 
@@ -291,6 +301,54 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
           )}
         </div>
 
+{/* REFERENCIA BANCARIA */}
+<div className="mt-6">
+  <div className="h-[3px] bg-blue-600 rounded-full mb-5" />
+
+  <div className="font-bold text-slate-900 mb-3">
+    Referencia Bancaria
+  </div>
+
+  {loadingExtras ? (
+    <p className="text-sm text-slate-600">
+      Cargando referencia bancaria...
+    </p>
+  ) : referenciaBancaria ? (
+    <div className="p-4 bg-slate-50 rounded-lg border border-slate-100 space-y-2">
+      <div className="text-sm text-slate-700">
+        <span className="font-semibold">Banco:</span>{" "}
+        {referenciaBancaria.entidad_bancaria === "OTRO"
+          ? referenciaBancaria.banco_otro || "-"
+          : referenciaBancaria.entidad_bancaria || "-"}
+      </div>
+
+      <div className="text-sm text-slate-700">
+        <span className="font-semibold">Titular:</span>{" "}
+        {referenciaBancaria.titular_cuenta || "-"}
+      </div>
+
+      <div className="text-sm text-slate-700">
+        <span className="font-semibold">Número de cuenta:</span>{" "}
+        {referenciaBancaria.numero_cuenta || "-"}
+      </div>
+
+      <div className="text-sm text-slate-700">
+        <span className="font-semibold">Cuenta CLABE:</span>{" "}
+        {referenciaBancaria.cuenta_clabe || "-"}
+      </div>
+
+      <div className="text-sm text-slate-700">
+        <span className="font-semibold">País:</span>{" "}
+        {referenciaBancaria.pais || "México"}
+      </div>
+    </div>
+  ) : (
+    <p className="text-sm text-slate-500">
+      Sin referencia bancaria registrada.
+    </p>
+  )}
+</div>
+       
         <div className="flex justify-end mt-6">
           <button
             onClick={onClose}
