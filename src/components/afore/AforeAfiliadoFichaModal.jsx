@@ -276,12 +276,16 @@ setReferenciaBancaria(null);
                         {foto && (
                          <button
   type="button"
-  onClick={() =>
+  onClick={() => {
+  if (window.innerWidth < 768) {
     setPreviewFile({
       type: "image",
       url: foto,
-    })
+    });
+  } else {
+    window.open(foto, "_blank");
   }
+}}
   className="text-blue-600 hover:underline"
 >
   Ver foto
@@ -290,12 +294,16 @@ setReferenciaBancaria(null);
                         {doc && (
                           <button
   type="button"
-  onClick={() =>
+  onClick={() => {
+  if (window.innerWidth < 768) {
     setPreviewFile({
       type: "pdf",
       url: doc,
-    })
+    });
+  } else {
+    window.open(doc, "_blank");
   }
+}}  }
   className="text-blue-600 hover:underline"
 >
   Ver documento
