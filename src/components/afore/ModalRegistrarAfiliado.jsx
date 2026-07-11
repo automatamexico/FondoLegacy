@@ -84,33 +84,7 @@ const [showConfirmSave, setShowConfirmSave] = useState(false);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
-  const cargarReferenciaBancaria = async () => {
-  const { data, error } = await supabase
-    .from("referencias_bancarias_afore")
-    .select("*")
-    .eq("id_afiliado", afiliado.id_afiliado)
-    .maybeSingle();
 
-  if (error) {
-    console.error("Error cargando referencia bancaria:", error);
-    return;
-  }
-
-  if (data) {
-    setReferenciaBancariaId(data.id_referencia_bancaria);
-
-    setReferenciaBancaria({
-      entidad_bancaria: data.entidad_bancaria || "",
-      banco_otro: data.banco_otro || "",
-      titular_cuenta: data.titular_cuenta || "",
-      numero_cuenta: data.numero_cuenta || "",
-      cuenta_clabe: data.cuenta_clabe || "",
-      pais: data.pais || "México",
-    });
-  }
-};
-
-cargarReferenciaBancaria();
 
   const inputStyle =
     "w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500";
