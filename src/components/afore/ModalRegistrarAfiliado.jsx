@@ -60,6 +60,7 @@ const [referenciaBancaria, setReferenciaBancaria] = useState({
 const [referenciaBancariaId, setReferenciaBancariaId] = useState(null);
 
   const [error, setError] = useState("");
+const [loading, setLoading] = useState(false);
 const [showConfirmSave, setShowConfirmSave] = useState(false);
 
  useEffect(() => {
