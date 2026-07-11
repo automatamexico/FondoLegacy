@@ -274,36 +274,37 @@ setReferenciaBancaria(null);
                     {(foto || doc) && (
                       <div className="text-sm text-slate-700 mt-2 flex flex-col gap-1">
                         {foto && (
-                         <button
+                        <button
   type="button"
   onClick={() => {
-  if (window.innerWidth < 768) {
-    setPreviewFile({
-      type: "image",
-      url: foto,
-    });
-  } else {
-    window.open(foto, "_blank");
-  }
-}}
+    if (window.innerWidth < 768) {
+      setPreviewFile({
+        type: "image",
+        url: foto,
+      });
+    } else {
+      window.open(foto, "_blank");
+    }
+  }}
   className="text-blue-600 hover:underline"
 >
   Ver foto
 </button>
+</button>
                         )}
                         {doc && (
-                          <button
+                         <button
   type="button"
   onClick={() => {
-  if (window.innerWidth < 768) {
-    setPreviewFile({
-      type: "pdf",
-      url: doc,
-    });
-  } else {
-    window.open(doc, "_blank");
-  }
-}}  }
+    if (window.innerWidth < 768) {
+      setPreviewFile({
+        type: "pdf",
+        url: doc,
+      });
+    } else {
+      window.open(doc, "_blank");
+    }
+  }}
   className="text-blue-600 hover:underline"
 >
   Ver documento
