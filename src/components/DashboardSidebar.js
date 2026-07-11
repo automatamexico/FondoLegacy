@@ -6,7 +6,8 @@ const DashboardSidebar = ({
   currentUser,
   userPermissions = [],
   mobileMenuOpen = false,
-  onCloseMobileMenu
+  onCloseMobileMenu,
+  onBackToHome
 }) => {
   const role = currentUser?.role || currentUser?.rol || '';
 
@@ -36,24 +37,46 @@ const DashboardSidebar = ({
 
   const visibleItems = menuItems.filter((item) => canView(item.id));
 
-  const MenuContent = () => (
-    <nav className="p-4 space-y-2">
-      {visibleItems.map((item) => (
-        <button
-          key={item.id}
-          onClick={() => onSectionChange(item.id)}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
-            activeSection === item.id
-              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-          }`}
-        >
-          <span className="text-lg">{item.icon}</span>
-          <span className="font-medium">{item.name}</span>
-        </button>
-      ))}
-    </nav>
-  );
+const MenuContent = () => (
+  <nav className="p-4 space-y-2">
+    <button
+      type="button"
+      onClick={() => {
+        onBackToHome();
+
+        if (onCloseMobileMenu) {
+          onCloseMobileMenu();
+        }
+      }}
+      className="w-full flex items-center gap-2 px-4 py-3 mb-3 rounded-xl text-left text-slate-700 hover:bg-slate-50 transition-colors"
+    >
+      <span className="text-xl">‹</span>
+      <span className="font-medium">Regresar al Inicio</span>
+    </button>
+
+    {visibleItems.map((item) => (
+      <button
+        key={item.id}
+        type="button"
+        onClick={() => {
+          onSectionChange(item.id);
+
+          if (onCloseMobileMenu) {
+            onCloseMobileMenu();
+          }
+        }}
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
+          activeSection === item.id
+            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+        }`}
+      >
+        <span className="text-lg">{item.icon}</span>
+        <span className="font-medium">{item.name}</span>
+      </button>
+    ))}
+  </nav>
+);
 
   return (
     <>
