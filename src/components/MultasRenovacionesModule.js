@@ -46,6 +46,7 @@ const [showAfiliacionesPagadas, setShowAfiliacionesPagadas] = useState(false);
   const [renovSel, setRenovSel] = useState(null); // socio seleccionado para renovar
   const [showRenovarModal, setShowRenovarModal] = useState(false);
   const [montoAfiliacion, setMontoAfiliacion] = useState('');
+  const [errorRenovacion, setErrorRenovacion] = useState('');
 
   // Carga de tarjetas (sin tocar tu lógica previa, solo asegurando los 3 cálculos)
   useEffect(() => {
@@ -158,28 +159,166 @@ setAfiliacionesPagadas(pagosCompletados);
 
   // Abrir modal para renovar un socio seleccionado
   const abrirRenovar = (socio) => {
-    setRenovSel(socio);
-    setMontoAfiliacion('');
-    setShowRenovarModal(true);
-  };
-  const cerrarRenovar = () => {
-    setShowRenovarModal(false);
-    setRenovSel(null);
-  };
+  setRenovSel(socio);
+  setMontoAfiliacion('');
+  setErrorRenovacion('');
+  setShowRenovarModal(true);
+};
+ const cerrarRenovar = () => {
+  setShowRenovarModal(false);
+  setRenovSel(null);
+  setMontoAfiliacion('');
+  setErrorRenovacion('');
+};
 
   // Aplicar renovación → inserta en pago_afiliaciones con estatus AFILIACION PAGADA
   const aplicarRenovacion = async () => {
-    if (!(Number(montoAfiliacion) > 0) || !renovSel?.id_socio) return;
-    try {
-      const now = new Date();
-      const fecha_hora = `${ymd(now)}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  setErrorRenovacion('');
 
-      const body = {
-        id_socio: renovSel.id_socio,
-        monto_afiliacion_papeleria: Number(montoAfiliacion),
-        fecha_hora,
-        estatus: 'AFILIACION PAGADA'
-      };
+  if (!(Number(montoAfiliacion) > 0) || !renovSel?.id_socio) {
+    setErrorRenovacion('Ingresa un monto válido.');
+    return;
+  }
+
+  try {
+    const hoy = new Date();
+
+    const periodoRenovacion =
+      renovSel.nextAnniv instanceof Date
+        ? renovSel.nextAnniv
+        : new Date(renovSel.nextAnniv);
+
+    const periodoYmd = ymd(periodoRenovacion);
+
+    // Validar si ya existe el pago para este mismo periodo
+    const validarPago = await fetch(
+      `${SUPABASE_URL}/rest/v1/pago_afiliaciones` +
+        `?id_socio=eq.${renovSel.id_socio}` +
+        `&periodo_renovacion=eq.${periodoYmd}` +
+        `&estatus=eq.AFILIACION%20PAGADA` +
+        `&select=id_socio,periodo_renovacion` +
+        `&limit=1`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    if (!validarPago.ok) {
+      throw new Error('No fue posible validar la afiliación.');
+    }
+
+    const pagoExistente = await validarPago.json();
+
+    if (pagoExistente.length > 0) {
+      const proximaRenovacion = addYears(periodoRenovacion, 1);
+
+      const diasRestantes = Math.max(
+        0,
+        Math.ceil(
+          (proximaRenovacion.getTime() - hoy.getTime()) /
+            (1000 * 60 * 60 * 24)
+        )
+      );
+
+      setErrorRenovacion(
+        `La afiliación del socio sigue vigente. Le quedan ${diasRestantes} días para su próxima renovación.`
+      );
+
+      return;
+    }
+
+    // Solo se permite pagar desde 30 días antes hasta 15 días después
+    const inicioVentana = subDays(periodoRenovacion, 30);
+
+    const finVentana = new Date(periodoRenovacion);
+    finVentana.setDate(finVentana.getDate() + 15);
+    finVentana.setHours(23, 59, 59, 999);
+
+    if (hoy < inicioVentana) {
+      const diasFaltantes = Math.ceil(
+        (inicioVentana.getTime() - hoy.getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
+
+      setErrorRenovacion(
+        `La afiliación aún está vigente. Podrá renovarse dentro de ${diasFaltantes} días.`
+      );
+
+      return;
+    }
+
+    if (hoy > finVentana) {
+      setErrorRenovacion(
+        'El periodo permitido para renovar esta afiliación ya venció. La renovación debía realizarse como máximo 15 días después del aniversario.'
+      );
+
+      return;
+    }
+
+    const fecha_hora =
+      `${ymd(hoy)}T` +
+      `${String(hoy.getHours()).padStart(2, '0')}:` +
+      `${String(hoy.getMinutes()).padStart(2, '0')}:` +
+      `${String(hoy.getSeconds()).padStart(2, '0')}`;
+
+    const body = {
+      id_socio: renovSel.id_socio,
+      monto_afiliacion_papeleria: Number(montoAfiliacion),
+      fecha_hora,
+      periodo_renovacion: periodoYmd,
+      estatus: 'AFILIACION PAGADA',
+    };
+
+    const respuesta = await fetch(
+      `${SUPABASE_URL}/rest/v1/pago_afiliaciones`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (!respuesta.ok) {
+      const detalle = await respuesta.text();
+
+      if (
+        respuesta.status === 409 ||
+        detalle.includes('uq_pago_afiliacion_socio_periodo')
+      ) {
+        setErrorRenovacion(
+          'La afiliación de este socio ya fue pagada para el periodo actual.'
+        );
+        return;
+      }
+
+      throw new Error('No se pudo registrar la afiliación.');
+    }
+
+    setAcumAfiliaciones(
+      (prev) => prev + Number(montoAfiliacion || 0)
+    );
+
+    setProximasRenovaciones((prev) =>
+      prev.filter(
+        (s) => s.id_socio !== renovSel.id_socio
+      )
+    );
+
+    cerrarRenovar();
+  } catch (e) {
+    setErrorRenovacion(
+      e?.message || 'No se pudo renovar la afiliación.'
+    );
+  }
+};
 
       const r = await fetch(`${SUPABASE_URL}/rest/v1/pago_afiliaciones`, {
         method: 'POST',
@@ -508,6 +647,11 @@ const afiliacionesFiltradas = useMemo(() => {
               Renovar afiliación — Socio #{renovSel.id_socio}
             </h3>
             <div className="space-y-4">
+              {errorRenovacion && (
+  <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm">
+    {errorRenovacion}
+  </div>
+)}
               <div>
                 <label className="block text-sm text-slate-700 mb-1">Monto de afiliación</label>
                 <input
