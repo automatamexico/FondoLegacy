@@ -9,6 +9,7 @@ const AforeAfiliadoFichaModal = ({ afiliado, onClose, bucketName }) => {
   const [referenciaBancaria, setReferenciaBancaria] = useState(null);
   const [loadingExtras, setLoadingExtras] = useState(false);
   const [extrasError, setExtrasError] = useState("");
+  const [previewFile, setPreviewFile] = useState(null);
 
   const avatarFallback = (a) => {
     const n1 = (a?.nombre || "A").trim().charAt(0).toUpperCase();
@@ -273,24 +274,32 @@ setReferenciaBancaria(null);
                     {(foto || doc) && (
                       <div className="text-sm text-slate-700 mt-2 flex flex-col gap-1">
                         {foto && (
-                          <a
-                            href={foto}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-blue-600 hover:underline"
-                          >
-                            Ver foto
-                          </a>
+                         <button
+  type="button"
+  onClick={() =>
+    setPreviewFile({
+      type: "image",
+      url: foto,
+    })
+  }
+  className="text-blue-600 hover:underline"
+>
+  Ver foto
+</button>
                         )}
                         {doc && (
-                          <a
-                            href={doc}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-blue-600 hover:underline"
-                          >
-                            Ver documento
-                          </a>
+                          <button
+  type="button"
+  onClick={() =>
+    setPreviewFile({
+      type: "pdf",
+      url: doc,
+    })
+  }
+  className="text-blue-600 hover:underline"
+>
+  Ver documento
+</button>
                         )}
                       </div>
                     )}
@@ -349,14 +358,48 @@ setReferenciaBancaria(null);
   )}
 </div>
        
-        <div className="flex justify-end mt-6">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Cerrar
-          </button>
+       <div className="flex justify-end mt-6">
+  <button
+    onClick={onClose}
+    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+  >
+    Cerrar
+  </button>
+</div>
+
+{/* PREVIEW FOTO / PDF */}
+{previewFile && (
+  <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[9999]">
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] relative overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setPreviewFile(null)}
+        className="absolute top-3 right-3 z-20 bg-red-600 text-white w-10 h-10 rounded-full text-xl"
+      >
+        ✕
+      </button>
+
+      {previewFile.type === "image" && (
+        <div className="w-full h-full flex items-center justify-center bg-slate-100 p-4">
+          <img
+            src={previewFile.url}
+            alt=""
+            className="max-w-full max-h-full object-contain"
+          />
         </div>
+      )}
+
+      {previewFile.type === "pdf" && (
+        <iframe
+          src={previewFile.url}
+          title="Documento"
+          className="w-full h-full"
+        />
+      )}
+    </div>
+  </div>
+)}
+
       </div>
     </div>
   );
