@@ -358,7 +358,15 @@ const afiliacionesFiltradas = useMemo(() => {
               <p className="text-2xl font-bold text-blue-600">{proximasRenovaciones.length}</p>
             </div>
           </div>
-          <p className="text-xs text-slate-500">Click para ver el detalle</p>
+        <button
+  onClick={(e) => {
+    e.stopPropagation();
+    abrirModalRenovaciones();
+  }}
+  className="mt-2 text-sm font-semibold text-blue-600 hover:text-blue-700 transition-all"
+>
+  Ver próximas afiliaciones →
+</button>
         </button>
 
        {/* Acumulado de Afiliaciones */}
