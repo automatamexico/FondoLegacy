@@ -324,15 +324,39 @@ const payload = {
                   key={affiliate.id_afiliado}
                   className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4"
                 >
-                  <div>
-                    <p className="text-xs text-slate-500">
-                      Afiliado #{affiliate.id_afiliado}
-                    </p>
+                 <div className="space-y-2">
+  <div>
+    <p className="text-xs text-slate-500">
+      ID de Afiliado
+    </p>
 
-                    <p className="font-semibold text-slate-900">
-                      {affiliate.nombreCompleto}
-                    </p>
-                  </div>
+    <p className="font-semibold text-slate-900">
+      {affiliate.id_afiliado}
+    </p>
+  </div>
+
+<div className="space-y-2">
+  <div>
+    <p className="text-xs text-slate-500">
+      ID de Afiliado
+    </p>
+
+    <p className="font-semibold text-slate-900">
+      {affiliate.id_afiliado}
+    </p>
+  </div>
+
+  <div>
+    <p className="text-xs text-slate-500">
+      Nombre
+    </p>
+
+    <p className="font-semibold text-slate-900">
+      {affiliate.nombreCompleto}
+    </p>
+  </div>
+</div>
+</div>
 
                   <div>
                     <p className="text-xs text-slate-500">
@@ -344,22 +368,29 @@ const payload = {
                     </p>
                   </div>
 
-                  <div>
-                    <p className="text-xs text-slate-500">
-                      Última aportación
-                    </p>
+                 <div>
+  <p className="text-xs text-slate-500">
+    Última aportación
+  </p>
 
-                    <p className="font-medium text-slate-900">
-                      {affiliate.ultimaAportacion
-                        ? `${money(
-                            affiliate.ultimaAportacion.ahorro_aportado
-                          )} · ${dateText(
-                            affiliate.ultimaAportacion.fecha
-                          )}`
-                        : "Sin aportaciones"}
-                    </p>
-                  </div>
+  {affiliate.ultimaAportacion ? (
+    <div className="mt-1 space-y-1">
+      <p className="font-semibold text-slate-900">
+        {money(affiliate.ultimaAportacion.ahorro_aportado)}
+      </p>
 
+      <p className="text-sm text-slate-700">
+        {affiliate.ultimaAportacion.fecha_hora
+          ? dateTimeText(affiliate.ultimaAportacion.fecha_hora)
+          : dateText(affiliate.ultimaAportacion.fecha)}
+      </p>
+    </div>
+  ) : (
+    <p className="font-medium text-slate-900">
+      Sin aportaciones
+    </p>
+  )}
+</div>
                   <div className="flex flex-col gap-2">
                     <button
                       type="button"
