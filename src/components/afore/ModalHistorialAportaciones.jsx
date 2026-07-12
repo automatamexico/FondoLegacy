@@ -41,11 +41,17 @@ const ModalHistorialAportaciones = ({ afiliado, onClose }) => {
             <h3 className="text-xl font-bold text-slate-900">
               Historial de aportaciones
             </h3>
+<div className="mt-1 text-sm text-slate-600 space-y-1">
+  <div>
+    <span className="font-semibold">ID de Afiliado:</span>{" "}
+    {afiliado.id_afiliado}
+  </div>
 
-            <p className="text-sm text-slate-500">
-              #{afiliado.id_afiliado} — {afiliado.nombreCompleto}
-            </p>
-          </div>
+  <div>
+    <span className="font-semibold">Nombre:</span>{" "}
+    {afiliado.nombreCompleto}
+  </div>
+</div>
 
           <button
             type="button"
@@ -83,9 +89,17 @@ const ModalHistorialAportaciones = ({ afiliado, onClose }) => {
                       </p>
                     </div>
 
-                    <span className="text-sm font-medium text-slate-700">
-                      {dateText(mov.fecha || mov.fecha_hora)}
-                    </span>
+                    <span className="text-sm font-medium text-slate-700 text-right">
+  {mov.fecha_hora
+    ? new Date(mov.fecha_hora).toLocaleString("es-MX", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : dateText(mov.fecha)}
+</span>
                   </div>
 
                   {mov.notas && (
