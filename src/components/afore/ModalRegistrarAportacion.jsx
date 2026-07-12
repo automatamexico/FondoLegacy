@@ -107,12 +107,13 @@ const ModalRegistrarAportacion = ({
               Concepto
             </label>
 
-           <input
-  type="text"
-  value="Aportación"
-  readOnly
-  className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 cursor-not-allowed"
-/>
+            <input
+              type="text"
+              value="Aportación"
+              readOnly
+              className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 cursor-not-allowed"
+            />
+          </div>
 
           <div>
             <label className="block text-sm text-slate-700 mb-1">
