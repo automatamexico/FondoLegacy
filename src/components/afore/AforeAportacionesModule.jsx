@@ -201,18 +201,21 @@ const AforeAportacionesModule = () => {
     setSaving(true);
 
     try {
-      const localTime = new Date().toTimeString().slice(0, 8);
+     const ahora = new Date();
 
-      const payload = {
-        id_afiliado: Number(form.id_afiliado),
-        ahorro_aportado: amount,
-        fecha: form.fecha,
-        fecha_hora: new Date(
-          `${form.fecha}T${localTime}`
-        ).toISOString(),
-        concepto: form.concepto.trim() || "Aportación",
-        notas: form.notas.trim() || null,
-      };
+const horaLocal =
+  `${String(ahora.getHours()).padStart(2, "0")}:` +
+  `${String(ahora.getMinutes()).padStart(2, "0")}:` +
+  `${String(ahora.getSeconds()).padStart(2, "0")}`;
+
+const payload = {
+  id_afiliado: Number(form.id_afiliado),
+  ahorro_aportado: amount,
+  fecha: form.fecha,
+  fecha_hora: `${form.fecha}T${horaLocal}-06:00`,
+  concepto: "Aportación",
+  notas: form.notas.trim() || null,
+};
 
       const { data, error: insertError } = await supabase
         .from("ahorro_afore")
