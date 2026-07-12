@@ -40,7 +40,21 @@ const dateText = (value) => {
         year: "numeric",
       });
 };
+const dateTimeText = (value) => {
+  if (!value) return "—";
 
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? String(value)
+    : date.toLocaleString("es-MX", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+};
 const AforeAportacionesModule = () => {
   const [afiliados, setAfiliados] = useState([]);
   const [aportaciones, setAportaciones] = useState([]);
@@ -324,18 +338,8 @@ const payload = {
                   key={affiliate.id_afiliado}
                   className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4"
                 >
-                 <div className="space-y-2">
-  <div>
-    <p className="text-xs text-slate-500">
-      ID de Afiliado
-    </p>
-
-    <p className="font-semibold text-slate-900">
-      {affiliate.id_afiliado}
-    </p>
-  </div>
-
-<div className="space-y-2">
+                 
+<div className="space-y-3">
   <div>
     <p className="text-xs text-slate-500">
       ID de Afiliado
@@ -355,7 +359,6 @@ const payload = {
       {affiliate.nombreCompleto}
     </p>
   </div>
-</div>
 </div>
 
                   <div>
