@@ -60,6 +60,8 @@ const onlyDigitsMax = (v = '', max = 999) => onlyDigits(v).slice(0, max);
 const SociosModule = ({ currentUser }) => {
   const [sociosList, setSociosList] = useState([]);
   const [searchSocio, setSearchSocio] = useState('');
+  const [filtroDocumentacion, setFiltroDocumentacion] = useState('todos');
+const [socioConFaltantes, setSocioConFaltantes] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [showConfirmRegistro, setShowConfirmRegistro] = useState(false);
   const [editingSocio, setEditingSocio] = useState(null);
@@ -158,9 +160,27 @@ const isAdmin =
 
 const getCurrentUserId = () =>
   currentUser?.id_usuario || currentUser?.id || currentUser?.usuario_id || null;
-  const sociosFiltrados = sociosList.filter((socio) => {
-  const texto = `${socio.id_socio} ${socio.nombre || ''} ${socio.apellido_paterno || ''} ${socio.apellido_materno || ''}`.toLowerCase();
-  return texto.includes(searchSocio.toLowerCase());
+const sociosFiltrados = sociosList.filter((socio) => {
+  const texto = `
+    ${socio.id_socio}
+    ${socio.nombre || ''}
+    ${socio.apellido_paterno || ''}
+    ${socio.apellido_materno || ''}
+  `.toLowerCase();
+
+  const coincideBusqueda = texto.includes(searchSocio.toLowerCase());
+
+  let coincideDocumentacion = true;
+
+  if (filtroDocumentacion === 'incompletos') {
+    coincideDocumentacion = !socio.documentacion_completa;
+  }
+
+  if (filtroDocumentacion === 'completos') {
+    coincideDocumentacion = socio.documentacion_completa;
+  }
+
+  return coincideBusqueda && coincideDocumentacion;
 });
 
 
@@ -218,28 +238,175 @@ useEffect(() => {
   cargarPermisosSocios();
 }, [currentUser]);
   const fetchSocios = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/socios?select=*&order=id_socio.asc`, {
+  setLoading(true);
+  setError(null);
+
+  try {
+    // ================= CARGAR SOCIOS =================
+    const sociosRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/socios?select=*&order=id_socio.asc`,
+      {
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         },
-      });
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(`Error al cargar socios: ${res.statusText} - ${e.message || 'Error desconocido'}`);
       }
-      const data = await res.json();
-      setSociosList(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    );
+
+    if (!sociosRes.ok) {
+      const e = await sociosRes.json().catch(() => ({}));
+      throw new Error(
+        `Error al cargar socios: ${sociosRes.statusText} - ${
+          e.message || 'Error desconocido'
+        }`
+      );
     }
-  };
+
+    const sociosData = await sociosRes.json();
+
+    // ================= CARGAR INFORMACIÓN RELACIONADA =================
+    const [refsRes, beneficiariosRes, bancosRes] = await Promise.all([
+      fetch(
+        `${SUPABASE_URL}/rest/v1/refs_fondo?select=id_socio,nombre,telefono,direccion`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+        }
+      ),
+
+      fetch(
+        `${SUPABASE_URL}/rest/v1/beneficiarios_fondo?select=id_socio,nombre,telefono,direccion,foto_url,documentos_url`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+        }
+      ),
+
+      fetch(
+        `${SUPABASE_URL}/rest/v1/referencias_bancarias?select=id_socio,entidad_bancaria,titular_cuenta,numero_cuenta,cuenta_clave`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+        }
+      ),
+    ]);
+
+    const refsData = refsRes.ok ? await refsRes.json() : [];
+    const beneficiariosData = beneficiariosRes.ok
+      ? await beneficiariosRes.json()
+      : [];
+    const bancosData = bancosRes.ok ? await bancosRes.json() : [];
+
+    // Crear mapas para localizar rápidamente la información
+    const referenciasMap = new Map();
+    refsData.forEach((item) => {
+      referenciasMap.set(String(item.id_socio), item);
+    });
+
+    const beneficiariosMap = new Map();
+    beneficiariosData.forEach((item) => {
+      beneficiariosMap.set(String(item.id_socio), item);
+    });
+
+    const bancosMap = new Map();
+    bancosData.forEach((item) => {
+      bancosMap.set(String(item.id_socio), item);
+    });
+
+    // ================= DETECTAR INFORMACIÓN FALTANTE =================
+    const sociosConEstado = sociosData.map((socio) => {
+      const idSocio = String(socio.id_socio);
+      const faltantes = [];
+
+      const referencia = referenciasMap.get(idSocio);
+
+      if (!referencia) {
+        faltantes.push('Referencia personal');
+      } else {
+        if (!referencia.nombre?.trim()) {
+          faltantes.push('Nombre de referencia personal');
+        }
+
+        if (!referencia.telefono?.trim()) {
+          faltantes.push('Teléfono de referencia personal');
+        }
+
+        if (!referencia.direccion?.trim()) {
+          faltantes.push('Dirección de referencia personal');
+        }
+      }
+
+      const beneficiario = beneficiariosMap.get(idSocio);
+
+      if (!beneficiario) {
+        faltantes.push('Beneficiario');
+        faltantes.push('Foto del beneficiario');
+        faltantes.push('Documento PDF del beneficiario');
+      } else {
+        if (!beneficiario.nombre?.trim()) {
+          faltantes.push('Nombre del beneficiario');
+        }
+
+        if (!beneficiario.telefono?.trim()) {
+          faltantes.push('Teléfono del beneficiario');
+        }
+
+        if (!beneficiario.direccion?.trim()) {
+          faltantes.push('Dirección del beneficiario');
+        }
+
+        if (!beneficiario.foto_url?.trim()) {
+          faltantes.push('Foto del beneficiario');
+        }
+
+        if (!beneficiario.documentos_url?.trim()) {
+          faltantes.push('Documento PDF del beneficiario');
+        }
+      }
+
+      const banco = bancosMap.get(idSocio);
+
+      if (!banco) {
+        faltantes.push('Referencia bancaria');
+      } else {
+        if (!banco.entidad_bancaria?.trim()) {
+          faltantes.push('Entidad bancaria');
+        }
+
+        if (!banco.titular_cuenta?.trim()) {
+          faltantes.push('Titular de la cuenta');
+        }
+
+        if (!banco.numero_cuenta?.trim()) {
+          faltantes.push('Número de cuenta');
+        }
+
+        if (!banco.cuenta_clave?.trim()) {
+          faltantes.push('Cuenta CLABE');
+        }
+      }
+
+      return {
+        ...socio,
+        documentacion_completa: faltantes.length === 0,
+        informacion_faltante: faltantes,
+      };
+    });
+
+    setSociosList(sociosConEstado);
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   /** Validación rápida de foto */
   const validatePhoto = (file) => {
@@ -1437,15 +1604,25 @@ const openFicha = async (socio) => {
       Todos los Socios
     </h3>
 
-    <div className="mb-4">
-      <input
-        type="text"
-        value={searchSocio}
-        onChange={(e) => setSearchSocio(e.target.value)}
-        placeholder="Buscar por ID o nombre del socio..."
-        className="w-full px-4 py-3 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-      />
-    </div>
+    <div className="mb-4 grid grid-cols-1 md:grid-cols-[1fr_260px] gap-3">
+  <input
+    type="text"
+    value={searchSocio}
+    onChange={(e) => setSearchSocio(e.target.value)}
+    placeholder="Buscar por ID o nombre del socio..."
+    className="w-full px-4 py-3 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+  />
+
+  <select
+    value={filtroDocumentacion}
+    onChange={(e) => setFiltroDocumentacion(e.target.value)}
+    className="w-full px-4 py-3 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-500"
+  >
+    <option value="todos">Todos los socios</option>
+    <option value="incompletos">⚠ Información incompleta</option>
+    <option value="completos">✓ Información completa</option>
+  </select>
+</div>
 
     {/* Vista móvil */}
     <div className="md:hidden space-y-3">
@@ -1461,6 +1638,27 @@ const openFicha = async (socio) => {
               alt="avatar"
               className="w-14 h-14 rounded-full object-cover border shrink-0"
             />
+
+                {!socio.documentacion_completa && (
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      setSocioConFaltantes(socio);
+    }}
+    className="shrink-0 text-amber-500"
+    aria-label="Ver información faltante"
+  >
+    <svg
+      className="w-7 h-7"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M12.87 3.5a1 1 0 0 0-1.74 0L2.4 18.5A1 1 0 0 0 3.27 20h17.46a1 1 0 0 0 .87-1.5L12.87 3.5ZM12 8a1 1 0 0 1 1 1v4a1 1 0 1 1-2 0V9a1 1 0 0 1 1-1Zm0 9a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 12 17Z" />
+    </svg>
+  </button>
+)}
 
             <div className="min-w-0">
               <p className="text-xs text-slate-500">
@@ -1580,13 +1778,36 @@ const openFicha = async (socio) => {
               className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
               onClick={() => openFicha(socio)}
             >
-              <td className="py-3 px-4">
-                <img
-                  src={socio.foto_url || avatarFallback(socio)}
-                  alt="avatar"
-                  className="w-10 h-10 rounded-full object-cover border"
-                />
-              </td>
+             <td className="py-3 px-4">
+  <div className="flex items-center gap-2">
+    <img
+      src={socio.foto_url || avatarFallback(socio)}
+      alt="avatar"
+      className="w-10 h-10 rounded-full object-cover border"
+    />
+
+    {!socio.documentacion_completa && (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setSocioConFaltantes(socio);
+        }}
+        title={`Información pendiente: ${socio.informacion_faltante.join(', ')}`}
+        className="shrink-0 text-amber-500 hover:text-amber-600"
+      >
+        <svg
+          className="w-6 h-6"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path d="M12.87 3.5a1 1 0 0 0-1.74 0L2.4 18.5A1 1 0 0 0 3.27 20h17.46a1 1 0 0 0 .87-1.5L12.87 3.5ZM12 8a1 1 0 0 1 1 1v4a1 1 0 1 1-2 0V9a1 1 0 0 1 1-1Zm0 9a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 12 17Z" />
+        </svg>
+      </button>
+    )}
+  </div>
+</td>
 
               <td className="py-3 px-4 text-slate-700">
                 {socio.id_socio}
@@ -1779,6 +2000,89 @@ const openFicha = async (socio) => {
         >
           Guardar
         </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* MODAL INFORMACIÓN FALTANTE */}
+{socioConFaltantes && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]">
+    <div className="bg-white rounded-2xl shadow-xl p-5 md:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+            <svg
+              className="w-7 h-7"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M12.87 3.5a1 1 0 0 0-1.74 0L2.4 18.5A1 1 0 0 0 3.27 20h17.46a1 1 0 0 0 .87-1.5L12.87 3.5ZM12 8a1 1 0 0 1 1 1v4a1 1 0 1 1-2 0V9a1 1 0 0 1 1-1Zm0 9a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 12 17Z" />
+            </svg>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">
+              Información pendiente
+            </h3>
+
+            <p className="text-sm text-slate-600">
+              {socioConFaltantes.nombre}{' '}
+              {socioConFaltantes.apellido_paterno}{' '}
+              {socioConFaltantes.apellido_materno}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setSocioConFaltantes(null)}
+          className="text-slate-500 hover:text-slate-800 text-xl"
+        >
+          ✕
+        </button>
+      </div>
+
+      <p className="text-sm text-slate-600 mb-3">
+        Debe completar los siguientes datos:
+      </p>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+        <ul className="space-y-2">
+          {socioConFaltantes.informacion_faltante.map((dato) => (
+            <li
+              key={dato}
+              className="flex items-start gap-2 text-sm text-slate-800"
+            >
+              <span className="text-amber-500 font-bold">⚠</span>
+              <span>{dato}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="flex flex-col md:flex-row justify-end gap-3 mt-5">
+        <button
+          type="button"
+          onClick={() => setSocioConFaltantes(null)}
+          className="w-full md:w-auto px-4 py-2 bg-slate-200 text-slate-800 rounded-xl font-medium"
+        >
+          Cerrar
+        </button>
+
+        {permisosSocios.puede_editar && (
+          <button
+            type="button"
+            onClick={() => {
+              const socio = socioConFaltantes;
+              setSocioConFaltantes(null);
+              handleEditClick(socio);
+            }}
+            className="w-full md:w-auto px-4 py-2 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700"
+          >
+            Completar información
+          </button>
+        )}
       </div>
     </div>
   </div>
