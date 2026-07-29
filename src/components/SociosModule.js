@@ -446,15 +446,27 @@ if (!String(banco.cuenta_clave || '').trim()) {
   const handleChooseFile = () => fileInputRef.current?.click();
 
   const handleFileChange = (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    const v = validatePhoto(f);
-    setPhotoError(v);
-    if (!v) {
-      setPhotoFile(f);
-      setPhotoPreview(URL.createObjectURL(f));
+  const file = e.target.files?.[0];
+
+  if (!file) return;
+
+  const validationError = validatePhoto(file);
+
+  setPhotoError(validationError);
+
+  if (validationError) {
+    setPhotoFile(null);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
-  };
+
+    return;
+  }
+
+  setPhotoFile(file);
+  setPhotoPreview(URL.createObjectURL(file));
+};
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -466,50 +478,76 @@ if (!String(banco.cuenta_clave || '').trim()) {
   };
 
   const handleDrop = (e) => {
-    e.preventDefault();
-    dropRef.current?.classList.remove('ring-2', 'ring-emerald-500');
-    const f = e.dataTransfer.files?.[0];
-    if (!f) return;
-    const v = validatePhoto(f);
-    setPhotoError(v);
-    if (!v) {
-      setPhotoFile(f);
-      setPhotoPreview(URL.createObjectURL(f));
-    }
-  };
+  e.preventDefault();
+
+  dropRef.current?.classList.remove(
+    'ring-2',
+    'ring-emerald-500'
+  );
+
+  const file = e.dataTransfer.files?.[0];
+
+  if (!file) return;
+
+  const validationError = validatePhoto(file);
+
+  setPhotoError(validationError);
+
+  if (validationError) {
+    setPhotoFile(null);
+    return;
+  }
+
+  setPhotoFile(file);
+  setPhotoPreview(URL.createObjectURL(file));
+};
 
   /** Subida a Supabase Storage y retorna URL pública */
   const uploadPhotoToSupabase = async (socioId) => {
-    if (!photoFile) return null;
-    setPhotoUploading(true);
-    try {
-      const ext = photoFile.type === 'image/png' ? 'png' : 'jpg';
-      const path = `socio_${socioId}.${ext}`;
-      const uploadUrl = `${SUPABASE_URL}/storage/v1/object/fotos-socios/${encodeURIComponent(path)}?upsert=true`;
+  if (!photoFile) return null;
 
-      const upRes = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': photoFile.type,
-          'x-upsert': 'true',
-          'cache-control': '3600',
-        },
-        body: photoFile,
-      });
+  setPhotoUploading(true);
 
-      if (!upRes.ok) {
-        const e = await upRes.json().catch(() => ({}));
-        throw new Error(`Error subiendo foto: ${upRes.statusText} - ${e.message || ''}`);
-      }
+  try {
+    const extension =
+      photoFile.name?.split('.').pop()?.toLowerCase() ||
+      (photoFile.type === 'image/png' ? 'png' : 'jpg');
 
-      const publicURL = `${SUPABASE_URL}/storage/v1/object/public/fotos-socios/${encodeURIComponent(path)}`;
-      return publicURL;
-    } finally {
-      setPhotoUploading(false);
+    const path = `socio_${socioId}.${extension}`;
+
+    const uploadUrl =
+      `${SUPABASE_URL}/storage/v1/object/fotos-socios/${encodeURIComponent(path)}`;
+
+    const upRes = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': photoFile.type || 'image/jpeg',
+        'x-upsert': 'true',
+        'cache-control': '0',
+      },
+      body: photoFile,
+    });
+
+    if (!upRes.ok) {
+      const errorText = await upRes.text();
+
+      console.error('ERROR SUBIENDO FOTO DEL SOCIO:', errorText);
+
+      throw new Error(
+        `No se pudo subir la foto del socio: ${errorText}`
+      );
     }
-  };
+
+    return (
+      `${SUPABASE_URL}/storage/v1/object/public/fotos-socios/` +
+      `${encodeURIComponent(path)}?v=${Date.now()}`
+    );
+  } finally {
+    setPhotoUploading(false);
+  }
+};
   
 const uploadPhotoToAforeBucket = async (socioId) => {
   if (!photoFile) return null;
@@ -598,6 +636,9 @@ const uploadPhotoToAforeBucket = async (socioId) => {
   setPhotoFile(null);
   setPhotoPreview('');
   setPhotoError('');
+    if (fileInputRef.current) {
+  fileInputRef.current.value = '';
+}
 
   setEditingSocio(null);
   setShowForm(false);
@@ -706,7 +747,48 @@ socioId = socio.id_socio;
 
    
     }
+// ================= FOTO DEL SOCIO =================
+if (photoFile) {
+  const fotoUrl = await uploadPhotoToSupabase(socioId);
 
+  if (!fotoUrl) {
+    throw new Error('No se obtuvo la URL de la foto del socio.');
+  }
+
+  const updateFotoRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify({
+        foto_url: fotoUrl,
+      }),
+    }
+  );
+
+  if (!updateFotoRes.ok) {
+    const errorText = await updateFotoRes.text();
+
+    console.error(
+      'ERROR GUARDANDO URL DE FOTO DEL SOCIO:',
+      errorText
+    );
+
+    throw new Error(
+      `La foto se subió, pero no se pudo guardar su URL: ${errorText}`
+    );
+  }
+
+  socio = {
+    ...socio,
+    foto_url: fotoUrl,
+  };
+}
     // ================= REFERENCIA PERSONAL =================
     if (referencia.nombre.trim() !== '') {
 
@@ -1416,10 +1498,10 @@ const openFicha = async (socio) => {
 )}
 
 
-{/* Subida de foto */}
+{/* ================= FOTO DEL SOCIO ================= */}
 <div className="col-span-full">
-  <label className="block text-sm font-medium text-slate-700 mb-1">
-    Foto del socio (JPG o PNG)
+  <label className="block text-sm font-semibold text-slate-700 mb-2">
+    Foto del socio
   </label>
 
   <div
@@ -1427,36 +1509,130 @@ const openFicha = async (socio) => {
     onDragOver={handleDragOver}
     onDragLeave={handleDragLeave}
     onDrop={handleDrop}
-    className="border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col md:flex-row items-center gap-4"
+    className="
+      w-full
+      border-2
+      border-dashed
+      border-slate-300
+      rounded-2xl
+      bg-slate-50
+      p-5
+      flex
+      flex-col
+      md:flex-row
+      items-center
+      gap-5
+    "
   >
-    <img
-      src={photoPreview || avatarFallback(newSocio)}
-      alt="preview"
-      className="w-20 h-20 rounded-full object-cover border"
-    />
-    <div className="flex-1 text-slate-600">
-      <p className="font-medium">Arrastra y suelta la foto aquí</p>
-      <p className="text-sm">o</p>
-      <button
-        type="button"
-        onClick={handleChooseFile}
-        className="mt-2 px-3 py-1.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900"
-      >
-        Elegir archivo
-      </button>
+    <div className="shrink-0">
+      <img
+        src={photoPreview || avatarFallback(newSocio)}
+        alt="Vista previa del socio"
+        className="
+          w-24
+          h-24
+          rounded-full
+          object-cover
+          border-4
+          border-white
+          shadow
+        "
+      />
+    </div>
+
+    <div className="flex-1 w-full text-center md:text-left">
+      <p className="font-semibold text-slate-800">
+        {photoFile
+          ? photoFile.name
+          : photoPreview
+            ? 'Foto actual del socio'
+            : 'No se ha seleccionado ninguna foto'}
+      </p>
+
+      <p className="text-sm text-slate-500 mt-1">
+        Formatos permitidos: JPG y PNG. Tamaño máximo: 5 MB.
+      </p>
+
+      <p className="hidden md:block text-sm text-slate-500 mt-1">
+        También puedes arrastrar una imagen a esta área.
+      </p>
+
+      <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center md:justify-start">
+        <button
+          type="button"
+          onClick={handleChooseFile}
+          disabled={photoUploading || saving}
+          className="
+            w-full
+            sm:w-auto
+            px-4
+            py-2.5
+            bg-slate-800
+            text-white
+            rounded-xl
+            hover:bg-slate-900
+            disabled:opacity-50
+            font-medium
+          "
+        >
+          {photoPreview ? 'Cambiar foto' : 'Seleccionar foto'}
+        </button>
+
+        {photoFile && (
+          <button
+            type="button"
+            onClick={() => {
+              setPhotoFile(null);
+
+              setPhotoPreview(
+                editingSocio?.foto_url || ''
+              );
+
+              setPhotoError('');
+
+              if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+              }
+            }}
+            className="
+              w-full
+              sm:w-auto
+              px-4
+              py-2.5
+              bg-slate-200
+              text-slate-700
+              rounded-xl
+              hover:bg-slate-300
+              font-medium
+            "
+          >
+            Cancelar selección
+          </button>
+        )}
+      </div>
+
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/png,image/jpeg"
+        accept="image/jpeg,image/png"
         className="hidden"
         onChange={handleFileChange}
       />
-      {photoError && <p className="text-sm text-red-600 mt-2">{photoError}</p>}
-      {photoUploading && <p className="text-sm text-slate-500 mt-2">Subiendo foto…</p>}
+
+      {photoError && (
+        <p className="mt-3 text-sm font-medium text-red-600">
+          {photoError}
+        </p>
+      )}
+
+      {photoUploading && (
+        <p className="mt-3 text-sm font-medium text-blue-600">
+          Subiendo foto del socio...
+        </p>
+      )}
     </div>
   </div>
 </div>
-
 {/* ================= REFERENCIAS PERSONALES ================= */}
 <div className="col-span-full border-t-2 border-blue-600 pt-6 mt-6">
   <h4 className="font-semibold text-slate-800 mb-4">
