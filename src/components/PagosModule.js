@@ -540,14 +540,14 @@ const pagarDesdeVencidos = (pago) => {
       const nowLocalPlain = localPlainDateTime();
       const soloFecha = nowLocalPlain.slice(0, 10);
 
-     const body = {
+    const body = {
   fecha_pago: soloFecha,
   fecha_hora_pago: nowLocalPlain,
   estatus: 'pagado',
   monto_pagado: monto,
   interes_pagado,
   capital_pagado,
-  forma_pago: textoMayusculas(formaPago),
+  forma_pago: formaPago,
   nota: textoMayusculas(nota) || null
 };
 
@@ -563,7 +563,18 @@ const pagarDesdeVencidos = (pago) => {
           body: JSON.stringify(body)
         }
       );
-      if (!r.ok) throw new Error('No se pudo registrar el pago');
+     if (!r.ok) {
+  const detalleError = await r.text();
+
+  console.error(
+    'ERROR REGISTRANDO PAGO:',
+    detalleError
+  );
+
+  throw new Error(
+    `No se pudo registrar el pago: ${detalleError}`
+  );
+}
 
       // NUEVO: si seleccionó "Multa por hoja = Sí", registrar en pago_multas
       if (multaHoja === 'si' && Number(montoMultaHoja) > 0 && socioSel?.id_socio) {
@@ -606,8 +617,16 @@ const pagarDesdeVencidos = (pago) => {
       setMultaHoja('no');
       setMontoMultaHoja('');
     } catch (e) {
-      alert('No se pudo registrar el pago.');
-    } finally {
+  console.error(
+    'ERROR COMPLETO AL APLICAR PAGO:',
+    e
+  );
+
+  alert(
+    e.message ||
+      'No se pudo registrar el pago.'
+  );
+} finally {
       setSaving(false);
     }
   };
