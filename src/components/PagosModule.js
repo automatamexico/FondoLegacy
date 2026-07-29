@@ -59,6 +59,20 @@ const PagosModule = ({ idSocio }) => {
   const [recibidosHoyCount, setRecibidosHoyCount] = useState(0);
   const [recibidosHoyMonto, setRecibidosHoyMonto] = useState(0);
   const [vencidos, setVencidos] = useState(0);
+  const [showVencidosModal, setShowVencidosModal] =
+  useState(false);
+
+const [pagosVencidosList, setPagosVencidosList] =
+  useState([]);
+
+const [loadingVencidos, setLoadingVencidos] =
+  useState(false);
+
+const [errorVencidos, setErrorVencidos] =
+  useState('');
+
+const [vencidoSeleccionado, setVencidoSeleccionado] =
+  useState(null);
 
   useEffect(() => {
     (async () => {
@@ -183,24 +197,163 @@ const PagosModule = ({ idSocio }) => {
     }
   };
 
-  const verPrestamos = async () => {
-    if (!socioSel) return;
+  const abrirPagosVencidos = async () => {
+  setShowVencidosModal(true);
+  setLoadingVencidos(true);
+  setErrorVencidos('');
+  setPagosVencidosList([]);
+  setVencidoSeleccionado(null);
+
+  try {
+    const hoy = toDateInput(new Date());
+
+    // Consultar pagos vencidos
+    const pagosRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_programada=lt.${hoy}&estatus=eq.pendiente&select=id_pago,id_prestamo,id_socio,numero_pago,fecha_programada,monto_pago,estatus&order=fecha_programada.asc`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    if (!pagosRes.ok) {
+      const detalle = await pagosRes.text();
+
+      throw new Error(
+        `No se pudieron cargar los pagos vencidos: ${detalle}`
+      );
+    }
+
+    const pagosData = await pagosRes.json();
+
+    if (!pagosData || pagosData.length === 0) {
+      setPagosVencidosList([]);
+      return;
+    }
+
+    // Obtener IDs únicos de socios
+    const sociosIds = [
+      ...new Set(
+        pagosData
+          .map((p) => p.id_socio)
+          .filter(Boolean)
+      ),
+    ];
+
+    // Obtener información de los socios
+    let sociosData = [];
+
+    if (sociosIds.length > 0) {
+      const sociosRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/socios?id_socio=in.(${sociosIds.join(
+          ','
+        )})&select=id_socio,nombre,apellido_paterno,apellido_materno,telefono,email`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+        }
+      );
+
+      if (sociosRes.ok) {
+        sociosData = await sociosRes.json();
+      }
+    }
+
+    const sociosMap = new Map();
+
+    sociosData.forEach((socio) => {
+      sociosMap.set(
+        String(socio.id_socio),
+        socio
+      );
+    });
+
+    const pagosEnriquecidos = pagosData.map(
+      (pago) => ({
+        ...pago,
+        socio:
+          sociosMap.get(String(pago.id_socio)) ||
+          null,
+      })
+    );
+
+    setPagosVencidosList(pagosEnriquecidos);
+  } catch (error) {
+    console.error(
+      'ERROR CARGANDO PAGOS VENCIDOS:',
+      error
+    );
+
+    setErrorVencidos(
+      error.message ||
+        'No se pudieron cargar los pagos vencidos.'
+    );
+  } finally {
+    setLoadingVencidos(false);
+  }
+};
+
+ const verPrestamos = async () => {
+  if (!socioSel) return;
+
+  try {
+    setPrestamosSocio([]);
+    setPrestamoSel(null);
+
     const r = await fetch(
       `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioSel.id_socio}&select=id_prestamo,monto_solicitado,numero_plazos,interes,tipo_plazo,estatus`,
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
     );
+
+    if (!r.ok) {
+      throw new Error('No se pudieron consultar los préstamos.');
+    }
+
     const data = await r.json();
 
+    if (!data || data.length === 0) {
+      alert('Este socio no cuenta con préstamos actualmente.');
+      return;
+    }
+
     const enriched = await Promise.all(
-      (data || []).map(async (p) => {
-        const liquid = await isPrestamoLiquidado(p.id_prestamo);
-        return { ...p, isLiquidado: liquid || (String(p.estatus || '').toUpperCase() === 'LIQUIDADO') };
+      data.map(async (p) => {
+        const liquid = await isPrestamoLiquidado(
+          p.id_prestamo
+        );
+
+        return {
+          ...p,
+          isLiquidado:
+            liquid ||
+            String(p.estatus || '').toUpperCase() ===
+              'LIQUIDADO',
+        };
       })
     );
 
     setPrestamosSocio(enriched);
-    setPrestamoSel(null);
-  };
+  } catch (error) {
+    console.error(
+      'Error consultando préstamos:',
+      error
+    );
+
+    alert(
+      error.message ||
+        'No se pudieron consultar los préstamos.'
+    );
+  }
+};
 
   const abrirRealizarPago = async () => {
     if (!prestamoSel) return;
@@ -352,24 +505,7 @@ const PagosModule = ({ idSocio }) => {
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Pagos</h2>
           <p className="text-slate-600">Consulta el detalle de pago de los socios</p>
         </div>
-        <button
-  type="button"
-  onClick={() => {
-    buscarSocioRef.current?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center'
-    });
-
-    setTimeout(() => {
-      buscarSocioRef.current?.focus();
-    }, 400);
-  }}
-  className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
->
-  Realizar pago
-</button>
-      </div>
-
+  </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center space-x-3 mb-2">
@@ -403,15 +539,45 @@ const PagosModule = ({ idSocio }) => {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <div className="flex items-center space-x-3 mb-2">
-            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center"><span className="text-purple-600">⏰</span></div>
-            <div>
-              <h3 className="font-semibold text-slate-900">Pagos vencidos</h3>
-              <p className="text-2xl font-bold text-purple-600">{vencidos}</p>
-            </div>
-          </div>
-        </div>
+      <button
+  type="button"
+  onClick={abrirPagosVencidos}
+  className="
+    w-full
+    text-left
+    bg-white
+    rounded-2xl
+    border
+    border-slate-200
+    p-6
+    hover:border-purple-400
+    hover:shadow-md
+    transition-all
+    cursor-pointer
+  "
+>
+  <div className="flex items-center space-x-3 mb-2">
+    <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+      <span className="text-purple-600">
+        ⏰
+      </span>
+    </div>
+
+    <div>
+      <h3 className="font-semibold text-slate-900">
+        Pagos vencidos
+      </h3>
+
+      <p className="text-2xl font-bold text-purple-600">
+        {vencidos}
+      </p>
+
+      <p className="text-xs text-purple-600 mt-1">
+        Clic para consultar
+      </p>
+    </div>
+  </div>
+</button>
       </div>
 
       {/* === BUSCAR SOCIO (solo input + flujo Prestamos/Pago) === */}
@@ -500,6 +666,338 @@ const PagosModule = ({ idSocio }) => {
           </div>
         )}
       </div>
+
+{/* MODAL: PAGOS VENCIDOS */}
+{showVencidosModal && (
+  <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+    <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
+      <div className="flex items-center justify-between gap-3 p-4 md:p-5 border-b border-slate-200">
+        <div>
+          <h3 className="text-lg md:text-xl font-bold text-slate-900">
+            Pagos vencidos
+          </h3>
+
+          <p className="text-sm text-slate-600">
+            Total encontrado:{' '}
+            {pagosVencidosList.length}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setShowVencidosModal(false);
+            setVencidoSeleccionado(null);
+          }}
+          className="px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
+        >
+          Cerrar
+        </button>
+      </div>
+
+      <div className="p-4 md:p-5 max-h-[78vh] overflow-y-auto">
+        {loadingVencidos && (
+          <p className="text-center text-slate-600 py-8">
+            Cargando pagos vencidos...
+          </p>
+        )}
+
+        {!loadingVencidos && errorVencidos && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4">
+            {errorVencidos}
+          </div>
+        )}
+
+        {!loadingVencidos &&
+          !errorVencidos &&
+          pagosVencidosList.length === 0 && (
+            <p className="text-center text-slate-600 py-8">
+              No existen pagos vencidos.
+            </p>
+          )}
+
+        {!loadingVencidos &&
+          !errorVencidos &&
+          pagosVencidosList.length > 0 && (
+            <>
+              {/* Vista móvil */}
+              <div className="md:hidden space-y-3">
+                {pagosVencidosList.map((pago) => {
+                  const socio = pago.socio;
+
+                  const nombreCompleto = socio
+                    ? `${socio.nombre || ''} ${
+                        socio.apellido_paterno || ''
+                      } ${
+                        socio.apellido_materno || ''
+                      }`.trim()
+                    : 'SOCIO NO IDENTIFICADO';
+
+                  const seleccionado =
+                    vencidoSeleccionado?.id_pago ===
+                    pago.id_pago;
+
+                  return (
+                    <div
+                      key={pago.id_pago}
+                      className={`border rounded-xl p-4 space-y-3 ${
+                        seleccionado
+                          ? 'border-purple-500 bg-purple-50'
+                          : 'border-slate-200 bg-slate-50'
+                      }`}
+                    >
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Socio
+                        </p>
+
+                        <p className="font-semibold text-slate-900">
+                          {nombreCompleto}
+                        </p>
+
+                        <p className="text-xs text-slate-500">
+                          ID: {pago.id_socio || '—'}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-slate-500">
+                            Préstamo
+                          </p>
+
+                          <p className="font-medium">
+                            #{pago.id_prestamo}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-slate-500">
+                            Pago
+                          </p>
+
+                          <p className="font-medium">
+                            #{pago.numero_pago}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Fecha vencida
+                        </p>
+
+                        <p className="font-medium text-red-600">
+                          {fmtLongDate(
+                            pago.fecha_programada
+                          )}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Monto pendiente
+                        </p>
+
+                        <p className="text-lg font-bold text-purple-600">
+                          {fmtMoney(pago.monto_pago)}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setVencidoSeleccionado(
+                            seleccionado ? null : pago
+                          )
+                        }
+                        className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700"
+                      >
+                        {seleccionado
+                          ? 'Ocultar detalles'
+                          : 'Ver detalles'}
+                      </button>
+
+                      {seleccionado && (
+                        <div className="bg-white border border-purple-200 rounded-xl p-4 space-y-2 text-sm">
+                          <p>
+                            <strong>Correo:</strong>{' '}
+                            {socio?.email || '—'}
+                          </p>
+
+                          <p>
+                            <strong>Teléfono:</strong>{' '}
+                            {socio?.telefono || '—'}
+                          </p>
+
+                          <p>
+                            <strong>Estatus:</strong>{' '}
+                            PENDIENTE
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Vista escritorio */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200">
+                      <th className="text-left py-3 px-3">
+                        Socio
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Préstamo
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Pago
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Fecha vencida
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Monto
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Acción
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {pagosVencidosList.map((pago) => {
+                      const socio = pago.socio;
+
+                      const nombreCompleto = socio
+                        ? `${socio.nombre || ''} ${
+                            socio.apellido_paterno ||
+                            ''
+                          } ${
+                            socio.apellido_materno ||
+                            ''
+                          }`.trim()
+                        : 'SOCIO NO IDENTIFICADO';
+
+                      const seleccionado =
+                        vencidoSeleccionado?.id_pago ===
+                        pago.id_pago;
+
+                      return (
+                        <React.Fragment
+                          key={pago.id_pago}
+                        >
+                          <tr className="border-b border-slate-100 hover:bg-slate-50">
+                            <td className="py-3 px-3">
+                              <p className="font-medium text-slate-900">
+                                {nombreCompleto}
+                              </p>
+
+                              <p className="text-xs text-slate-500">
+                                ID: {pago.id_socio || '—'}
+                              </p>
+                            </td>
+
+                            <td className="py-3 px-3">
+                              #{pago.id_prestamo}
+                            </td>
+
+                            <td className="py-3 px-3">
+                              #{pago.numero_pago}
+                            </td>
+
+                            <td className="py-3 px-3 text-red-600 font-medium">
+                              {fmtLongDate(
+                                pago.fecha_programada
+                              )}
+                            </td>
+
+                            <td className="py-3 px-3 font-bold text-purple-600">
+                              {fmtMoney(
+                                pago.monto_pago
+                              )}
+                            </td>
+
+                            <td className="py-3 px-3">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setVencidoSeleccionado(
+                                    seleccionado
+                                      ? null
+                                      : pago
+                                  )
+                                }
+                                className="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700"
+                              >
+                                {seleccionado
+                                  ? 'Ocultar'
+                                  : 'Ver detalles'}
+                              </button>
+                            </td>
+                          </tr>
+
+                          {seleccionado && (
+                            <tr className="bg-purple-50">
+                              <td
+                                colSpan="6"
+                                className="px-4 py-4"
+                              >
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                  <div>
+                                    <p className="text-slate-500">
+                                      Correo
+                                    </p>
+
+                                    <p className="font-medium text-slate-900">
+                                      {socio?.email ||
+                                        '—'}
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <p className="text-slate-500">
+                                      Teléfono
+                                    </p>
+
+                                    <p className="font-medium text-slate-900">
+                                      {socio?.telefono ||
+                                        '—'}
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <p className="text-slate-500">
+                                      Estatus
+                                    </p>
+
+                                    <p className="font-medium text-red-600">
+                                      PENDIENTE
+                                    </p>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+      </div>
+    </div>
+  </div>
+)}
 
       {/* MODAL: pagos programados del préstamo */}
       {showPagoModal && (
