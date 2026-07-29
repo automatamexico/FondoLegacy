@@ -134,6 +134,7 @@ const [bancoPersonalizado, setBancoPersonalizado] = useState({
   const [photoUploading, setPhotoUploading] = useState(false);
   const dropRef = useRef(null);
   const fileInputRef = useRef(null);
+  const socioFormRef = useRef(null);
 
   // Ficha (modal de detalles)
   const [showFicha, setShowFicha] = useState(false);
@@ -302,7 +303,20 @@ useEffect(() => {
     const beneficiariosData = beneficiariosRes.ok
       ? await beneficiariosRes.json()
       : [];
-    const bancosData = bancosRes.ok ? await bancosRes.json() : [];
+    if (!bancosRes.ok) {
+  const errorBanco = await bancosRes.text();
+
+  console.error(
+    'ERROR CARGANDO REFERENCIAS BANCARIAS:',
+    errorBanco
+  );
+
+  throw new Error(
+    `No se pudieron cargar las referencias bancarias: ${errorBanco}`
+  );
+}
+
+const bancosData = await bancosRes.json();
 
     // Crear mapas para localizar rápidamente la información
     const referenciasMap = new Map();
@@ -853,17 +867,22 @@ if (beneficiario.nombre.trim() !== '') {
 }
 
   // ================= REFERENCIA BANCARIA =================
-if (String(referenciaBancaria.entidad_bancaria || '').trim() !== '') {
+const entidadSeleccionada = String(
+  referenciaBancaria.entidad_bancaria || ''
+).trim();
+
+if (entidadSeleccionada !== '') {
   const bancoFinal =
-    referenciaBancaria.entidad_bancaria === 'OTRO'
+    entidadSeleccionada === 'OTRO'
       ? String(referenciaBancaria.banco_otro || '').trim()
-      : String(referenciaBancaria.entidad_bancaria || '').trim();
+      : entidadSeleccionada;
 
   if (!bancoFinal) {
     throw new Error('Debe indicar el nombre de la entidad bancaria.');
   }
 
   const bancoPayload = {
+    id_socio: Number(socioId),
     entidad_bancaria: bancoFinal,
     titular_cuenta: String(
       referenciaBancaria.titular_cuenta || ''
@@ -877,73 +896,77 @@ if (String(referenciaBancaria.entidad_bancaria || '').trim() !== '') {
     pais: String(referenciaBancaria.pais || 'México').trim(),
   };
 
-  const checkBanco = await fetch(
-    `${SUPABASE_URL}/rest/v1/referencias_bancarias?id_socio=eq.${socioId}&select=*`,
-    {
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-    }
-  );
+  console.log('GUARDANDO BANCO:', bancoPayload);
 
-  if (!checkBanco.ok) {
-    const errorText = await checkBanco.text();
-    console.error('ERROR CONSULTANDO BANCO:', errorText);
-    throw new Error('No se pudo consultar la referencia bancaria.');
+  const { data: bancoExistente, error: errorConsultaBanco } =
+    await supabase
+      .from('referencias_bancarias')
+      .select('id_referencia_bancaria')
+      .eq('id_socio', socioId)
+      .maybeSingle();
+
+  if (errorConsultaBanco) {
+    console.error(
+      'ERROR CONSULTANDO REFERENCIA BANCARIA:',
+      errorConsultaBanco
+    );
+
+    throw new Error(
+      `No se pudo consultar la referencia bancaria: ${
+        errorConsultaBanco.message
+      }`
+    );
   }
 
-  const existingBanco = await checkBanco.json();
-  const bancoExistente = existingBanco?.[0] || null;
+  if (bancoExistente?.id_referencia_bancaria) {
+    const { error: errorActualizarBanco } = await supabase
+      .from('referencias_bancarias')
+      .update({
+        entidad_bancaria: bancoPayload.entidad_bancaria,
+        titular_cuenta: bancoPayload.titular_cuenta,
+        numero_cuenta: bancoPayload.numero_cuenta,
+        cuenta_clave: bancoPayload.cuenta_clave,
+        pais: bancoPayload.pais,
+      })
+      .eq(
+        'id_referencia_bancaria',
+        bancoExistente.id_referencia_bancaria
+      );
 
-  if (bancoExistente) {
-    const updateBancoRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/referencias_bancarias?id_referencia_bancaria=eq.${bancoExistente.id_referencia_bancaria}`,
-      {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          Prefer: 'return=representation',
-        },
-        body: JSON.stringify(bancoPayload),
-      }
-    );
+    if (errorActualizarBanco) {
+      console.error(
+        'ERROR ACTUALIZANDO REFERENCIA BANCARIA:',
+        errorActualizarBanco
+      );
 
-    if (!updateBancoRes.ok) {
-      const errorText = await updateBancoRes.text();
-      console.error('ERROR ACTUALIZANDO BANCO:', errorText);
-      throw new Error('No se pudo actualizar la referencia bancaria.');
+      throw new Error(
+        `No se pudo actualizar la referencia bancaria: ${
+          errorActualizarBanco.message
+        }`
+      );
     }
   } else {
-    const insertBancoRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/referencias_bancarias`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          Prefer: 'return=representation',
-        },
-        body: JSON.stringify({
-          id_socio: socioId,
-          ...bancoPayload,
-        }),
-      }
-    );
+    const { error: errorInsertarBanco } = await supabase
+      .from('referencias_bancarias')
+      .insert([bancoPayload]);
 
-    if (!insertBancoRes.ok) {
-      const errorText = await insertBancoRes.text();
-      console.error('ERROR CREANDO BANCO:', errorText);
-      throw new Error('No se pudo registrar la referencia bancaria.');
+    if (errorInsertarBanco) {
+      console.error(
+        'ERROR INSERTANDO REFERENCIA BANCARIA:',
+        errorInsertarBanco
+      );
+
+      throw new Error(
+        `No se pudo registrar la referencia bancaria: ${
+          errorInsertarBanco.message
+        }`
+      );
     }
   }
 }
 
-await fetchSocios();
 resetForm();
+await fetchSocios();
 
   } catch (err) {
     setError(err.message);
@@ -1165,7 +1188,11 @@ const openFicha = async (socio) => {
             </div>
           )}
 
-          <form onSubmit={handleAddOrUpdateSocio} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+       <form
+  ref={socioFormRef}
+  onSubmit={handleAddOrUpdateSocio}
+  className="grid grid-cols-1 md:grid-cols-2 gap-4"
+>
             {editingSocio && (
               <div className="col-span-full">
                 <label className="block text-sm font-medium text-slate-700 mb-1">ID Socio</label>
@@ -1956,12 +1983,13 @@ const openFicha = async (socio) => {
 
             <div className="flex justify-center gap-4">
               <button
-                onClick={() => {
-                  setShowConfirmRegistro(false);
-                  document.querySelector('form')?.dispatchEvent(
-                    new Event('submit', { cancelable: true, bubbles: true })
-                  );
-                }}
+               onClick={() => {
+  setShowConfirmRegistro(false);
+
+  if (socioFormRef.current) {
+    socioFormRef.current.requestSubmit();
+  }
+}}
                 className="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium"
               >
                 Sí
@@ -2324,7 +2352,6 @@ const openFicha = async (socio) => {
 
                     </div>
         </div>
-      )}
       )}
       
       {/* MODAL PREVIEW SOLO MÓVIL */}
