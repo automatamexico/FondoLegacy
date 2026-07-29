@@ -207,7 +207,11 @@ const [loadingHistorialPagos, setLoadingHistorialPagos] =
 
 const [errorHistorialPagos, setErrorHistorialPagos] =
   useState('');
-
+  
+const [ordenHistorial, setOrdenHistorial] = useState({
+  campo: 'fecha',
+  direccion: 'desc',
+});
   // Sugerencias de socios
   useEffect(() => {
     const run = async () => {
@@ -572,6 +576,29 @@ const abrirHistorialPagosSocio = async () => {
     setLoadingHistorialPagos(false);
   }
 };
+
+  const cambiarOrdenHistorial = (campo) => {
+  setOrdenHistorial((ordenActual) => {
+    if (ordenActual.campo === campo) {
+      return {
+        campo,
+        direccion:
+          ordenActual.direccion === 'asc'
+            ? 'desc'
+            : 'asc',
+      };
+    }
+
+    return {
+      campo,
+      direccion:
+        campo === 'fecha'
+          ? 'desc'
+          : 'asc',
+    };
+  });
+};
+  
   const abrirRealizarPago = async () => {
     if (!prestamoSel) return;
     const [rp, rmeta] = await Promise.all([
@@ -776,6 +803,46 @@ const pagarDesdeVencidos = (pago) => {
 
   // ---------- RENDER ----------
   const pagPend = useMemo(() => pagosProgramados, [pagosProgramados]); // (se renderiza completo aquí)
+  const historialPagosOrdenado = useMemo(() => {
+  const lista = [...historialPagosSocio];
+
+  lista.sort((a, b) => {
+    let valorA;
+    let valorB;
+
+    if (ordenHistorial.campo === 'prestamo') {
+      valorA = Number(a.id_prestamo || 0);
+      valorB = Number(b.id_prestamo || 0);
+    } else {
+      valorA = new Date(
+        a.fecha_hora_pago ||
+        a.fecha_pago ||
+        a.fecha_programada ||
+        0
+      ).getTime();
+
+      valorB = new Date(
+        b.fecha_hora_pago ||
+        b.fecha_pago ||
+        b.fecha_programada ||
+        0
+      ).getTime();
+    }
+
+    if (valorA === valorB) {
+      return Number(a.numero_pago || 0) -
+        Number(b.numero_pago || 0);
+    }
+
+    if (ordenHistorial.direccion === 'asc') {
+      return valorA > valorB ? 1 : -1;
+    }
+
+    return valorA < valorB ? 1 : -1;
+  });
+
+  return lista;
+}, [historialPagosSocio, ordenHistorial]);
 const pagosVencidosAgrupados = useMemo(() => {
   const sociosMap = new Map();
 
@@ -2048,7 +2115,7 @@ const pagosVencidosAgrupados = useMemo(() => {
 
               {/* Vista móvil */}
               <div className="md:hidden space-y-3">
-                {historialPagosSocio.map((pago) => {
+               {historialPagosOrdenado.map((pago) => {
                   const fechaPago =
   pago.fecha_hora_pago
     ? fmtFechaHoraLarga(
@@ -2165,17 +2232,49 @@ const pagosVencidosAgrupados = useMemo(() => {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-slate-200">
-                      <th className="text-left py-3 px-3">
-                        Préstamo
-                      </th>
+                     <th className="text-left py-3 px-3">
+  <button
+    type="button"
+    onClick={() =>
+      cambiarOrdenHistorial('prestamo')
+    }
+    className="inline-flex items-center gap-2 font-semibold hover:text-purple-700"
+  >
+    Préstamo
+
+    <span className="text-xs">
+      {ordenHistorial.campo === 'prestamo'
+        ? ordenHistorial.direccion === 'asc'
+          ? '▲'
+          : '▼'
+        : '↕'}
+    </span>
+  </button>
+</th>
 
                       <th className="text-left py-3 px-3">
                         Pago
                       </th>
 
                       <th className="text-left py-3 px-3">
-                        Fecha y hora
-                      </th>
+  <button
+    type="button"
+    onClick={() =>
+      cambiarOrdenHistorial('fecha')
+    }
+    className="inline-flex items-center gap-2 font-semibold hover:text-purple-700"
+  >
+    Fecha y hora
+
+    <span className="text-xs">
+      {ordenHistorial.campo === 'fecha'
+        ? ordenHistorial.direccion === 'asc'
+          ? '▲'
+          : '▼'
+        : '↕'}
+    </span>
+  </button>
+</th>
 
                       <th className="text-left py-3 px-3">
                         Monto
@@ -2200,7 +2299,7 @@ const pagosVencidosAgrupados = useMemo(() => {
                   </thead>
 
                   <tbody>
-                    {historialPagosSocio.map((pago) => {
+                    {historialPagosOrdenado.map((pago) => {
                       const fechaPago =
                         pago.fecha_hora_pago
                           ? fmt12h(
