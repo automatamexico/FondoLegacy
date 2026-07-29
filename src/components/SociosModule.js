@@ -238,8 +238,11 @@ useEffect(() => {
 
   cargarPermisosSocios();
 }, [currentUser]);
-  const fetchSocios = async () => {
-  setLoading(true);
+ const fetchSocios = async (mostrarCarga = true) => {
+  if (mostrarCarga) {
+    setLoading(true);
+  }
+
   setError(null);
 
   try {
