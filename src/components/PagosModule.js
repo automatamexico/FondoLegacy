@@ -159,6 +159,18 @@ const [detalleVencidoAbierto, setDetalleVencidoAbierto] =
   // Modal ver nota
   const [showNotaModal, setShowNotaModal] = useState(false);
   const [notaTexto, setNotaTexto] = useState('');
+  // Historial de pagos del socio
+const [showHistorialPagosModal, setShowHistorialPagosModal] =
+  useState(false);
+
+const [historialPagosSocio, setHistorialPagosSocio] =
+  useState([]);
+
+const [loadingHistorialPagos, setLoadingHistorialPagos] =
+  useState(false);
+
+const [errorHistorialPagos, setErrorHistorialPagos] =
+  useState('');
 
   // Sugerencias de socios
   useEffect(() => {
@@ -428,7 +440,102 @@ const abrirPagosVencidos = async () => {
     );
   }
 };
+const abrirHistorialPagosSocio = async () => {
+  if (!socioSel?.id_socio) {
+    alert('Primero debe seleccionar un socio.');
+    return;
+  }
 
+  setShowHistorialPagosModal(true);
+  setLoadingHistorialPagos(true);
+  setErrorHistorialPagos('');
+  setHistorialPagosSocio([]);
+
+  try {
+    // Consultar todos los préstamos del socio
+    const prestamosRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioSel.id_socio}&select=id_prestamo,monto_solicitado,fecha_solicitud&order=fecha_solicitud.desc`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    if (!prestamosRes.ok) {
+      const detalle = await prestamosRes.text();
+
+      throw new Error(
+        `No se pudieron consultar los préstamos: ${detalle}`
+      );
+    }
+
+    const prestamosData = await prestamosRes.json();
+
+    if (!prestamosData || prestamosData.length === 0) {
+      setHistorialPagosSocio([]);
+      return;
+    }
+
+    const prestamosIds = prestamosData.map(
+      (prestamo) => prestamo.id_prestamo
+    );
+
+    // Consultar únicamente pagos realizados
+    const pagosRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=in.(${prestamosIds.join(
+        ','
+      )})&estatus=eq.pagado&select=id_pago,id_prestamo,numero_pago,fecha_programada,fecha_pago,fecha_hora_pago,monto_pago,monto_pagado,interes_pagado,capital_pagado,forma_pago,nota,estatus&order=fecha_hora_pago.desc`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    if (!pagosRes.ok) {
+      const detalle = await pagosRes.text();
+
+      throw new Error(
+        `No se pudo consultar el historial de pagos: ${detalle}`
+      );
+    }
+
+    const pagosData = await pagosRes.json();
+
+    const prestamosMap = new Map();
+
+    prestamosData.forEach((prestamo) => {
+      prestamosMap.set(
+        String(prestamo.id_prestamo),
+        prestamo
+      );
+    });
+
+    const historialCompleto = pagosData.map((pago) => ({
+      ...pago,
+      prestamo:
+        prestamosMap.get(String(pago.id_prestamo)) ||
+        null,
+    }));
+
+    setHistorialPagosSocio(historialCompleto);
+  } catch (error) {
+    console.error(
+      'ERROR CARGANDO HISTORIAL DE PAGOS:',
+      error
+    );
+
+    setErrorHistorialPagos(
+      error.message ||
+        'No se pudo consultar el historial de pagos.'
+    );
+  } finally {
+    setLoadingHistorialPagos(false);
+  }
+};
   const abrirRealizarPago = async () => {
     if (!prestamoSel) return;
     const [rp, rmeta] = await Promise.all([
@@ -809,15 +916,33 @@ const pagosVencidosAgrupados = useMemo(() => {
           </div>
         )}
 
-        <div className="mt-4">
-          <button
-            className={`px-4 py-2 rounded-xl text-white ${socioSel ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-400 cursor-not-allowed'}`}
-            disabled={!socioSel}
-            onClick={verPrestamos}
-          >
-            Ver Préstamos
-          </button>
-        </div>
+       <div className="mt-4 flex flex-col sm:flex-row gap-3">
+  <button
+    type="button"
+    className={`w-full sm:w-auto px-4 py-2 rounded-xl text-white ${
+      socioSel
+        ? 'bg-blue-600 hover:bg-blue-700'
+        : 'bg-slate-400 cursor-not-allowed'
+    }`}
+    disabled={!socioSel}
+    onClick={verPrestamos}
+  >
+    Ver Préstamos
+  </button>
+
+  <button
+    type="button"
+    className={`w-full sm:w-auto px-4 py-2 rounded-xl text-white ${
+      socioSel
+        ? 'bg-purple-600 hover:bg-purple-700'
+        : 'bg-slate-400 cursor-not-allowed'
+    }`}
+    disabled={!socioSel}
+    onClick={abrirHistorialPagosSocio}
+  >
+    Ver Historial de Pagos
+  </button>
+</div>
 
         {prestamosSocio.length > 0 && (
           <div className="mt-4">
@@ -846,15 +971,28 @@ const pagosVencidosAgrupados = useMemo(() => {
               ))}
             </div>
 
-            <div className="mt-4">
-              <button
-                className={`px-4 py-2 rounded-xl text-white ${prestamoSel ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-400 cursor-not-allowed'}`}
-                disabled={!prestamoSel}
-                onClick={abrirRealizarPago}
-              >
-                Realizar pago
-              </button>
-            </div>
+           <div className="mt-4 flex flex-col sm:flex-row gap-3">
+  <button
+    type="button"
+    className={`w-full sm:w-auto px-4 py-2 rounded-xl text-white ${
+      prestamoSel
+        ? 'bg-emerald-600 hover:bg-emerald-700'
+        : 'bg-slate-400 cursor-not-allowed'
+    }`}
+    disabled={!prestamoSel}
+    onClick={abrirRealizarPago}
+  >
+    Realizar pago
+  </button>
+
+  <button
+    type="button"
+    className="w-full sm:w-auto px-4 py-2 rounded-xl text-white bg-purple-600 hover:bg-purple-700"
+    onClick={abrirHistorialPagosSocio}
+  >
+    Ver Historial de Pagos
+  </button>
+</div>
           </div>
         )}
       </div>
@@ -1773,9 +1911,342 @@ const pagosVencidosAgrupados = useMemo(() => {
         </div>
       )}
 
+{/* MODAL: HISTORIAL DE PAGOS DEL SOCIO */}
+{showHistorialPagosModal && (
+  <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-3 md:p-4">
+    <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[94vh] overflow-hidden">
+      {/* Encabezado */}
+      <div className="flex items-center justify-between gap-3 p-4 md:p-5 border-b border-slate-200">
+        <div>
+          <h3 className="text-lg md:text-xl font-bold text-slate-900">
+            Historial de pagos
+          </h3>
+
+          <p className="text-sm text-slate-600">
+            {socioSel?.nombre}{' '}
+            {socioSel?.apellido_paterno}{' '}
+            {socioSel?.apellido_materno}
+          </p>
+
+          <p className="text-xs text-slate-500">
+            ID Socio: {socioSel?.id_socio}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setShowHistorialPagosModal(false);
+            setHistorialPagosSocio([]);
+            setErrorHistorialPagos('');
+          }}
+          className="shrink-0 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
+        >
+          Cerrar
+        </button>
+      </div>
+
+      <div className="p-3 md:p-5 max-h-[82vh] overflow-y-auto">
+        {loadingHistorialPagos && (
+          <p className="text-center text-slate-600 py-8">
+            Cargando historial de pagos...
+          </p>
+        )}
+
+        {!loadingHistorialPagos &&
+          errorHistorialPagos && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4">
+              {errorHistorialPagos}
+            </div>
+          )}
+
+        {!loadingHistorialPagos &&
+          !errorHistorialPagos &&
+          historialPagosSocio.length === 0 && (
+            <div className="text-center py-10">
+              <p className="font-semibold text-slate-800">
+                Este socio aún no tiene pagos registrados.
+              </p>
+
+              <p className="text-sm text-slate-500 mt-1">
+                Los pagos realizados aparecerán aquí.
+              </p>
+            </div>
+          )}
+
+        {!loadingHistorialPagos &&
+          !errorHistorialPagos &&
+          historialPagosSocio.length > 0 && (
+            <>
+              {/* Resumen */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                  <p className="text-sm text-slate-600">
+                    Pagos realizados
+                  </p>
+
+                  <p className="text-2xl font-bold text-purple-700">
+                    {historialPagosSocio.length}
+                  </p>
+                </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <p className="text-sm text-slate-600">
+                    Total pagado
+                  </p>
+
+                  <p className="text-2xl font-bold text-green-700">
+                    {fmtMoney(
+                      historialPagosSocio.reduce(
+                        (total, pago) =>
+                          total +
+                          Number(
+                            pago.monto_pagado || 0
+                          ),
+                        0
+                      )
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* Vista móvil */}
+              <div className="md:hidden space-y-3">
+                {historialPagosSocio.map((pago) => {
+                  const fechaPago = pago.fecha_hora_pago
+                    ? fmt12h(pago.fecha_hora_pago)
+                    : pago.fecha_pago
+                      ? fmtLongDate(pago.fecha_pago)
+                      : '—';
+
+                  return (
+                    <div
+                      key={pago.id_pago}
+                      className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs text-slate-500">
+                            Préstamo
+                          </p>
+
+                          <p className="font-bold text-slate-900">
+                            #{pago.id_prestamo}
+                          </p>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="text-xs text-slate-500">
+                            Pago
+                          </p>
+
+                          <p className="font-bold text-slate-900">
+                            #{pago.numero_pago}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Fecha y hora
+                        </p>
+
+                        <p className="font-medium text-slate-900">
+                          {fechaPago}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Monto pagado
+                        </p>
+
+                        <p className="text-xl font-bold text-green-700">
+                          {fmtMoney(pago.monto_pagado)}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-slate-500">
+                            Interés
+                          </p>
+
+                          <p className="font-medium">
+                            {fmtMoney(
+                              pago.interes_pagado
+                            )}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-slate-500">
+                            Capital
+                          </p>
+
+                          <p className="font-medium">
+                            {fmtMoney(
+                              pago.capital_pagado
+                            )}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Forma de pago
+                        </p>
+
+                        <p className="font-medium">
+                          {pago.forma_pago || '—'}
+                        </p>
+                      </div>
+
+                      {pago.nota && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNotaTexto(pago.nota);
+                            setShowNotaModal(true);
+                          }}
+                          className="w-full px-4 py-2 bg-slate-200 text-slate-800 rounded-lg font-medium hover:bg-slate-300"
+                        >
+                          Ver nota
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Vista web */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200">
+                      <th className="text-left py-3 px-3">
+                        Préstamo
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Pago
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Fecha y hora
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Monto
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Interés
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Capital
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Forma de pago
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Nota
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {historialPagosSocio.map((pago) => {
+                      const fechaPago =
+                        pago.fecha_hora_pago
+                          ? fmt12h(
+                              pago.fecha_hora_pago
+                            )
+                          : pago.fecha_pago
+                            ? fmtLongDate(
+                                pago.fecha_pago
+                              )
+                            : '—';
+
+                      return (
+                        <tr
+                          key={pago.id_pago}
+                          className="border-b border-slate-100 hover:bg-slate-50"
+                        >
+                          <td className="py-3 px-3 font-medium">
+                            #{pago.id_prestamo}
+                          </td>
+
+                          <td className="py-3 px-3">
+                            #{pago.numero_pago}
+                          </td>
+
+                          <td className="py-3 px-3">
+                            {fechaPago}
+                          </td>
+
+                          <td className="py-3 px-3 font-bold text-green-700">
+                            {fmtMoney(
+                              pago.monto_pagado
+                            )}
+                          </td>
+
+                          <td className="py-3 px-3">
+                            {fmtMoney(
+                              pago.interes_pagado
+                            )}
+                          </td>
+
+                          <td className="py-3 px-3">
+                            {fmtMoney(
+                              pago.capital_pagado
+                            )}
+                          </td>
+
+                          <td className="py-3 px-3">
+                            {pago.forma_pago || '—'}
+                          </td>
+
+                          <td className="py-3 px-3">
+                            {pago.nota ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNotaTexto(
+                                    pago.nota
+                                  );
+
+                                  setShowNotaModal(
+                                    true
+                                  );
+                                }}
+                                className="px-3 py-1 bg-slate-200 rounded-lg hover:bg-slate-300"
+                              >
+                                Ver nota
+                              </button>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+      </div>
+    </div>
+  </div>
+)}
+
       {/* MODAL: Ver nota */}
       {showNotaModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl p-5">
             <h3 className="text-lg font-semibold mb-3">Nota</h3>
             <div className="whitespace-pre-wrap text-slate-800 border rounded-lg p-3 bg-slate-50">
