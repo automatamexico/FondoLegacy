@@ -536,51 +536,154 @@ const uploadPhotoToAforeBucket = async (socioId) => {
       }
     }
 
-    // ================= BENEFICIARIO =================
-    if (beneficiario.nombre.trim() !== '') {
-
-      const checkBen = await fetch(
-        `${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${socioId}`,
-        {
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-        }
-      );
-
-      const existingBen = await checkBen.json();
-
-      if (existingBen?.length > 0) {
-        await fetch(
-          `${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_beneficiario=eq.${existingBen[0].id_beneficiario}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            },
-            body: JSON.stringify({
-              ...beneficiario
-            }),
-          }
-        );
-      } else {
-        await fetch(`${SUPABASE_URL}/rest/v1/beneficiarios_fondo`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({
-            id_socio: socioId,
-            ...beneficiario
-          }),
-        });
-      }
+   // ================= BENEFICIARIO =================
+if (beneficiario.nombre.trim() !== '') {
+  // Verificar si ya existe beneficiario para este socio
+  const checkBen = await fetch(
+    `${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_socio=eq.${socioId}&select=*`,
+    {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
     }
+  );
+
+  if (!checkBen.ok) {
+    const errorText = await checkBen.text();
+    console.error('ERROR CONSULTANDO BENEFICIARIO:', errorText);
+    throw new Error('No se pudo consultar el beneficiario.');
+  }
+
+  const existingBen = await checkBen.json();
+  const beneficiarioExistente = existingBen?.[0] || null;
+
+  // Mantener archivos anteriores si no se seleccionan nuevos
+  let fotoUrl = beneficiarioExistente?.foto_url || null;
+  let documentoUrl = beneficiarioExistente?.documentos_url || null;
+
+  // ================= SUBIR FOTO BENEFICIARIO =================
+  if (beneficiarioFoto) {
+    const extensionFoto =
+      beneficiarioFoto.name?.split('.').pop()?.toLowerCase() ||
+      (beneficiarioFoto.type === 'image/png' ? 'png' : 'jpg');
+
+    const pathFoto =
+      `socio_${socioId}_beneficiario_foto_${Date.now()}.${extensionFoto}`;
+
+    const uploadFotoRes = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/beneficiarios_fondo/${encodeURIComponent(pathFoto)}?upsert=true`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': beneficiarioFoto.type || 'image/jpeg',
+          'x-upsert': 'true',
+        },
+        body: beneficiarioFoto,
+      }
+    );
+
+    if (!uploadFotoRes.ok) {
+      const errorText = await uploadFotoRes.text();
+      console.error('ERROR SUBIENDO FOTO BENEFICIARIO:', errorText);
+      throw new Error('No se pudo subir la foto del beneficiario.');
+    }
+
+    fotoUrl =
+      `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_fondo/${encodeURIComponent(pathFoto)}`;
+  }
+
+  // ================= SUBIR PDF BENEFICIARIO =================
+  if (beneficiarioDocumento) {
+    const extensionDocumento =
+      beneficiarioDocumento.name?.split('.').pop()?.toLowerCase() || 'pdf';
+
+    const pathDocumento =
+      `socio_${socioId}_beneficiario_documento_${Date.now()}.${extensionDocumento}`;
+
+    const uploadDocumentoRes = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/beneficiarios_fondo/${encodeURIComponent(pathDocumento)}?upsert=true`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': beneficiarioDocumento.type || 'application/pdf',
+          'x-upsert': 'true',
+        },
+        body: beneficiarioDocumento,
+      }
+    );
+
+    if (!uploadDocumentoRes.ok) {
+      const errorText = await uploadDocumentoRes.text();
+      console.error('ERROR SUBIENDO PDF BENEFICIARIO:', errorText);
+      throw new Error('No se pudo subir el documento del beneficiario.');
+    }
+
+    documentoUrl =
+      `${SUPABASE_URL}/storage/v1/object/public/beneficiarios_fondo/${encodeURIComponent(pathDocumento)}`;
+  }
+
+  const beneficiarioPayload = {
+    nombre: beneficiario.nombre,
+    apellido_paterno: beneficiario.apellido_paterno,
+    apellido_materno: beneficiario.apellido_materno,
+    telefono: beneficiario.telefono,
+    direccion: beneficiario.direccion,
+    foto_url: fotoUrl,
+    documentos_url: documentoUrl,
+  };
+
+  // ================= ACTUALIZAR BENEFICIARIO =================
+  if (beneficiarioExistente) {
+    const updateBenRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/beneficiarios_fondo?id_beneficiario=eq.${beneficiarioExistente.id_beneficiario}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify(beneficiarioPayload),
+      }
+    );
+
+    if (!updateBenRes.ok) {
+      const errorText = await updateBenRes.text();
+      console.error('ERROR ACTUALIZANDO BENEFICIARIO:', errorText);
+      throw new Error('No se pudo actualizar el beneficiario.');
+    }
+  } else {
+    // ================= CREAR BENEFICIARIO =================
+    const insertBenRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/beneficiarios_fondo`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify({
+          id_socio: socioId,
+          ...beneficiarioPayload,
+        }),
+      }
+    );
+
+    if (!insertBenRes.ok) {
+      const errorText = await insertBenRes.text();
+      console.error('ERROR CREANDO BENEFICIARIO:', errorText);
+      throw new Error('No se pudo registrar el beneficiario.');
+    }
+  }
+}
 
     // ================= REFERENCIA BANCARIA =================
     if (referenciaBancaria.entidad_bancaria !== '') {
