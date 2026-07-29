@@ -1180,14 +1180,16 @@ const handleEditClick = async (socio) => {
     console.error('Error cargando información del socio:', err);
   }
 
-  setShowFicha(false);
-  setShowForm(true);
+ setShowFicha(false);
+setShowForm(true);
 
- if (window.innerWidth >= 768) {
-  window.scrollTo({
-    top: 0,
-    behavior: 'smooth',
-  });
+if (window.innerWidth >= 768) {
+  setTimeout(() => {
+    socioFormRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  }, 150);
 }
 };
 
@@ -1320,7 +1322,7 @@ const openFicha = async (socio) => {
        <form
   ref={socioFormRef}
   onSubmit={handleAddOrUpdateSocio}
-  className="grid grid-cols-1 md:grid-cols-2 gap-4"
+ className="grid grid-cols-1 md:grid-cols-2 gap-4 scroll-mt-24"
 >
             {editingSocio && (
               <div className="col-span-full">
