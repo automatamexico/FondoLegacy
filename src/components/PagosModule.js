@@ -71,7 +71,10 @@ const [loadingVencidos, setLoadingVencidos] =
 const [errorVencidos, setErrorVencidos] =
   useState('');
 
-const [vencidoSeleccionado, setVencidoSeleccionado] =
+const [prestamoVencidoAbierto, setPrestamoVencidoAbierto] =
+  useState(null);
+
+const [detalleVencidoAbierto, setDetalleVencidoAbierto] =
   useState(null);
 
   useEffect(() => {
@@ -197,17 +200,18 @@ const [vencidoSeleccionado, setVencidoSeleccionado] =
     }
   };
 
-  const abrirPagosVencidos = async () => {
+const abrirPagosVencidos = async () => {
   setShowVencidosModal(true);
   setLoadingVencidos(true);
   setErrorVencidos('');
   setPagosVencidosList([]);
-  setVencidoSeleccionado(null);
+  setPrestamoVencidoAbierto(null);
+  setDetalleVencidoAbierto(null);
 
   try {
     const hoy = toDateInput(new Date());
 
-    // Consultar pagos vencidos
+    // ================= PAGOS VENCIDOS =================
     const pagosRes = await fetch(
       `${SUPABASE_URL}/rest/v1/pagos_prestamos?fecha_programada=lt.${hoy}&estatus=eq.pendiente&select=id_pago,id_prestamo,id_socio,numero_pago,fecha_programada,monto_pago,estatus&order=fecha_programada.asc`,
       {
@@ -233,16 +237,66 @@ const [vencidoSeleccionado, setVencidoSeleccionado] =
       return;
     }
 
-    // Obtener IDs únicos de socios
-    const sociosIds = [
+    // ================= PRÉSTAMOS RELACIONADOS =================
+    const prestamosIds = [
       ...new Set(
         pagosData
-          .map((p) => p.id_socio)
+          .map((pago) => pago.id_prestamo)
           .filter(Boolean)
       ),
     ];
 
-    // Obtener información de los socios
+    let prestamosData = [];
+
+    if (prestamosIds.length > 0) {
+      const prestamosRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/prestamos?id_prestamo=in.(${prestamosIds.join(
+          ','
+        )})&select=id_prestamo,id_socio,monto_solicitado,numero_plazos,interes,tipo_plazo,estatus`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+        }
+      );
+
+      if (!prestamosRes.ok) {
+        const detalle = await prestamosRes.text();
+
+        throw new Error(
+          `No se pudieron cargar los préstamos: ${detalle}`
+        );
+      }
+
+      prestamosData = await prestamosRes.json();
+    }
+
+    const prestamosMap = new Map();
+
+    prestamosData.forEach((prestamo) => {
+      prestamosMap.set(
+        String(prestamo.id_prestamo),
+        prestamo
+      );
+    });
+
+    // Obtener el socio desde pagos_prestamos o desde prestamos
+    const sociosIds = [
+      ...new Set(
+        pagosData
+          .map((pago) => {
+            const prestamo = prestamosMap.get(
+              String(pago.id_prestamo)
+            );
+
+            return pago.id_socio || prestamo?.id_socio;
+          })
+          .filter(Boolean)
+      ),
+    ];
+
+    // ================= SOCIOS =================
     let sociosData = [];
 
     if (sociosIds.length > 0) {
@@ -258,9 +312,15 @@ const [vencidoSeleccionado, setVencidoSeleccionado] =
         }
       );
 
-      if (sociosRes.ok) {
-        sociosData = await sociosRes.json();
+      if (!sociosRes.ok) {
+        const detalle = await sociosRes.text();
+
+        throw new Error(
+          `No se pudieron cargar los socios: ${detalle}`
+        );
       }
+
+      sociosData = await sociosRes.json();
     }
 
     const sociosMap = new Map();
@@ -272,14 +332,28 @@ const [vencidoSeleccionado, setVencidoSeleccionado] =
       );
     });
 
-    const pagosEnriquecidos = pagosData.map(
-      (pago) => ({
+    // ================= UNIR INFORMACIÓN =================
+    const pagosEnriquecidos = pagosData.map((pago) => {
+      const prestamo =
+        prestamosMap.get(String(pago.id_prestamo)) ||
+        null;
+
+      const idSocioReal =
+        pago.id_socio ||
+        prestamo?.id_socio ||
+        null;
+
+      const socio =
+        sociosMap.get(String(idSocioReal)) ||
+        null;
+
+      return {
         ...pago,
-        socio:
-          sociosMap.get(String(pago.id_socio)) ||
-          null,
-      })
-    );
+        id_socio: idSocioReal,
+        socio,
+        prestamo,
+      };
+    });
 
     setPagosVencidosList(pagosEnriquecidos);
   } catch (error) {
@@ -388,6 +462,50 @@ const [vencidoSeleccionado, setVencidoSeleccionado] =
     setShowMontoModal(true);
   };
 
+const pagarDesdeVencidos = (pago) => {
+  if (!pago?.prestamo) {
+    alert(
+      'No se encontró la información del préstamo correspondiente.'
+    );
+    return;
+  }
+
+  if (!pago?.socio) {
+    alert(
+      'No se encontró la información del socio correspondiente.'
+    );
+    return;
+  }
+
+  // Preparar al socio seleccionado
+  setSocioSel(pago.socio);
+
+  // Preparar el préstamo seleccionado
+  setPrestamoSel({
+    ...pago.prestamo,
+    id_prestamo: pago.id_prestamo,
+  });
+
+  // Preparar la información requerida
+  // para calcular interés y capital
+  setPrestamoMeta({
+    monto_solicitado:
+      pago.prestamo.monto_solicitado,
+    numero_plazos:
+      pago.prestamo.numero_plazos,
+    interes:
+      pago.prestamo.interes,
+  });
+
+  // Cerrar el modal de pagos vencidos
+  setShowVencidosModal(false);
+  setPrestamoVencidoAbierto(null);
+  setDetalleVencidoAbierto(null);
+
+  // Abrir el formulario normal de pago
+  onClickRealizarPagoFila(pago);
+};
+  
   const aplicarPago = () => {
     if (!montoIngresado || Number(montoIngresado) <= 0) {
       alert('Indique un monto válido.');
@@ -496,7 +614,62 @@ const [vencidoSeleccionado, setVencidoSeleccionado] =
 
   // ---------- RENDER ----------
   const pagPend = useMemo(() => pagosProgramados, [pagosProgramados]); // (se renderiza completo aquí)
+const pagosVencidosAgrupados = useMemo(() => {
+  const sociosMap = new Map();
 
+  pagosVencidosList.forEach((pago) => {
+    const socio = pago.socio;
+    const prestamo = pago.prestamo;
+
+    const idSocio =
+      pago.id_socio ||
+      prestamo?.id_socio ||
+      'sin-socio';
+
+    const socioKey = String(idSocio);
+
+    if (!sociosMap.has(socioKey)) {
+      sociosMap.set(socioKey, {
+        id_socio: idSocio,
+        socio,
+        prestamos: new Map(),
+      });
+    }
+
+    const grupoSocio = sociosMap.get(socioKey);
+
+    const prestamoKey = String(
+      pago.id_prestamo || 'sin-prestamo'
+    );
+
+    if (!grupoSocio.prestamos.has(prestamoKey)) {
+      grupoSocio.prestamos.set(prestamoKey, {
+        id_prestamo: pago.id_prestamo,
+        prestamo,
+        pagos: [],
+        total_vencido: 0,
+      });
+    }
+
+    const grupoPrestamo =
+      grupoSocio.prestamos.get(prestamoKey);
+
+    grupoPrestamo.pagos.push(pago);
+
+    grupoPrestamo.total_vencido += Number(
+      pago.monto_pago || 0
+    );
+  });
+
+  return Array.from(sociosMap.values()).map(
+    (grupoSocio) => ({
+      ...grupoSocio,
+      prestamos: Array.from(
+        grupoSocio.prestamos.values()
+      ),
+    })
+  );
+}, [pagosVencidosList]);
   return (
     <div className="p-6 space-y-6">
       {/* Encabezado y tarjetas (SIN CAMBIOS) */}
@@ -667,10 +840,11 @@ const [vencidoSeleccionado, setVencidoSeleccionado] =
         )}
       </div>
 
-{/* MODAL: PAGOS VENCIDOS */}
+{/* MODAL: PAGOS VENCIDOS AGRUPADOS */}
 {showVencidosModal && (
-  <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-    <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
+  <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-3 md:p-4">
+    <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[94vh] md:max-h-[90vh] overflow-hidden">
+      {/* Encabezado */}
       <div className="flex items-center justify-between gap-3 p-4 md:p-5 border-b border-slate-200">
         <div>
           <h3 className="text-lg md:text-xl font-bold text-slate-900">
@@ -678,8 +852,10 @@ const [vencidoSeleccionado, setVencidoSeleccionado] =
           </h3>
 
           <p className="text-sm text-slate-600">
-            Total encontrado:{' '}
-            {pagosVencidosList.length}
+            {pagosVencidosList.length}{' '}
+            pago(s) vencido(s) de{' '}
+            {pagosVencidosAgrupados.length}{' '}
+            socio(s)
           </p>
         </div>
 
@@ -687,15 +863,17 @@ const [vencidoSeleccionado, setVencidoSeleccionado] =
           type="button"
           onClick={() => {
             setShowVencidosModal(false);
-            setVencidoSeleccionado(null);
+            setPrestamoVencidoAbierto(null);
+            setDetalleVencidoAbierto(null);
           }}
-          className="px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
+          className="shrink-0 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
         >
           Cerrar
         </button>
       </div>
 
-      <div className="p-4 md:p-5 max-h-[78vh] overflow-y-auto">
+      {/* Contenido */}
+      <div className="p-3 md:p-5 max-h-[82vh] md:max-h-[78vh] overflow-y-auto">
         {loadingVencidos && (
           <p className="text-center text-slate-600 py-8">
             Cargando pagos vencidos...
@@ -710,7 +888,7 @@ const [vencidoSeleccionado, setVencidoSeleccionado] =
 
         {!loadingVencidos &&
           !errorVencidos &&
-          pagosVencidosList.length === 0 && (
+          pagosVencidosAgrupados.length === 0 && (
             <p className="text-center text-slate-600 py-8">
               No existen pagos vencidos.
             </p>
@@ -718,12 +896,11 @@ const [vencidoSeleccionado, setVencidoSeleccionado] =
 
         {!loadingVencidos &&
           !errorVencidos &&
-          pagosVencidosList.length > 0 && (
-            <>
-              {/* Vista móvil */}
-              <div className="md:hidden space-y-3">
-                {pagosVencidosList.map((pago) => {
-                  const socio = pago.socio;
+          pagosVencidosAgrupados.length > 0 && (
+            <div className="space-y-4">
+              {pagosVencidosAgrupados.map(
+                (grupoSocio) => {
+                  const socio = grupoSocio.socio;
 
                   const nombreCompleto = socio
                     ? `${socio.nombre || ''} ${
@@ -733,266 +910,460 @@ const [vencidoSeleccionado, setVencidoSeleccionado] =
                       }`.trim()
                     : 'SOCIO NO IDENTIFICADO';
 
-                  const seleccionado =
-                    vencidoSeleccionado?.id_pago ===
-                    pago.id_pago;
+                  const totalSocio =
+                    grupoSocio.prestamos.reduce(
+                      (suma, prestamo) =>
+                        suma +
+                        Number(
+                          prestamo.total_vencido || 0
+                        ),
+                      0
+                    );
 
                   return (
                     <div
-                      key={pago.id_pago}
-                      className={`border rounded-xl p-4 space-y-3 ${
-                        seleccionado
-                          ? 'border-purple-500 bg-purple-50'
-                          : 'border-slate-200 bg-slate-50'
-                      }`}
-                    >
-                      <div>
-                        <p className="text-xs text-slate-500">
-                          Socio
-                        </p>
-
-                        <p className="font-semibold text-slate-900">
-                          {nombreCompleto}
-                        </p>
-
-                        <p className="text-xs text-slate-500">
-                          ID: {pago.id_socio || '—'}
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <p className="text-xs text-slate-500">
-                            Préstamo
-                          </p>
-
-                          <p className="font-medium">
-                            #{pago.id_prestamo}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-xs text-slate-500">
-                            Pago
-                          </p>
-
-                          <p className="font-medium">
-                            #{pago.numero_pago}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <p className="text-xs text-slate-500">
-                          Fecha vencida
-                        </p>
-
-                        <p className="font-medium text-red-600">
-                          {fmtLongDate(
-                            pago.fecha_programada
-                          )}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs text-slate-500">
-                          Monto pendiente
-                        </p>
-
-                        <p className="text-lg font-bold text-purple-600">
-                          {fmtMoney(pago.monto_pago)}
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setVencidoSeleccionado(
-                            seleccionado ? null : pago
-                          )
-                        }
-                        className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700"
-                      >
-                        {seleccionado
-                          ? 'Ocultar detalles'
-                          : 'Ver detalles'}
-                      </button>
-
-                      {seleccionado && (
-                        <div className="bg-white border border-purple-200 rounded-xl p-4 space-y-2 text-sm">
-                          <p>
-                            <strong>Correo:</strong>{' '}
-                            {socio?.email || '—'}
-                          </p>
-
-                          <p>
-                            <strong>Teléfono:</strong>{' '}
-                            {socio?.telefono || '—'}
-                          </p>
-
-                          <p>
-                            <strong>Estatus:</strong>{' '}
-                            PENDIENTE
-                          </p>
-                        </div>
+                      key={String(
+                        grupoSocio.id_socio
                       )}
-                    </div>
-                  );
-                })}
-              </div>
+                      className="border border-slate-200 rounded-2xl overflow-hidden bg-white"
+                    >
+                      {/* Cabecera del socio */}
+                      <div className="p-4 bg-slate-50 border-b border-slate-200">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-medium text-slate-500">
+                              SOCIO
+                            </p>
 
-              {/* Vista escritorio */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="text-left py-3 px-3">
-                        Socio
-                      </th>
+                            <h4 className="text-base md:text-lg font-bold text-slate-900">
+                              {nombreCompleto}
+                            </h4>
 
-                      <th className="text-left py-3 px-3">
-                        Préstamo
-                      </th>
+                            <p className="text-sm text-slate-500">
+                              ID:{' '}
+                              {grupoSocio.id_socio ||
+                                '—'}
+                            </p>
+                          </div>
 
-                      <th className="text-left py-3 px-3">
-                        Pago
-                      </th>
+                          <div className="md:text-right">
+                            <p className="text-xs text-slate-500">
+                              Total vencido
+                            </p>
 
-                      <th className="text-left py-3 px-3">
-                        Fecha vencida
-                      </th>
+                            <p className="text-xl font-bold text-red-600">
+                              {fmtMoney(totalSocio)}
+                            </p>
 
-                      <th className="text-left py-3 px-3">
-                        Monto
-                      </th>
+                            <p className="text-xs text-slate-500">
+                              {
+                                grupoSocio.prestamos
+                                  .length
+                              }{' '}
+                              préstamo(s)
+                            </p>
+                          </div>
+                        </div>
+                      </div>
 
-                      <th className="text-left py-3 px-3">
-                        Acción
-                      </th>
-                    </tr>
-                  </thead>
+                      {/* Préstamos del socio */}
+                      <div className="p-3 md:p-4 space-y-3">
+                        {grupoSocio.prestamos.map(
+                          (grupoPrestamo) => {
+                            const clavePrestamo =
+                              `${grupoSocio.id_socio}-${grupoPrestamo.id_prestamo}`;
 
-                  <tbody>
-                    {pagosVencidosList.map((pago) => {
-                      const socio = pago.socio;
+                            const abierto =
+                              prestamoVencidoAbierto ===
+                              clavePrestamo;
 
-                      const nombreCompleto = socio
-                        ? `${socio.nombre || ''} ${
-                            socio.apellido_paterno ||
-                            ''
-                          } ${
-                            socio.apellido_materno ||
-                            ''
-                          }`.trim()
-                        : 'SOCIO NO IDENTIFICADO';
-
-                      const seleccionado =
-                        vencidoSeleccionado?.id_pago ===
-                        pago.id_pago;
-
-                      return (
-                        <React.Fragment
-                          key={pago.id_pago}
-                        >
-                          <tr className="border-b border-slate-100 hover:bg-slate-50">
-                            <td className="py-3 px-3">
-                              <p className="font-medium text-slate-900">
-                                {nombreCompleto}
-                              </p>
-
-                              <p className="text-xs text-slate-500">
-                                ID: {pago.id_socio || '—'}
-                              </p>
-                            </td>
-
-                            <td className="py-3 px-3">
-                              #{pago.id_prestamo}
-                            </td>
-
-                            <td className="py-3 px-3">
-                              #{pago.numero_pago}
-                            </td>
-
-                            <td className="py-3 px-3 text-red-600 font-medium">
-                              {fmtLongDate(
-                                pago.fecha_programada
-                              )}
-                            </td>
-
-                            <td className="py-3 px-3 font-bold text-purple-600">
-                              {fmtMoney(
-                                pago.monto_pago
-                              )}
-                            </td>
-
-                            <td className="py-3 px-3">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setVencidoSeleccionado(
-                                    seleccionado
-                                      ? null
-                                      : pago
-                                  )
-                                }
-                                className="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700"
+                            return (
+                              <div
+                                key={clavePrestamo}
+                                className="border border-slate-200 rounded-xl overflow-hidden"
                               >
-                                {seleccionado
-                                  ? 'Ocultar'
-                                  : 'Ver detalles'}
-                              </button>
-                            </td>
-                          </tr>
+                                {/* Resumen del préstamo */}
+                                <div className="p-3 md:p-4">
+                                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                    <div>
+                                      <p className="text-xs text-slate-500">
+                                        Préstamo
+                                      </p>
 
-                          {seleccionado && (
-                            <tr className="bg-purple-50">
-                              <td
-                                colSpan="6"
-                                className="px-4 py-4"
-                              >
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                                  <div>
-                                    <p className="text-slate-500">
-                                      Correo
-                                    </p>
+                                      <p className="font-bold text-slate-900">
+                                        #
+                                        {
+                                          grupoPrestamo.id_prestamo
+                                        }
+                                      </p>
 
-                                    <p className="font-medium text-slate-900">
-                                      {socio?.email ||
-                                        '—'}
-                                    </p>
-                                  </div>
+                                      <p className="text-sm text-slate-600">
+                                        {
+                                          grupoPrestamo
+                                            .pagos.length
+                                        }{' '}
+                                        pago(s) vencido(s)
+                                      </p>
+                                    </div>
 
-                                  <div>
-                                    <p className="text-slate-500">
-                                      Teléfono
-                                    </p>
+                                    <div className="flex flex-col md:flex-row md:items-center gap-3">
+                                      <div className="md:text-right">
+                                        <p className="text-xs text-slate-500">
+                                          Total pendiente
+                                        </p>
 
-                                    <p className="font-medium text-slate-900">
-                                      {socio?.telefono ||
-                                        '—'}
-                                    </p>
-                                  </div>
+                                        <p className="font-bold text-purple-600">
+                                          {fmtMoney(
+                                            grupoPrestamo.total_vencido
+                                          )}
+                                        </p>
+                                      </div>
 
-                                  <div>
-                                    <p className="text-slate-500">
-                                      Estatus
-                                    </p>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setPrestamoVencidoAbierto(
+                                            abierto
+                                              ? null
+                                              : clavePrestamo
+                                          );
 
-                                    <p className="font-medium text-red-600">
-                                      PENDIENTE
-                                    </p>
+                                          setDetalleVencidoAbierto(
+                                            null
+                                          );
+                                        }}
+                                        className="w-full md:w-auto px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700"
+                                      >
+                                        {abierto
+                                          ? 'Ocultar pagos'
+                                          : 'Ver pagos'}
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
+
+                                {/* Pagos vencidos del préstamo */}
+                                {abierto && (
+                                  <div className="border-t border-slate-200 bg-purple-50/40 p-3 md:p-4">
+                                    {/* Aplicación móvil */}
+                                    <div className="md:hidden space-y-3">
+                                      {grupoPrestamo.pagos.map(
+                                        (pago) => {
+                                          const detalleAbierto =
+                                            detalleVencidoAbierto ===
+                                            pago.id_pago;
+
+                                          return (
+                                            <div
+                                              key={
+                                                pago.id_pago
+                                              }
+                                              className="bg-white border border-slate-200 rounded-xl p-4 space-y-3"
+                                            >
+                                              <div className="flex items-center justify-between gap-3">
+                                                <div>
+                                                  <p className="text-xs text-slate-500">
+                                                    Número de pago
+                                                  </p>
+
+                                                  <p className="font-bold text-slate-900">
+                                                    #
+                                                    {
+                                                      pago.numero_pago
+                                                    }
+                                                  </p>
+                                                </div>
+
+                                                <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                                                  Vencido
+                                                </span>
+                                              </div>
+
+                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div>
+                                                  <p className="text-xs text-slate-500">
+                                                    Fecha
+                                                  </p>
+
+                                                  <p className="font-medium text-red-600">
+                                                    {fmtLongDate(
+                                                      pago.fecha_programada
+                                                    )}
+                                                  </p>
+                                                </div>
+
+                                                <div>
+                                                  <p className="text-xs text-slate-500">
+                                                    Monto
+                                                  </p>
+
+                                                  <p className="font-bold text-purple-600">
+                                                    {fmtMoney(
+                                                      pago.monto_pago
+                                                    )}
+                                                  </p>
+                                                </div>
+                                              </div>
+
+                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    setDetalleVencidoAbierto(
+                                                      detalleAbierto
+                                                        ? null
+                                                        : pago.id_pago
+                                                    )
+                                                  }
+                                                  className="w-full px-4 py-2 bg-slate-200 text-slate-800 rounded-lg font-medium hover:bg-slate-300"
+                                                >
+                                                  {detalleAbierto
+                                                    ? 'Ocultar detalles'
+                                                    : 'Ver detalles'}
+                                                </button>
+
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    pagarDesdeVencidos(
+                                                      pago
+                                                    )
+                                                  }
+                                                  className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700"
+                                                >
+                                                  Pagar
+                                                </button>
+                                              </div>
+
+                                              {detalleAbierto && (
+                                                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 text-sm">
+                                                  <p>
+                                                    <strong>
+                                                      Socio:
+                                                    </strong>{' '}
+                                                    {
+                                                      nombreCompleto
+                                                    }
+                                                  </p>
+
+                                                  <p>
+                                                    <strong>
+                                                      Préstamo:
+                                                    </strong>{' '}
+                                                    #
+                                                    {
+                                                      pago.id_prestamo
+                                                    }
+                                                  </p>
+
+                                                  <p>
+                                                    <strong>
+                                                      Pago:
+                                                    </strong>{' '}
+                                                    #
+                                                    {
+                                                      pago.numero_pago
+                                                    }
+                                                  </p>
+
+                                                  <p>
+                                                    <strong>
+                                                      Teléfono:
+                                                    </strong>{' '}
+                                                    {socio?.telefono ||
+                                                      '—'}
+                                                  </p>
+
+                                                  <p>
+                                                    <strong>
+                                                      Correo:
+                                                    </strong>{' '}
+                                                    {socio?.email ||
+                                                      '—'}
+                                                  </p>
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        }
+                                      )}
+                                    </div>
+
+                                    {/* Escritorio */}
+                                    <div className="hidden md:block overflow-x-auto">
+                                      <table className="w-full">
+                                        <thead>
+                                          <tr className="border-b border-slate-200">
+                                            <th className="text-left py-3 px-3">
+                                              Pago
+                                            </th>
+
+                                            <th className="text-left py-3 px-3">
+                                              Fecha vencida
+                                            </th>
+
+                                            <th className="text-left py-3 px-3">
+                                              Monto
+                                            </th>
+
+                                            <th className="text-left py-3 px-3">
+                                              Estatus
+                                            </th>
+
+                                            <th className="text-left py-3 px-3">
+                                              Acciones
+                                            </th>
+                                          </tr>
+                                        </thead>
+
+                                        <tbody>
+                                          {grupoPrestamo.pagos.map(
+                                            (pago) => {
+                                              const detalleAbierto =
+                                                detalleVencidoAbierto ===
+                                                pago.id_pago;
+
+                                              return (
+                                                <React.Fragment
+                                                  key={
+                                                    pago.id_pago
+                                                  }
+                                                >
+                                                  <tr className="border-b border-slate-100 bg-white">
+                                                    <td className="py-3 px-3 font-medium">
+                                                      #
+                                                      {
+                                                        pago.numero_pago
+                                                      }
+                                                    </td>
+
+                                                    <td className="py-3 px-3 text-red-600 font-medium">
+                                                      {fmtLongDate(
+                                                        pago.fecha_programada
+                                                      )}
+                                                    </td>
+
+                                                    <td className="py-3 px-3 font-bold text-purple-600">
+                                                      {fmtMoney(
+                                                        pago.monto_pago
+                                                      )}
+                                                    </td>
+
+                                                    <td className="py-3 px-3">
+                                                      <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                                                        VENCIDO
+                                                      </span>
+                                                    </td>
+
+                                                    <td className="py-3 px-3">
+                                                      <div className="flex gap-2">
+                                                        <button
+                                                          type="button"
+                                                          onClick={() =>
+                                                            setDetalleVencidoAbierto(
+                                                              detalleAbierto
+                                                                ? null
+                                                                : pago.id_pago
+                                                            )
+                                                          }
+                                                          className="px-3 py-2 bg-slate-200 text-slate-800 rounded-lg text-sm hover:bg-slate-300"
+                                                        >
+                                                          {detalleAbierto
+                                                            ? 'Ocultar'
+                                                            : 'Ver detalles'}
+                                                        </button>
+
+                                                        <button
+                                                          type="button"
+                                                          onClick={() =>
+                                                            pagarDesdeVencidos(
+                                                              pago
+                                                            )
+                                                          }
+                                                          className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700"
+                                                        >
+                                                          Pagar
+                                                        </button>
+                                                      </div>
+                                                    </td>
+                                                  </tr>
+
+                                                  {detalleAbierto && (
+                                                    <tr className="bg-slate-50">
+                                                      <td
+                                                        colSpan="5"
+                                                        className="px-4 py-4"
+                                                      >
+                                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                                                          <div>
+                                                            <p className="text-slate-500">
+                                                              Socio
+                                                            </p>
+
+                                                            <p className="font-medium text-slate-900">
+                                                              {
+                                                                nombreCompleto
+                                                              }
+                                                            </p>
+                                                          </div>
+
+                                                          <div>
+                                                            <p className="text-slate-500">
+                                                              Teléfono
+                                                            </p>
+
+                                                            <p className="font-medium text-slate-900">
+                                                              {socio?.telefono ||
+                                                                '—'}
+                                                            </p>
+                                                          </div>
+
+                                                          <div>
+                                                            <p className="text-slate-500">
+                                                              Correo
+                                                            </p>
+
+                                                            <p className="font-medium text-slate-900">
+                                                              {socio?.email ||
+                                                                '—'}
+                                                            </p>
+                                                          </div>
+
+                                                          <div>
+                                                            <p className="text-slate-500">
+                                                              Préstamo
+                                                            </p>
+
+                                                            <p className="font-medium text-slate-900">
+                                                              #
+                                                              {
+                                                                pago.id_prestamo
+                                                              }
+                                                            </p>
+                                                          </div>
+                                                        </div>
+                                                      </td>
+                                                    </tr>
+                                                  )}
+                                                </React.Fragment>
+                                              );
+                                            }
+                                          )}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+              )}
+            </div>
           )}
       </div>
     </div>
