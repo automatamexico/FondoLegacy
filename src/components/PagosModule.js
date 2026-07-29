@@ -29,24 +29,60 @@ function localPlainDateTime() {
   const s = String(d.getSeconds()).padStart(2, '0');
   return `${y}-${M}-${D}T${h}:${m}:${s}`;
 }
-const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MONTHS = [
+  'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
+];
+
 function fmtLongDate(s) {
   if (!s) return '';
+
   let d;
-  if (typeof s === 'string' && s.length <= 10) d = new Date(`${s}T00:00:00`);
-  else d = new Date(s);
-  const dd = String(d.getDate()).padStart(2,'0');
-  const mname = MONTHS[d.getMonth()];
-  const yyyy = d.getFullYear();
-  return `${dd}/${mname}/${yyyy}`;
-}
-function fmt12h(isoOrLocal) {
-  if (!isoOrLocal) return '';
-  const dt = new Date(isoOrLocal);
-  return dt.toLocaleString('es-MX', {
-    hour: 'numeric', minute: '2-digit', hour12: true,
-    year: 'numeric', month: '2-digit', day: '2-digit'
+
+  if (typeof s === 'string' && s.length <= 10) {
+    d = new Date(`${s}T00:00:00`);
+  } else {
+    d = new Date(s);
+  }
+
+  return d.toLocaleDateString('es-MX', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
   });
+}
+
+function fmtFechaHoraLarga(valor) {
+  if (!valor) return '';
+
+  const d = new Date(valor);
+
+  const fecha = d.toLocaleDateString('es-MX', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
+  const hora = d.toLocaleTimeString('es-MX', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  return (
+    fecha.charAt(0).toUpperCase() +
+    fecha.slice(1) +
+    ', ' +
+    hora
+  );
+}
+
+function fmt12h(valor) {
+  if (!valor) return '';
+
+  return fmtFechaHoraLarga(valor);
 }
 
 const PagosModule = ({ idSocio }) => {
@@ -2013,11 +2049,16 @@ const pagosVencidosAgrupados = useMemo(() => {
               {/* Vista móvil */}
               <div className="md:hidden space-y-3">
                 {historialPagosSocio.map((pago) => {
-                  const fechaPago = pago.fecha_hora_pago
-                    ? fmt12h(pago.fecha_hora_pago)
-                    : pago.fecha_pago
-                      ? fmtLongDate(pago.fecha_pago)
-                      : '—';
+                  const fechaPago =
+  pago.fecha_hora_pago
+    ? fmtFechaHoraLarga(
+        pago.fecha_hora_pago
+      )
+    : pago.fecha_pago
+      ? fmtLongDate(
+          pago.fecha_pago
+        )
+      : '—';
 
                   return (
                     <div
