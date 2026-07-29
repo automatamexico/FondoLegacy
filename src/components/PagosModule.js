@@ -2114,7 +2114,37 @@ const pagosVencidosAgrupados = useMemo(() => {
               </div>
 
               {/* Vista móvil */}
-              <div className="md:hidden space-y-3">
+             <div className="md:hidden">
+
+  <div className="grid grid-cols-2 gap-2 mb-3">
+
+    <button
+      type="button"
+      onClick={() => cambiarOrdenHistorial('prestamo')}
+      className="px-3 py-2 rounded-lg border bg-white text-sm"
+    >
+      Préstamo {ordenHistorial.campo === 'prestamo'
+        ? ordenHistorial.direccion === 'asc'
+          ? '▲'
+          : '▼'
+        : '↕'}
+    </button>
+
+    <button
+      type="button"
+      onClick={() => cambiarOrdenHistorial('fecha')}
+      className="px-3 py-2 rounded-lg border bg-white text-sm"
+    >
+      Fecha {ordenHistorial.campo === 'fecha'
+        ? ordenHistorial.direccion === 'asc'
+          ? '▲'
+          : '▼'
+        : '↕'}
+    </button>
+
+  </div>
+
+  <div className="space-y-3">
                {historialPagosOrdenado.map((pago) => {
                   const fechaPago =
   pago.fecha_hora_pago
@@ -2226,6 +2256,7 @@ const pagosVencidosAgrupados = useMemo(() => {
                   );
                 })}
               </div>
+ </div>
 
               {/* Vista web */}
               <div className="hidden md:block overflow-x-auto">
