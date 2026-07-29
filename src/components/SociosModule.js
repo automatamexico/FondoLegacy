@@ -648,13 +648,15 @@ const uploadPhotoToAforeBucket = async (socioId) => {
 
       if (!res.ok) throw new Error('Error actualizando socio');
 
-      const updated = await res.json();
-      socio = updated[0];
-      socioId = socio.id_socio;
+    const updated = await res.json();
+socio = updated?.[0];
 
-      setSociosList(prev =>
-        prev.map(s => (s.id_socio === socioId ? socio : s))
-      );
+if (!socio) {
+  throw new Error('Supabase no devolvió el socio actualizado.');
+}
+
+socioId = socio.id_socio;
+  
 
     } else {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/socios`, {
@@ -674,11 +676,16 @@ const uploadPhotoToAforeBucket = async (socioId) => {
 
       if (!res.ok) throw new Error('Error creando socio');
 
-      const inserted = await res.json();
-      socio = inserted[0];
-      socioId = socio.id_socio;
+     const inserted = await res.json();
+socio = inserted?.[0];
 
-      setSociosList(prev => [...prev, socio]);
+if (!socio) {
+  throw new Error('Supabase no devolvió el socio registrado.');
+}
+
+socioId = socio.id_socio;
+
+   
     }
 
     // ================= REFERENCIA PERSONAL =================
@@ -973,8 +980,8 @@ if (entidadSeleccionada !== '') {
   }
 }
 
-resetForm();
 await fetchSocios(false);
+resetForm();
 
  } catch (err) {
   console.error('ERROR GUARDANDO SOCIO:', err);
@@ -1874,7 +1881,7 @@ const openFicha = async (socio) => {
           e.stopPropagation();
           setSocioConFaltantes(socio);
         }}
-        title={`Información pendiente: ${socio.informacion_faltante.join(', ')}`}
+       title={`Información pendiente: ${(socio.informacion_faltante || []).join(', ')}`}
         className="shrink-0 text-amber-500 hover:text-amber-600"
       >
         <svg
@@ -2131,7 +2138,7 @@ const openFicha = async (socio) => {
 
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
         <ul className="space-y-2">
-          {socioConFaltantes.informacion_faltante.map((dato) => (
+         {(socioConFaltantes.informacion_faltante || []).map((dato) => (
             <li
               key={dato}
               className="flex items-start gap-2 text-sm text-slate-800"
