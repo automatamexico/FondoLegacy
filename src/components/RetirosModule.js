@@ -51,6 +51,25 @@ function parseDBDateToLocal(s) {
   return new Date(str);
 }
 
+function fmtFechaLarga(fecha) {
+  if (!fecha) return '—';
+
+  const d =
+    fecha instanceof Date
+      ? fecha
+      : new Date(`${fecha}T00:00:00`);
+
+  if (Number.isNaN(d.getTime())) {
+    return '—';
+  }
+
+  return d.toLocaleDateString('es-MX', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
 function warn(msg) {
   window.alert(msg);
 }
@@ -66,15 +85,43 @@ const RetirosModule = () => {
   const [sugs, setSugs] = useState([]);
   const [socioSel, setSocioSel] = useState(null);
 
-  // --------- info financiera del socio ----------
-  const [ahorroTotal, setAhorroTotal] = useState(0);
-  const [deudaPendiente, setDeudaPendiente] = useState(0);
-  const [cargandoFinanzas, setCargandoFinanzas] = useState(false);
-  const disponible = useMemo(() => Math.max(0, Number(ahorroTotal) - Number(deudaPendiente)), [ahorroTotal, deudaPendiente]);
-
-  // --------- retiros del socio ----------
+    // --------- retiros del socio ----------
   const [retirosSocio, setRetirosSocio] = useState([]);
   const [cargandoRetiros, setCargandoRetiros] = useState(false);
+
+  // --------- info financiera del socio ----------
+const [ahorroTotal, setAhorroTotal] = useState(0);
+const [deudaPendiente, setDeudaPendiente] = useState(0);
+const [cargandoFinanzas, setCargandoFinanzas] = useState(false);
+
+// El ahorro nunca debe mostrarse como cantidad negativa
+const ahorroDisponible = useMemo(
+  () => Math.max(0, Number(ahorroTotal || 0)),
+  [ahorroTotal]
+);
+
+// Suma histórica de los retiros realizados por el socio
+const retiroAcumulado = useMemo(
+  () =>
+    retirosSocio.reduce(
+      (total, retiro) =>
+        total + Number(retiro.monto_retirado || 0),
+      0
+    ),
+  [retirosSocio]
+);
+
+// Disponible después de descontar la deuda
+const disponible = useMemo(
+  () =>
+    Math.max(
+      0,
+      Number(ahorroDisponible) -
+        Number(deudaPendiente || 0)
+    ),
+  [ahorroDisponible, deudaPendiente]
+);
+
 
   // --------- flujo de retiro ----------
   const [showResumenModal, setShowResumenModal] = useState(false);
@@ -361,27 +408,71 @@ const RetirosModule = () => {
             </button>
           </div>
 
-          {/* Tarjetas: ahorro acumulado / deuda acumulada */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-green-100 text-green-700 rounded-xl flex items-center justify-center">💰</div>
-                <div>
-                  <p className="text-slate-600 text-sm">Ahorro acumulado</p>
-                  <p className="text-2xl font-bold text-slate-900">{cargandoFinanzas ? '—' : fmtMoney(ahorroTotal)}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-red-100 text-red-700 rounded-xl flex items-center justify-center">📉</div>
-                <div>
-                  <p className="text-slate-600 text-sm">Deuda acumulada</p>
-                  <p className="text-2xl font-bold text-slate-900">{cargandoFinanzas ? '—' : fmtMoney(deudaPendiente)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* Tarjetas financieras del socio */}
+<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+  {/* Ahorro acumulado */}
+  <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+    <div className="flex items-center space-x-3">
+      <div className="w-10 h-10 bg-green-100 text-green-700 rounded-xl flex items-center justify-center">
+        💰
+      </div>
+
+      <div>
+        <p className="text-slate-600 text-sm">
+          Ahorro acumulado
+        </p>
+
+        <p className="text-2xl font-bold text-slate-900">
+          {cargandoFinanzas
+            ? '—'
+            : fmtMoney(ahorroDisponible)}
+        </p>
+      </div>
+    </div>
+  </div>
+
+  {/* Retiro acumulado */}
+  <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+    <div className="flex items-center space-x-3">
+      <div className="w-10 h-10 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center">
+        🏧
+      </div>
+
+      <div>
+        <p className="text-slate-600 text-sm">
+          Retiro acumulado
+        </p>
+
+        <p className="text-2xl font-bold text-blue-700">
+          {cargandoRetiros
+            ? '—'
+            : fmtMoney(retiroAcumulado)}
+        </p>
+      </div>
+    </div>
+  </div>
+
+  {/* Deuda acumulada */}
+  <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+    <div className="flex items-center space-x-3">
+      <div className="w-10 h-10 bg-red-100 text-red-700 rounded-xl flex items-center justify-center">
+        📉
+      </div>
+
+      <div>
+        <p className="text-slate-600 text-sm">
+          Deuda acumulada
+        </p>
+
+        <p className="text-2xl font-bold text-slate-900">
+          {cargandoFinanzas
+            ? '—'
+            : fmtMoney(deudaPendiente)}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
 
           {/* Últimos retiros */}
           <div className="mt-2">
@@ -404,14 +495,32 @@ const RetirosModule = () => {
                   </thead>
                   <tbody>
                     {retirosSocio.map(r => {
-                      const dt = parseDBDateToLocal(r.fecha_hora) || parseDBDateToLocal(`${r.fecha_retiro}T00:00:00`);
-                      const fecha = toDateInput(dt);
-                      const hora = dt.toLocaleString('es-MX', { hour: 'numeric', minute: '2-digit', hour12: true });
+                      const dt =
+  parseDBDateToLocal(r.fecha_hora) ||
+  parseDBDateToLocal(
+    `${r.fecha_retiro}T00:00:00`
+  );
+
+const fecha = fmtFechaLarga(
+  r.fecha_retiro || dt
+);
+
+const hora = dt
+  ? dt.toLocaleTimeString('es-MX', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+  : '—';
                       return (
                         <tr key={r.id_retiro} className="border-b border-slate-100">
-                          <td className="py-2 px-3">{fecha}</td>
+                         <td className="py-2 px-3 whitespace-nowrap">
+  {fecha}
+</td>
                           <td className="py-2 px-3 font-semibold">{fmtMoney(r.monto_retirado)}</td>
-                          <td className="py-2 px-3">{hora}</td>
+                         <td className="py-2 px-3 whitespace-nowrap">
+  {hora}
+</td>
                           <td className="py-2 px-3">{r.forma_retiro || '—'}</td>
                           <td className="py-2 px-3">{r.nota || '—'}</td>
                         </tr>
@@ -436,8 +545,17 @@ const RetirosModule = () => {
             <div className="p-5 space-y-3">
               <div className="flex justify-between">
                 <span className="text-slate-600">Ahorro acumulado:</span>
-                <span className="font-semibold">{fmtMoney(ahorroTotal)}</span>
+                <span className="font-semibold">{fmtMoney(ahorroDisponible)}</span>
               </div>
+        <div className="flex justify-between">
+  <span className="text-slate-600">
+    Retiro acumulado:
+  </span>
+
+  <span className="font-semibold text-blue-700">
+    {fmtMoney(retiroAcumulado)}
+  </span>
+</div>
               <div className="flex justify-between">
                 <span className="text-slate-600">Deuda acumulada:</span>
                 <span className="font-semibold">{fmtMoney(deudaPendiente)}</span>
