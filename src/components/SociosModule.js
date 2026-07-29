@@ -347,17 +347,17 @@ const bancosData = await bancosRes.json();
       if (!referencia) {
         faltantes.push('Referencia personal');
       } else {
-        if (!referencia.nombre?.trim()) {
-          faltantes.push('Nombre de referencia personal');
-        }
+       if (!String(referencia.nombre || '').trim()) {
+  faltantes.push('Nombre de referencia personal');
+}
 
-        if (!referencia.telefono?.trim()) {
-          faltantes.push('Teléfono de referencia personal');
-        }
+if (!String(referencia.telefono || '').trim()) {
+  faltantes.push('Teléfono de referencia personal');
+}
 
-        if (!referencia.direccion?.trim()) {
-          faltantes.push('Dirección de referencia personal');
-        }
+if (!String(referencia.direccion || '').trim()) {
+  faltantes.push('Dirección de referencia personal');
+}
       }
 
       const beneficiario = beneficiariosMap.get(idSocio);
@@ -367,25 +367,25 @@ const bancosData = await bancosRes.json();
         faltantes.push('Foto del beneficiario');
         faltantes.push('Documento PDF del beneficiario');
       } else {
-        if (!beneficiario.nombre?.trim()) {
-          faltantes.push('Nombre del beneficiario');
-        }
+        if (!String(beneficiario.nombre || '').trim()) {
+  faltantes.push('Nombre del beneficiario');
+}
 
-        if (!beneficiario.telefono?.trim()) {
-          faltantes.push('Teléfono del beneficiario');
-        }
+if (!String(beneficiario.telefono || '').trim()) {
+  faltantes.push('Teléfono del beneficiario');
+}
 
-        if (!beneficiario.direccion?.trim()) {
-          faltantes.push('Dirección del beneficiario');
-        }
+if (!String(beneficiario.direccion || '').trim()) {
+  faltantes.push('Dirección del beneficiario');
+}
 
-        if (!beneficiario.foto_url?.trim()) {
-          faltantes.push('Foto del beneficiario');
-        }
+if (!String(beneficiario.foto_url || '').trim()) {
+  faltantes.push('Foto del beneficiario');
+}
 
-        if (!beneficiario.documentos_url?.trim()) {
-          faltantes.push('Documento PDF del beneficiario');
-        }
+if (!String(beneficiario.documentos_url || '').trim()) {
+  faltantes.push('Documento PDF del beneficiario');
+}
       }
 
       const banco = bancosMap.get(idSocio);
@@ -419,10 +419,13 @@ if (!String(banco.cuenta_clave || '').trim()) {
 
     setSociosList(sociosConEstado);
   } catch (err) {
-    setError(err.message);
-  } finally {
+  console.error('ERROR CARGANDO SOCIOS:', err);
+  setError(err.message);
+} finally {
+  if (mostrarCarga) {
     setLoading(false);
   }
+}
 };
 
   /** Validación rápida de foto */
@@ -595,8 +598,10 @@ const uploadPhotoToAforeBucket = async (socioId) => {
   setShowForm(false);
 };
 
-  const handleAddOrUpdateSocio = async (e) => {
+ const handleAddOrUpdateSocio = async (e) => {
   e.preventDefault();
+
+  setShowConfirmRegistro(false);
   setError(null);
 
   const required = ['nombre', 'apellido_paterno', 'apellido_materno', 'email', 'contrasena', 'telefono', 'direccion', 'cp'];
@@ -969,10 +974,11 @@ if (entidadSeleccionada !== '') {
 }
 
 resetForm();
-await fetchSocios();
+await fetchSocios(false);
 
-  } catch (err) {
-    setError(err.message);
+ } catch (err) {
+  console.error('ERROR GUARDANDO SOCIO:', err);
+  setError(err.message);
   } finally {
     setSaving(false);
   }
