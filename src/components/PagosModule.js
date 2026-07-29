@@ -4,6 +4,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
+const textoMayusculas = (valor = '') =>
+  String(valor || '').trim().toUpperCase();
+
 function fmtMoney(n) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(n || 0));
 }
@@ -266,16 +269,16 @@ const PagosModule = ({ idSocio }) => {
       const nowLocalPlain = localPlainDateTime();
       const soloFecha = nowLocalPlain.slice(0, 10);
 
-      const body = {
-        fecha_pago: soloFecha,
-        fecha_hora_pago: nowLocalPlain,
-        estatus: 'pagado',
-        monto_pagado: monto,
-        interes_pagado,
-        capital_pagado,
-        forma_pago: formaPago,
-        nota: (nota || '').trim() || null
-      };
+     const body = {
+  fecha_pago: soloFecha,
+  fecha_hora_pago: nowLocalPlain,
+  estatus: 'pagado',
+  monto_pagado: monto,
+  interes_pagado,
+  capital_pagado,
+  forma_pago: textoMayusculas(formaPago),
+  nota: textoMayusculas(nota) || null
+};
 
       const r = await fetch(
         `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_pago=eq.${pagoTarget.id_pago}`,
