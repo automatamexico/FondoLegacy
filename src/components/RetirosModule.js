@@ -7,6 +7,9 @@ const SUPABASE_ANON_KEY =
 function fmtMoney(n) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(n || 0));
 }
+
+const textoMayusculas = (valor = '') =>
+  String(valor || '').trim().toUpperCase();
 function toDateInput(d) {
   if (!d) return '';
   const dt = new Date(d);
@@ -230,14 +233,14 @@ const RetirosModule = () => {
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           Prefer: 'return=representation'
         },
-        body: JSON.stringify({
-          id_socio: socioSel.id_socio,
-          monto_retirado: m,
-          fecha_retiro: soloFecha,   // solo fecha local
-          fecha_hora: nowISO,        // timestamp con zona local
-          forma_retiro: formaRetiro,
-          nota: (nota || '').trim() || null
-        })
+       body: JSON.stringify({
+  id_socio: socioSel.id_socio,
+  monto_retirado: m,
+  fecha_retiro: soloFecha,
+  fecha_hora: nowISO,
+  forma_retiro: textoMayusculas(formaRetiro),
+  nota: textoMayusculas(nota) || null
+})
       });
 
       if (!ret.ok) {
