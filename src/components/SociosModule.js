@@ -56,6 +56,11 @@ const cleanDate = (v) => (v && String(v).trim() ? v : null);
 
 const onlyDigits = (v = '') => String(v).replace(/\D/g, '');
 const onlyDigitsMax = (v = '', max = 999) => onlyDigits(v).slice(0, max);
+const textoMayusculas = (valor = '') =>
+  String(valor || '').trim().toUpperCase();
+
+const correoMinusculas = (valor = '') =>
+  String(valor || '').trim().toLowerCase();
 
 const SociosModule = ({ currentUser }) => {
   const [sociosList, setSociosList] = useState([]);
@@ -639,10 +644,17 @@ const uploadPhotoToAforeBucket = async (socioId) => {
             Prefer: 'return=representation',
           },
           body: JSON.stringify({
-            ...newSocio,
-            estatus: newSocio.estatus === 'activo',
-            fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
-          }),
+  ...newSocio,
+  nombre: textoMayusculas(newSocio.nombre),
+  apellido_paterno: textoMayusculas(newSocio.apellido_paterno),
+  apellido_materno: textoMayusculas(newSocio.apellido_materno),
+  email: correoMinusculas(newSocio.email),
+  telefono: String(newSocio.telefono || '').trim(),
+  direccion: textoMayusculas(newSocio.direccion),
+  cp: String(newSocio.cp || '').trim(),
+  estatus: newSocio.estatus === 'activo',
+  fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
+}),
         }
       );
 
@@ -667,11 +679,18 @@ socioId = socio.id_socio;
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           Prefer: 'return=representation',
         },
-        body: JSON.stringify({
-          ...newSocio,
-          estatus: newSocio.estatus === 'activo',
-          fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
-        }),
+      body: JSON.stringify({
+  ...newSocio,
+  nombre: textoMayusculas(newSocio.nombre),
+  apellido_paterno: textoMayusculas(newSocio.apellido_paterno),
+  apellido_materno: textoMayusculas(newSocio.apellido_materno),
+  email: correoMinusculas(newSocio.email),
+  telefono: String(newSocio.telefono || '').trim(),
+  direccion: textoMayusculas(newSocio.direccion),
+  cp: String(newSocio.cp || '').trim(),
+  estatus: newSocio.estatus === 'activo',
+  fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
+}),
       });
 
       if (!res.ok) throw new Error('Error creando socio');
@@ -713,7 +732,13 @@ socioId = socio.id_socio;
               apikey: SUPABASE_ANON_KEY,
               Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
             },
-            body: JSON.stringify({ ...referencia }),
+            body: JSON.stringify({
+  nombre: textoMayusculas(referencia.nombre),
+  apellido_paterno: textoMayusculas(referencia.apellido_paterno),
+  apellido_materno: textoMayusculas(referencia.apellido_materno),
+  telefono: String(referencia.telefono || '').trim(),
+  direccion: textoMayusculas(referencia.direccion),
+}),
           }
         );
       } else {
@@ -725,9 +750,13 @@ socioId = socio.id_socio;
             Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
-            id_socio: socioId,
-            ...referencia
-          }),
+  id_socio: socioId,
+  nombre: textoMayusculas(referencia.nombre),
+  apellido_paterno: textoMayusculas(referencia.apellido_paterno),
+  apellido_materno: textoMayusculas(referencia.apellido_materno),
+  telefono: String(referencia.telefono || '').trim(),
+  direccion: textoMayusculas(referencia.direccion),
+}),
         });
       }
     }
@@ -824,14 +853,14 @@ if (beneficiario.nombre.trim() !== '') {
   }
 
   const beneficiarioPayload = {
-    nombre: beneficiario.nombre,
-    apellido_paterno: beneficiario.apellido_paterno,
-    apellido_materno: beneficiario.apellido_materno,
-    telefono: beneficiario.telefono,
-    direccion: beneficiario.direccion,
-    foto_url: fotoUrl,
-    documentos_url: documentoUrl,
-  };
+  nombre: textoMayusculas(beneficiario.nombre),
+  apellido_paterno: textoMayusculas(beneficiario.apellido_paterno),
+  apellido_materno: textoMayusculas(beneficiario.apellido_materno),
+  telefono: String(beneficiario.telefono || '').trim(),
+  direccion: textoMayusculas(beneficiario.direccion),
+  foto_url: fotoUrl,
+  documentos_url: documentoUrl,
+};
 
   // ================= ACTUALIZAR BENEFICIARIO =================
   if (beneficiarioExistente) {
@@ -888,28 +917,30 @@ const entidadSeleccionada = String(
 
 if (entidadSeleccionada !== '') {
   const bancoFinal =
-    entidadSeleccionada === 'OTRO'
-      ? String(referenciaBancaria.banco_otro || '').trim()
-      : entidadSeleccionada;
+  entidadSeleccionada === 'OTRO'
+    ? textoMayusculas(referenciaBancaria.banco_otro)
+    : textoMayusculas(entidadSeleccionada);
 
   if (!bancoFinal) {
     throw new Error('Debe indicar el nombre de la entidad bancaria.');
   }
 
-  const bancoPayload = {
-    id_socio: Number(socioId),
-    entidad_bancaria: bancoFinal,
-    titular_cuenta: String(
-      referenciaBancaria.titular_cuenta || ''
-    ).trim(),
-    numero_cuenta: String(
-      referenciaBancaria.numero_cuenta || ''
-    ).trim(),
-    cuenta_clave: String(
-      referenciaBancaria.cuenta_clave || ''
-    ).trim(),
-    pais: String(referenciaBancaria.pais || 'México').trim(),
-  };
+ const bancoPayload = {
+  id_socio: Number(socioId),
+  entidad_bancaria: bancoFinal,
+  titular_cuenta: textoMayusculas(
+    referenciaBancaria.titular_cuenta
+  ),
+  numero_cuenta: String(
+    referenciaBancaria.numero_cuenta || ''
+  ).trim(),
+  cuenta_clave: String(
+    referenciaBancaria.cuenta_clave || ''
+  ).trim(),
+  pais: textoMayusculas(
+    referenciaBancaria.pais || 'México'
+  ),
+};
 
   console.log('GUARDANDO BANCO:', bancoPayload);
 
@@ -2071,8 +2102,8 @@ const openFicha = async (socio) => {
         <button
           type="button"
           onClick={() => {
-            const nombre = (bancoPersonalizado.nombre || "").trim();
-            const pais = (bancoPersonalizado.pais || "").trim();
+           const nombre = textoMayusculas(bancoPersonalizado.nombre);
+const pais = textoMayusculas(bancoPersonalizado.pais);
 
             if (!nombre || !pais) return;
 
