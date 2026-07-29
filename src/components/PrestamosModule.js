@@ -30,7 +30,38 @@ const PrestamosModule = ({ idSocio }) => {
   const [selectedSocioForHistorial, setSelectedSocioForHistorial] = useState(null);
   const [socioPrestamos, setSocioPrestamos] = useState([]);
   const [showEditPrestamosModal, setShowEditPrestamosModal] = useState(false);
+  
+// Pago desde el historial del préstamo
+const [showPagoPrestamoModal, setShowPagoPrestamoModal] =
+  useState(false);
 
+const [showConfirmPagoPrestamo, setShowConfirmPagoPrestamo] =
+  useState(false);
+
+const [pagoPrestamoTarget, setPagoPrestamoTarget] =
+  useState(null);
+
+const [montoPagoPrestamo, setMontoPagoPrestamo] =
+  useState('');
+
+const [formaPagoPrestamo, setFormaPagoPrestamo] =
+  useState('');
+
+const [formaPagoPrestamoError, setFormaPagoPrestamoError] =
+  useState('');
+
+const [notaPagoPrestamo, setNotaPagoPrestamo] =
+  useState('');
+
+const [multaHojaPrestamo, setMultaHojaPrestamo] =
+  useState('no');
+
+const [montoMultaPrestamo, setMontoMultaPrestamo] =
+  useState('');
+
+const [guardandoPagoPrestamo, setGuardandoPagoPrestamo] =
+  useState(false);
+  
   const [submitting, setSubmitting] = useState(false);
 
   const currentUserRole = localStorage.getItem('currentUser')
@@ -120,6 +151,20 @@ const addPeriod = (dateISO, tipo, k) => {
 
   return `${y}-${m}-${day}`;
 };
+
+const localPlainDateTime = () => {
+  const d = new Date();
+
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  const sec = String(d.getSeconds()).padStart(2, '0');
+
+  return `${y}-${m}-${day}T${h}:${min}:${sec}`;
+};
+  
   // --- RLS helper: marcar liquidado si corresponde ---
   const checkAndMarkLiquidado = async (id_prestamo) => {
     try {
@@ -344,7 +389,7 @@ const addPeriod = (dateISO, tipo, k) => {
     setError(null);
     try {
       const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&order=fecha_programada.asc&select=numero_pago,fecha_programada,monto_pago,fecha_pago,fecha_hora_pago,monto_pagado,interes_pagado,capital_pagado,estatus`,
+       `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamo.id_prestamo}&order=fecha_programada.asc&select=id_pago,id_prestamo,numero_pago,fecha_programada,monto_pago,fecha_pago,fecha_hora_pago,monto_pagado,interes_pagado,capital_pagado,estatus,forma_pago,nota`,
         { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!response.ok) throw new Error('Error al cargar historial de pagos del préstamo');
@@ -358,6 +403,209 @@ const addPeriod = (dateISO, tipo, k) => {
     }
   };
 
+const abrirPagoDesdePrestamo = (pago) => {
+  if (
+    String(pago?.estatus || '').toLowerCase() ===
+    'pagado'
+  ) {
+    return;
+  }
+
+  setPagoPrestamoTarget(pago);
+  setMontoPagoPrestamo(pago.monto_pago || '');
+  setFormaPagoPrestamo('');
+  setFormaPagoPrestamoError('');
+  setNotaPagoPrestamo('');
+  setMultaHojaPrestamo('no');
+  setMontoMultaPrestamo('');
+  setShowPagoPrestamoModal(true);
+};
+
+const validarPagoDesdePrestamo = () => {
+  if (
+    !montoPagoPrestamo ||
+    Number(montoPagoPrestamo) <= 0
+  ) {
+    alert('Indique un monto válido.');
+    return;
+  }
+
+  if (!formaPagoPrestamo) {
+    setFormaPagoPrestamoError(
+      'Debe seleccionar una forma de pago.'
+    );
+    return;
+  }
+
+  if (
+    multaHojaPrestamo === 'si' &&
+    !(Number(montoMultaPrestamo) > 0)
+  ) {
+    alert('Indique el monto de la multa por hoja.');
+    return;
+  }
+
+  setShowConfirmPagoPrestamo(true);
+};
+
+const confirmarPagoDesdePrestamo = async () => {
+  if (
+    !pagoPrestamoTarget?.id_pago ||
+    !selectedPrestamo
+  ) {
+    alert(
+      'No se encontró la información necesaria del pago.'
+    );
+    return;
+  }
+
+  setGuardandoPagoPrestamo(true);
+
+  try {
+    const monto = Number(montoPagoPrestamo);
+
+    const montoPrestamo = Number(
+      selectedPrestamo.monto_solicitado || 0
+    );
+
+    const numeroPlazos = Number(
+      selectedPrestamo.numero_plazos || 1
+    );
+
+    const interesPrestamo = Number(
+      selectedPrestamo.interes || 0
+    );
+
+    const capitalEstimado =
+      montoPrestamo / numeroPlazos;
+
+    const interesEstimado =
+      montoPrestamo * (interesPrestamo / 100);
+
+    const interesPagado = Math.min(
+      monto,
+      interesEstimado
+    );
+
+    const capitalPagado = Math.max(
+      monto - interesPagado,
+      0
+    );
+
+    const fechaHoraLocal = localPlainDateTime();
+    const soloFecha = fechaHoraLocal.slice(0, 10);
+
+    const bodyPago = {
+      fecha_pago: soloFecha,
+      fecha_hora_pago: fechaHoraLocal,
+      estatus: 'pagado',
+      monto_pagado: monto,
+      interes_pagado: interesPagado,
+      capital_pagado: capitalPagado,
+      forma_pago: formaPagoPrestamo,
+      nota:
+        String(notaPagoPrestamo || '')
+          .trim()
+          .toUpperCase() || null,
+    };
+
+    const pagoResponse = await fetch(
+      `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_pago=eq.${pagoPrestamoTarget.id_pago}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify(bodyPago),
+      }
+    );
+
+    if (!pagoResponse.ok) {
+      const detalle = await pagoResponse.text();
+
+      throw new Error(
+        `No se pudo registrar el pago: ${detalle}`
+      );
+    }
+
+    // Registrar multa por hoja, cuando corresponda
+    if (
+      multaHojaPrestamo === 'si' &&
+      Number(montoMultaPrestamo) > 0 &&
+      selectedSocioForHistorial?.id_socio
+    ) {
+      const multaBody = {
+        id_socio:
+          selectedSocioForHistorial.id_socio,
+        multa_hoja: true,
+        monto_multa_hoja: Number(
+          montoMultaPrestamo
+        ),
+        fecha_hora: fechaHoraLocal,
+      };
+
+      const multaResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/pago_multas`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Prefer: 'return=representation',
+          },
+          body: JSON.stringify(multaBody),
+        }
+      );
+
+      if (!multaResponse.ok) {
+        console.warn(
+          'El pago se registró, pero no se pudo registrar la multa.'
+        );
+      }
+    }
+
+    setShowConfirmPagoPrestamo(false);
+    setShowPagoPrestamoModal(false);
+    setPagoPrestamoTarget(null);
+    setMontoPagoPrestamo('');
+    setFormaPagoPrestamo('');
+    setNotaPagoPrestamo('');
+    setMultaHojaPrestamo('no');
+    setMontoMultaPrestamo('');
+
+    // Recargar el historial del mismo préstamo
+    await handleVerDetallesPrestamo(
+      selectedPrestamo
+    );
+
+    await fetchGlobalPrestamoStats();
+
+    setToastMessage(
+      'Pago registrado correctamente.'
+    );
+
+    setTimeout(
+      () => setToastMessage(''),
+      3000
+    );
+  } catch (errorPago) {
+    console.error(
+      'ERROR REGISTRANDO PAGO DESDE PRÉSTAMOS:',
+      errorPago
+    );
+
+    alert(
+      errorPago.message ||
+        'No se pudo registrar el pago.'
+    );
+  } finally {
+    setGuardandoPagoPrestamo(false);
+  }
+};
+  
   const handleBackToListadoPrestamos = () => {
     setShowDetailsModal(false);
     setSelectedPrestamo(null);
@@ -892,66 +1140,608 @@ const addPeriod = (dateISO, tipo, k) => {
         </div>
       )}
 
-      {/* Modal de Detalles */}
-      {showDetailsModal && selectedPrestamo && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-6xl w-full">
-            <h3 className="text-xl font-bold text-slate-900 mb-4">
-              Historial de Pagos del Préstamo {selectedPrestamo.id_prestamo}
-            </h3>
+    {/* Modal de Detalles */}
+{showDetailsModal && selectedPrestamo && (
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-3 md:p-4 z-50">
+    <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[94vh] overflow-hidden">
+      {/* Encabezado */}
+      <div className="flex items-start justify-between gap-3 p-4 md:p-6 border-b border-slate-200">
+        <div>
+          <h3 className="text-lg md:text-xl font-bold text-slate-900">
+            Historial de Pagos del Préstamo{' '}
+            {selectedPrestamo.id_prestamo}
+          </h3>
 
-            {loading && <p className="text-center text-slate-600">Cargando historial de pagos...</p>}
-            {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
-
-            {!loading && !error && historialPagosPrestamo.length === 0 && (
-              <p className="text-center text-slate-600">Aún no hay pagos registrados para este préstamo.</p>
+          <p className="text-sm text-slate-500 mt-1">
+            Monto original:{' '}
+            {formatCurrency(
+              selectedPrestamo.monto_solicitado
             )}
+          </p>
+        </div>
 
-            {!loading && !error && historialPagosPrestamo.length > 0 && (
-              <div className="max-h-[60vh] overflow-y-auto">
-              <table className="w-full min-w-[640px]">
+        <button
+          type="button"
+          onClick={handleBackToListadoPrestamos}
+          className="shrink-0 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
+        >
+          Cerrar
+        </button>
+      </div>
+
+      <div className="p-4 md:p-6 max-h-[78vh] overflow-y-auto">
+        {loading && (
+          <p className="text-center text-slate-600">
+            Cargando historial de pagos...
+          </p>
+        )}
+
+        {error && !loading && (
+          <p className="text-center text-red-500">
+            Error: {error}
+          </p>
+        )}
+
+        {!loading &&
+          !error &&
+          historialPagosPrestamo.length === 0 && (
+            <p className="text-center text-slate-600">
+              Aún no hay pagos registrados para este préstamo.
+            </p>
+          )}
+
+        {!loading &&
+          !error &&
+          historialPagosPrestamo.length > 0 && (
+            <>
+              {/* ================= MÓVIL ================= */}
+              <div className="md:hidden space-y-3">
+                {historialPagosPrestamo.map(
+                  (pago) => {
+                    const pagado =
+                      String(
+                        pago.estatus || ''
+                      ).toLowerCase() === 'pagado';
+
+                    const programada =
+                      pago.fecha_programada || '';
+
+                    const fechaShow =
+                      pago.fecha_hora_pago
+                        ? `${
+                            convertirFechaHoraLocal(
+                              pago.fecha_hora_pago
+                            ).fecha
+                          } ${
+                            convertirFechaHoraLocal(
+                              pago.fecha_hora_pago
+                            ).hora
+                          }`
+                        : programada;
+
+                    return (
+                      <div
+                        key={pago.id_pago}
+                        className="border border-slate-200 rounded-xl bg-slate-50 p-4 space-y-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs text-slate-500">
+                              Número de pago
+                            </p>
+
+                            <p className="font-bold text-slate-900">
+                              #{pago.numero_pago}
+                            </p>
+                          </div>
+
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              pagado
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-yellow-100 text-yellow-700'
+                            }`}
+                          >
+                            {pagado
+                              ? 'Pagado'
+                              : 'Pendiente'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-slate-500">
+                            Fecha
+                          </p>
+
+                          <p className="font-medium text-slate-900">
+                            {fechaShow || '—'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-slate-500">
+                            Monto programado
+                          </p>
+
+                          <p className="text-lg font-bold text-blue-600">
+                            {formatCurrency(
+                              pago.monto_pago
+                            )}
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-slate-500">
+                              Pagado
+                            </p>
+
+                            <p className="font-medium text-slate-900">
+                              {pago.monto_pagado != null
+                                ? formatCurrency(
+                                    pago.monto_pagado
+                                  )
+                                : '—'}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs text-slate-500">
+                              Interés
+                            </p>
+
+                            <p className="font-medium text-slate-900">
+                              {pago.interes_pagado !=
+                              null
+                                ? formatCurrency(
+                                    pago.interes_pagado
+                                  )
+                                : '—'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-slate-500">
+                            Capital
+                          </p>
+
+                          <p className="font-medium text-slate-900">
+                            {pago.capital_pagado != null
+                              ? formatCurrency(
+                                  pago.capital_pagado
+                                )
+                              : '—'}
+                          </p>
+                        </div>
+
+                        {!pagado && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              abrirPagoDesdePrestamo(
+                                pago
+                              )
+                            }
+                            className="w-full px-4 py-2.5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700"
+                          >
+                            Pagar
+                          </button>
+                        )}
+                      </div>
+                    );
+                  }
+                )}
+              </div>
+
+              {/* ================= WEB ================= */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
                   <thead>
                     <tr className="border-b border-slate-200">
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">#</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Fecha</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Programado</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Pagado</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Interés</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Capital</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Estatus</th>
+                      <th className="text-left py-3 px-3">
+                        #
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Fecha
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Programado
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Pagado
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Interés
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Capital
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Estatus
+                      </th>
+
+                      <th className="text-left py-3 px-3">
+                        Acción
+                      </th>
                     </tr>
                   </thead>
+
                   <tbody>
-                    {historialPagosPrestamo.map((pago, idx) => {
-                      const programada = pago.fecha_programada || '';
-                      const fechaShow = pago.fecha_hora_pago
-                        ? `${convertirFechaHoraLocal(pago.fecha_hora_pago).fecha} ${convertirFechaHoraLocal(pago.fecha_hora_pago).hora}`
-                        : programada;
-                      return (
-                        <tr key={idx} className="border-b border-slate-100">
-                          <td className="py-3 px-4">{pago.numero_pago}</td>
-                          <td className="py-3 px-4">{fechaShow}</td>
-                          <td className="py-3 px-4">{formatCurrency(pago.monto_pago)}</td>
-                          <td className="py-3 px-4">{pago.monto_pagado != null ? formatCurrency(pago.monto_pagado) : '—'}</td>
-                          <td className="py-3 px-4">{pago.interes_pagado != null ? formatCurrency(pago.interes_pagado) : '—'}</td>
-                          <td className="py-3 px-4">{pago.capital_pagado != null ? formatCurrency(pago.capital_pagado) : '—'}</td>
-                          <td className="py-3 px-4">{pago.estatus}</td>
-                        </tr>
-                      );
-                    })}
+                    {historialPagosPrestamo.map(
+                      (pago) => {
+                        const pagado =
+                          String(
+                            pago.estatus || ''
+                          ).toLowerCase() ===
+                          'pagado';
+
+                        const programada =
+                          pago.fecha_programada || '';
+
+                        const fechaShow =
+                          pago.fecha_hora_pago
+                            ? `${
+                                convertirFechaHoraLocal(
+                                  pago.fecha_hora_pago
+                                ).fecha
+                              } ${
+                                convertirFechaHoraLocal(
+                                  pago.fecha_hora_pago
+                                ).hora
+                              }`
+                            : programada;
+
+                        return (
+                          <tr
+                            key={pago.id_pago}
+                            className="border-b border-slate-100 hover:bg-slate-50"
+                          >
+                            <td className="py-3 px-3">
+                              {pago.numero_pago}
+                            </td>
+
+                            <td className="py-3 px-3">
+                              {fechaShow || '—'}
+                            </td>
+
+                            <td className="py-3 px-3">
+                              {formatCurrency(
+                                pago.monto_pago
+                              )}
+                            </td>
+
+                            <td className="py-3 px-3">
+                              {pago.monto_pagado != null
+                                ? formatCurrency(
+                                    pago.monto_pagado
+                                  )
+                                : '—'}
+                            </td>
+
+                            <td className="py-3 px-3">
+                              {pago.interes_pagado !=
+                              null
+                                ? formatCurrency(
+                                    pago.interes_pagado
+                                  )
+                                : '—'}
+                            </td>
+
+                            <td className="py-3 px-3">
+                              {pago.capital_pagado != null
+                                ? formatCurrency(
+                                    pago.capital_pagado
+                                  )
+                                : '—'}
+                            </td>
+
+                            <td className="py-3 px-3">
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                  pagado
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                                }`}
+                              >
+                                {pagado
+                                  ? 'Pagado'
+                                  : 'Pendiente'}
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-3">
+                              {!pagado ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    abrirPagoDesdePrestamo(
+                                      pago
+                                    )
+                                  }
+                                  className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700"
+                                >
+                                  Pagar
+                                </button>
+                              ) : (
+                                <span className="text-slate-400">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      }
+                    )}
                   </tbody>
                 </table>
               </div>
-            )}
+            </>
+          )}
 
-            <div className="flex justify-end mt-6">
-              <button onClick={handleBackToListadoPrestamos} className="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium">
-                Volver
-              </button>
+        <div className="flex justify-end mt-6">
+          <button
+            type="button"
+            onClick={handleBackToListadoPrestamos}
+            className="w-full md:w-auto px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium"
+          >
+            Volver
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* MODAL: REALIZAR PAGO DESDE PRÉSTAMOS */}
+{showPagoPrestamoModal &&
+  pagoPrestamoTarget && (
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-5 max-h-[92vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold mb-4">
+          Realizar pago — #
+          {pagoPrestamoTarget.numero_pago}
+        </h3>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm text-slate-700 mb-1">
+              Monto a pagar
+            </label>
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className="w-full px-3 py-2 border rounded-lg"
+              value={montoPagoPrestamo}
+              onChange={(e) =>
+                setMontoPagoPrestamo(
+                  e.target.value
+                )
+              }
+            />
+          </div>
+
+          <div>
+            <p className="text-sm text-slate-700 mb-2">
+              Seleccione la forma de pago
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="forma_pago_prestamo"
+                  value="Efectivo"
+                  checked={
+                    formaPagoPrestamo ===
+                    'Efectivo'
+                  }
+                  onChange={(e) => {
+                    setFormaPagoPrestamo(
+                      e.target.value
+                    );
+
+                    setFormaPagoPrestamoError(
+                      ''
+                    );
+                  }}
+                />
+
+                Efectivo
+              </label>
+
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="forma_pago_prestamo"
+                  value="Transferencia"
+                  checked={
+                    formaPagoPrestamo ===
+                    'Transferencia'
+                  }
+                  onChange={(e) => {
+                    setFormaPagoPrestamo(
+                      e.target.value
+                    );
+
+                    setFormaPagoPrestamoError(
+                      ''
+                    );
+                  }}
+                />
+
+                Transferencia
+              </label>
             </div>
+
+            {formaPagoPrestamoError && (
+              <p className="text-red-600 text-sm mt-1">
+                {formaPagoPrestamoError}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <p className="text-sm text-slate-700 mb-2">
+              Multa por hoja
+            </p>
+
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="multa_prestamo"
+                  value="no"
+                  checked={
+                    multaHojaPrestamo === 'no'
+                  }
+                  onChange={(e) => {
+                    setMultaHojaPrestamo(
+                      e.target.value
+                    );
+
+                    setMontoMultaPrestamo('');
+                  }}
+                />
+
+                No
+              </label>
+
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="multa_prestamo"
+                  value="si"
+                  checked={
+                    multaHojaPrestamo === 'si'
+                  }
+                  onChange={(e) =>
+                    setMultaHojaPrestamo(
+                      e.target.value
+                    )
+                  }
+                />
+
+                Sí
+              </label>
+            </div>
+
+            {multaHojaPrestamo === 'si' && (
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className="w-full mt-3 px-3 py-2 border rounded-lg"
+                placeholder="Monto de la multa"
+                value={montoMultaPrestamo}
+                onChange={(e) =>
+                  setMontoMultaPrestamo(
+                    e.target.value
+                  )
+                }
+              />
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm text-slate-700 mb-1">
+              Nota (opcional)
+            </label>
+
+            <textarea
+              rows="3"
+              className="w-full px-3 py-2 border rounded-lg"
+              value={notaPagoPrestamo}
+              onChange={(e) =>
+                setNotaPagoPrestamo(
+                  e.target.value
+                )
+              }
+            />
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
+            <button
+              type="button"
+              className="w-full sm:w-auto px-4 py-2 bg-slate-100 rounded-lg"
+              onClick={() => {
+                setShowPagoPrestamoModal(
+                  false
+                );
+
+                setPagoPrestamoTarget(null);
+              }}
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="button"
+              className="w-full sm:w-auto px-4 py-2 bg-emerald-600 text-white rounded-lg"
+              onClick={validarPagoDesdePrestamo}
+            >
+              Aplicar pago
+            </button>
           </div>
         </div>
-      )}
+      </div>
+    </div>
+  )}
+
+{/* CONFIRMACIÓN DEL PAGO */}
+{showConfirmPagoPrestamo && (
+  <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+    <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-5 text-center">
+      <h3 className="text-lg font-semibold mb-3">
+        ¿Está seguro que desea aplicar el pago?
+      </h3>
+
+      <p className="text-slate-700 mb-5">
+        Se registrará el pago por{' '}
+        {formatCurrency(
+          Number(montoPagoPrestamo)
+        )}
+        .
+      </p>
+
+      <div className="flex flex-col-reverse sm:flex-row justify-center gap-3">
+        <button
+          type="button"
+          className="w-full sm:w-auto px-4 py-2 bg-slate-100 rounded-lg"
+          onClick={() =>
+            setShowConfirmPagoPrestamo(false)
+          }
+          disabled={guardandoPagoPrestamo}
+        >
+          Cancelar
+        </button>
+
+        <button
+          type="button"
+          className={`w-full sm:w-auto px-4 py-2 rounded-lg text-white ${
+            guardandoPagoPrestamo
+              ? 'bg-emerald-400 cursor-wait'
+              : 'bg-emerald-600 hover:bg-emerald-700'
+          }`}
+          onClick={confirmarPagoDesdePrestamo}
+          disabled={guardandoPagoPrestamo}
+        >
+          {guardandoPagoPrestamo
+            ? 'Aplicando...'
+            : 'Aceptar'}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* === MODAL: Registrar nuevo préstamo === */}
       {showAddPrestamoModal && (
