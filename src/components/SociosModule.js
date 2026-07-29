@@ -376,21 +376,21 @@ useEffect(() => {
       if (!banco) {
         faltantes.push('Referencia bancaria');
       } else {
-        if (!banco.entidad_bancaria?.trim()) {
-          faltantes.push('Entidad bancaria');
-        }
+       if (!String(banco.entidad_bancaria || '').trim()) {
+  faltantes.push('Entidad bancaria');
+}
 
-        if (!banco.titular_cuenta?.trim()) {
-          faltantes.push('Titular de la cuenta');
-        }
+if (!String(banco.titular_cuenta || '').trim()) {
+  faltantes.push('Titular de la cuenta');
+}
 
-        if (!banco.numero_cuenta?.trim()) {
-          faltantes.push('Número de cuenta');
-        }
+if (!String(banco.numero_cuenta || '').trim()) {
+  faltantes.push('Número de cuenta');
+}
 
-        if (!banco.cuenta_clave?.trim()) {
-          faltantes.push('Cuenta CLABE');
-        }
+if (!String(banco.cuenta_clave || '').trim()) {
+  faltantes.push('Cuenta CLABE');
+}
       }
 
       return {
@@ -852,53 +852,98 @@ if (beneficiario.nombre.trim() !== '') {
   }
 }
 
-    // ================= REFERENCIA BANCARIA =================
-    if (referenciaBancaria.entidad_bancaria !== '') {
+  // ================= REFERENCIA BANCARIA =================
+if (String(referenciaBancaria.entidad_bancaria || '').trim() !== '') {
+  const bancoFinal =
+    referenciaBancaria.entidad_bancaria === 'OTRO'
+      ? String(referenciaBancaria.banco_otro || '').trim()
+      : String(referenciaBancaria.entidad_bancaria || '').trim();
 
-      const checkBanco = await fetch(
-        `${SUPABASE_URL}/rest/v1/referencias_bancarias?id_socio=eq.${socioId}`,
-        {
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-        }
-      );
+  if (!bancoFinal) {
+    throw new Error('Debe indicar el nombre de la entidad bancaria.');
+  }
 
-      const existingBanco = await checkBanco.json();
+  const bancoPayload = {
+    entidad_bancaria: bancoFinal,
+    titular_cuenta: String(
+      referenciaBancaria.titular_cuenta || ''
+    ).trim(),
+    numero_cuenta: String(
+      referenciaBancaria.numero_cuenta || ''
+    ).trim(),
+    cuenta_clave: String(
+      referenciaBancaria.cuenta_clave || ''
+    ).trim(),
+    pais: String(referenciaBancaria.pais || 'México').trim(),
+  };
 
-      if (existingBanco?.length > 0) {
-        await fetch(
-          `${SUPABASE_URL}/rest/v1/referencias_bancarias?id_referencia_bancaria=eq.${existingBanco[0].id_referencia_bancaria}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            },
-            body: JSON.stringify({
-              ...referenciaBancaria
-            }),
-          }
-        );
-      } else {
-        await fetch(`${SUPABASE_URL}/rest/v1/referencias_bancarias`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({
-            id_socio: socioId,
-            ...referenciaBancaria
-          }),
-        });
-      }
+  const checkBanco = await fetch(
+    `${SUPABASE_URL}/rest/v1/referencias_bancarias?id_socio=eq.${socioId}&select=*`,
+    {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
     }
+  );
 
-    resetForm();
+  if (!checkBanco.ok) {
+    const errorText = await checkBanco.text();
+    console.error('ERROR CONSULTANDO BANCO:', errorText);
+    throw new Error('No se pudo consultar la referencia bancaria.');
+  }
+
+  const existingBanco = await checkBanco.json();
+  const bancoExistente = existingBanco?.[0] || null;
+
+  if (bancoExistente) {
+    const updateBancoRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/referencias_bancarias?id_referencia_bancaria=eq.${bancoExistente.id_referencia_bancaria}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify(bancoPayload),
+      }
+    );
+
+    if (!updateBancoRes.ok) {
+      const errorText = await updateBancoRes.text();
+      console.error('ERROR ACTUALIZANDO BANCO:', errorText);
+      throw new Error('No se pudo actualizar la referencia bancaria.');
+    }
+  } else {
+    const insertBancoRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/referencias_bancarias`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify({
+          id_socio: socioId,
+          ...bancoPayload,
+        }),
+      }
+    );
+
+    if (!insertBancoRes.ok) {
+      const errorText = await insertBancoRes.text();
+      console.error('ERROR CREANDO BANCO:', errorText);
+      throw new Error('No se pudo registrar la referencia bancaria.');
+    }
+  }
+}
+
+await fetchSocios();
+resetForm();
 
   } catch (err) {
     setError(err.message);
@@ -972,13 +1017,13 @@ const handleEditClick = async (socio) => {
     const banco = bancos?.[0];
 
     setReferenciaBancaria({
-      entidad_bancaria: banco?.entidad_bancaria || '',
-      titular_cuenta: banco?.titular_cuenta || '',
-      numero_cuenta: banco?.numero_cuenta || '',
-      cuenta_clave: banco?.cuenta_clave || '',
-      pais: banco?.pais || 'México',
-      banco_otro: banco?.banco_otro || '',
-    });
+  entidad_bancaria: banco?.entidad_bancaria || '',
+  titular_cuenta: String(banco?.titular_cuenta || ''),
+  numero_cuenta: String(banco?.numero_cuenta || ''),
+  cuenta_clave: String(banco?.cuenta_clave || ''),
+  pais: banco?.pais || 'México',
+  banco_otro: '',
+});
   } catch (err) {
     console.error('Error cargando información del socio:', err);
   }
