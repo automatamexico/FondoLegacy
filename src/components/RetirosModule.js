@@ -482,53 +482,167 @@ const disponible = useMemo(
             ) : retirosSocio.length === 0 ? (
               <p className="text-slate-600">Este socio no tiene retiros registrados.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="text-left py-2 px-3">Fecha</th>
-                      <th className="text-left py-2 px-3">Monto</th>
-                      <th className="text-left py-2 px-3">Hora</th>
-                      <th className="text-left py-2 px-3">Forma de retiro</th>
-                      <th className="text-left py-2 px-3">Nota</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {retirosSocio.map(r => {
-                      const dt =
-  parseDBDateToLocal(r.fecha_hora) ||
-  parseDBDateToLocal(
-    `${r.fecha_retiro}T00:00:00`
-  );
+          <>
+  {/* ================= MÓVIL ================= */}
+  <div className="md:hidden space-y-3">
+    {retirosSocio.map((r) => {
+      const dt =
+        parseDBDateToLocal(r.fecha_hora) ||
+        parseDBDateToLocal(
+          `${r.fecha_retiro}T00:00:00`
+        );
 
-const fecha = fmtFechaLarga(
-  r.fecha_retiro || dt
-);
+      const fecha = fmtFechaLarga(
+        r.fecha_retiro || dt
+      );
 
-const hora = dt
-  ? dt.toLocaleTimeString('es-MX', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    })
-  : '—';
-                      return (
-                        <tr key={r.id_retiro} className="border-b border-slate-100">
-                         <td className="py-2 px-3 whitespace-nowrap">
-  {fecha}
-</td>
-                          <td className="py-2 px-3 font-semibold">{fmtMoney(r.monto_retirado)}</td>
-                         <td className="py-2 px-3 whitespace-nowrap">
-  {hora}
-</td>
-                          <td className="py-2 px-3">{r.forma_retiro || '—'}</td>
-                          <td className="py-2 px-3">{r.nota || '—'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+      const hora = dt
+        ? dt.toLocaleTimeString('es-MX', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          })
+        : '—';
+
+      return (
+        <div
+          key={r.id_retiro}
+          className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs text-slate-500">
+                Fecha
+              </p>
+
+              <p className="font-medium text-slate-900">
+                {fecha}
+              </p>
+            </div>
+
+            <div className="text-right shrink-0">
+              <p className="text-xs text-slate-500">
+                Hora
+              </p>
+
+              <p className="font-medium text-slate-900">
+                {hora}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs text-slate-500">
+              Monto retirado
+            </p>
+
+            <p className="text-xl font-bold text-blue-700">
+              {fmtMoney(r.monto_retirado)}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-slate-500">
+              Forma de retiro
+            </p>
+
+            <p className="font-medium text-slate-900">
+              {r.forma_retiro || '—'}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-slate-500">
+              Nota
+            </p>
+
+            <p className="text-sm text-slate-700 whitespace-pre-wrap break-words">
+              {r.nota || 'Sin nota'}
+            </p>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+
+  {/* ================= WEB ================= */}
+  <div className="hidden md:block overflow-x-auto">
+    <table className="w-full">
+      <thead>
+        <tr className="border-b border-slate-200">
+          <th className="text-left py-2 px-3">
+            Fecha
+          </th>
+
+          <th className="text-left py-2 px-3">
+            Monto
+          </th>
+
+          <th className="text-left py-2 px-3">
+            Hora
+          </th>
+
+          <th className="text-left py-2 px-3">
+            Forma de retiro
+          </th>
+
+          <th className="text-left py-2 px-3">
+            Nota
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {retirosSocio.map((r) => {
+          const dt =
+            parseDBDateToLocal(r.fecha_hora) ||
+            parseDBDateToLocal(
+              `${r.fecha_retiro}T00:00:00`
+            );
+
+          const fecha = fmtFechaLarga(
+            r.fecha_retiro || dt
+          );
+
+          const hora = dt
+            ? dt.toLocaleTimeString('es-MX', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+              })
+            : '—';
+
+          return (
+            <tr
+              key={r.id_retiro}
+              className="border-b border-slate-100"
+            >
+              <td className="py-2 px-3 whitespace-nowrap">
+                {fecha}
+              </td>
+
+              <td className="py-2 px-3 font-semibold">
+                {fmtMoney(r.monto_retirado)}
+              </td>
+
+              <td className="py-2 px-3 whitespace-nowrap">
+                {hora}
+              </td>
+
+              <td className="py-2 px-3">
+                {r.forma_retiro || '—'}
+              </td>
+
+              <td className="py-2 px-3">
+                {r.nota || '—'}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+</>
             )}
           </div>
         </div>
