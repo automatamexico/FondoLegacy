@@ -1,5 +1,6 @@
 // src/components/CentroDigitalModule.js
 import React, { useMemo, useState, useEffect, useRef } from 'react';
+import CameraCaptureModal from './CameraCaptureModal';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY =
@@ -122,6 +123,11 @@ const [previewTipo, setPreviewTipo] =
   // --- modal subida (SECCIÓN EXISTENTE) ---
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [showCameraModal, setShowCameraModal] =
+  useState(false);
+
+const [subiendoFotoCamara, setSubiendoFotoCamara] =
+  useState(false);
 
   const authHeaders = useMemo(() => headersJSON(), []);
 
@@ -266,7 +272,7 @@ const cerrarPreview = () => {
     setUploadError('');
     if (!selectedSocio) {
       setUploadError('Selecciona primero un socio.');
-      return;
+     return false;
     }
     try {
       const isImage = file.type === 'image/png' || file.type === 'image/jpeg';
@@ -316,7 +322,7 @@ const cerrarPreview = () => {
           const e = await patch.json().catch(() => ({}));
           throw new Error(`No se pudo actualizar la foto del socio: ${e.message || patch.statusText}`);
         }
-        setFotoUrlSocio(publicUrl);
+      setFotoUrlSocio(publicUrl);
       } else {
         const ins = await fetch(`${SUPABASE_URL}/rest/v1/documentos_socios`, {
           method: 'POST',
@@ -335,11 +341,67 @@ const cerrarPreview = () => {
         }
         consultarDocumentacion();
       }
-    } catch (err) {
-      setUploadError(err.message || 'Error desconocido al subir.');
-    }
+            return true;
+  } catch (err) {
+  console.error(
+    'ERROR SUBIENDO ARCHIVO DEL SOCIO:',
+    err
+  );
+
+  setUploadError(
+    err.message ||
+      'Error desconocido al subir.'
+  );
+
+  return false;
+}
   };
 
+const manejarFotoCapturada = async (archivoFoto) => {
+  if (!archivoFoto) return;
+
+  if (!selectedSocio) {
+    setUploadError(
+      'Debe seleccionar primero un socio.'
+    );
+
+    setShowCameraModal(false);
+    return;
+  }
+
+  setShowCameraModal(false);
+  setSubiendoFotoCamara(true);
+  setUploadError('');
+
+ try {
+  const subidaCorrecta =
+    await subirArchivoSocio(
+      archivoFoto,
+      'foto'
+    );
+
+  if (!subidaCorrecta) {
+    return;
+  }
+
+  setShowUploadModal(false);
+
+  await consultarDocumentacion();
+  } catch (errorFoto) {
+    console.error(
+      'ERROR SUBIENDO FOTO CAPTURADA:',
+      errorFoto
+    );
+
+    setUploadError(
+      errorFoto.message ||
+        'No se pudo subir la fotografía.'
+    );
+  } finally {
+    setSubiendoFotoCamara(false);
+  }
+};
+  
   // ====================== NUEVA SECCIÓN: Fondo (bucket global) ======================
 
   // Listar archivos del bucket con POST /object/list/{bucket}
@@ -718,18 +780,62 @@ const cerrarPreview = () => {
               <div className="border-2 border-dashed rounded-xl p-4 text-center">
                 <h4 className="font-medium mb-2">Foto del socio</h4>
                 <p className="text-xs text-slate-500 mb-3">JPG o PNG</p>
-                <label className="inline-block px-4 py-2 bg-slate-100 rounded-lg cursor-pointer hover:bg-slate-200">
-                  Elegir archivo
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) subirArchivoSocio(file, 'foto');
-                    }}
-                  />
-                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+  <button
+    type="button"
+    onClick={() =>
+      setShowCameraModal(true)
+    }
+    disabled={subiendoFotoCamara}
+    className="
+      w-full
+      px-4
+      py-2
+      bg-blue-600
+      text-white
+      rounded-lg
+      hover:bg-blue-700
+      disabled:opacity-50
+      font-medium
+    "
+  >
+    {subiendoFotoCamara
+      ? 'Subiendo...'
+      : '📷 Tomar foto'}
+  </button>
+
+  <label
+    className="
+      w-full
+      px-4
+      py-2
+      bg-slate-100
+      rounded-lg
+      cursor-pointer
+      hover:bg-slate-200
+      font-medium
+    "
+  >
+    📁 Elegir archivo
+
+    <input
+      type="file"
+      accept="image/png,image/jpeg"
+      className="hidden"
+      onChange={(e) => {
+        const file =
+          e.target.files?.[0];
+
+        if (file) {
+          subirArchivoSocio(
+            file,
+            'foto'
+          );
+        }
+      }}
+    />
+  </label>
+</div>
               </div>
 
               {/* INE */}
@@ -912,6 +1018,16 @@ const cerrarPreview = () => {
           </div>
         </div>
       </div>
+
+{/* MODAL REUTILIZABLE DE CÁMARA */}
+<CameraCaptureModal
+  open={showCameraModal}
+  title="Tomar foto del socio"
+  onClose={() =>
+    setShowCameraModal(false)
+  }
+  onCapture={manejarFotoCapturada}
+/>
 
 {/* MODAL: VISTA PREVIA DE IMAGEN O PDF */}
 {showPreviewModal && previewUrl && (
