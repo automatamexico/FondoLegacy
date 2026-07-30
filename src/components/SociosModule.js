@@ -141,6 +141,23 @@ const [bancoPersonalizado, setBancoPersonalizado] = useState({
   const fileInputRef = useRef(null);
   const socioFormRef = useRef(null);
 
+  // ================= CÁMARA DEL SOCIO =================
+const [showCameraModal, setShowCameraModal] =
+  useState(false);
+
+const [cameraError, setCameraError] =
+  useState('');
+
+const [cameraFacingMode, setCameraFacingMode] =
+  useState('user');
+
+const [cameraStarting, setCameraStarting] =
+  useState(false);
+
+const videoRef = useRef(null);
+const canvasRef = useRef(null);
+const cameraStreamRef = useRef(null);
+
   // Ficha (modal de detalles)
   const [showFicha, setShowFicha] = useState(false);
   const [socioFicha, setSocioFicha] = useState(null);
@@ -193,6 +210,26 @@ const sociosFiltrados = sociosList.filter((socio) => {
   useEffect(() => {
     fetchSocios();
   }, []);
+
+  useEffect(() => {
+  return () => {
+    detenerCamara();
+  };
+}, []);
+
+  useEffect(() => {
+  if (showCameraModal) {
+    document.body.style.overflow =
+      'hidden';
+  } else {
+    document.body.style.overflow = '';
+  }
+
+  return () => {
+    document.body.style.overflow = '';
+  };
+}, [showCameraModal]);
+  
   useEffect(() => {
   const resize = () => setIsMobile(window.innerWidth < 768);
   window.addEventListener('resize', resize);
@@ -443,6 +480,241 @@ if (!String(banco.cuenta_clave || '').trim()) {
     return '';
   };
 
+// ================= FUNCIONES DE CÁMARA =================
+
+const detenerCamara = () => {
+  if (cameraStreamRef.current) {
+    cameraStreamRef.current
+      .getTracks()
+      .forEach((track) => track.stop());
+
+    cameraStreamRef.current = null;
+  }
+
+  if (videoRef.current) {
+    videoRef.current.srcObject = null;
+  }
+};
+
+const iniciarCamara = async (
+  facingMode = cameraFacingMode
+) => {
+  setCameraStarting(true);
+  setCameraError('');
+
+  try {
+    if (
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia
+    ) {
+      throw new Error(
+        'Este dispositivo o navegador no permite abrir la cámara directamente.'
+      );
+    }
+
+    detenerCamara();
+
+    const stream =
+      await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: {
+            ideal: facingMode,
+          },
+          width: {
+            ideal: 1280,
+          },
+          height: {
+            ideal: 960,
+          },
+        },
+      });
+
+    cameraStreamRef.current = stream;
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+
+      await videoRef.current.play();
+    }
+  } catch (errorCamara) {
+    console.error(
+      'ERROR ACTIVANDO CÁMARA:',
+      errorCamara
+    );
+
+    let mensaje =
+      'No se pudo abrir la cámara.';
+
+    if (
+      errorCamara?.name ===
+      'NotAllowedError'
+    ) {
+      mensaje =
+        'El permiso de la cámara fue rechazado. Autorice el acceso desde el navegador.';
+    } else if (
+      errorCamara?.name ===
+      'NotFoundError'
+    ) {
+      mensaje =
+        'No se encontró ninguna cámara disponible.';
+    } else if (
+      errorCamara?.name ===
+      'NotReadableError'
+    ) {
+      mensaje =
+        'La cámara está siendo utilizada por otra aplicación.';
+    } else if (
+      errorCamara?.name ===
+      'OverconstrainedError'
+    ) {
+      mensaje =
+        'La cámara disponible no admite la configuración solicitada.';
+    } else if (errorCamara?.message) {
+      mensaje = errorCamara.message;
+    }
+
+    setCameraError(mensaje);
+  } finally {
+    setCameraStarting(false);
+  }
+};
+
+const abrirCamara = () => {
+  setCameraError('');
+  setCameraFacingMode('user');
+  setShowCameraModal(true);
+
+  setTimeout(() => {
+    iniciarCamara('user');
+  }, 200);
+};
+
+const cerrarCamara = () => {
+  detenerCamara();
+  setShowCameraModal(false);
+  setCameraError('');
+  setCameraStarting(false);
+};
+
+const cambiarCamara = async () => {
+  const nuevoModo =
+    cameraFacingMode === 'user'
+      ? 'environment'
+      : 'user';
+
+  setCameraFacingMode(nuevoModo);
+
+  await iniciarCamara(nuevoModo);
+};
+
+const capturarFoto = () => {
+  const video = videoRef.current;
+  const canvas = canvasRef.current;
+
+  if (!video || !canvas) {
+    setCameraError(
+      'No se pudo obtener la imagen de la cámara.'
+    );
+    return;
+  }
+
+  if (
+    !video.videoWidth ||
+    !video.videoHeight
+  ) {
+    setCameraError(
+      'La cámara todavía está iniciando. Espere un momento e inténtelo nuevamente.'
+    );
+    return;
+  }
+
+  const maxWidth = 1280;
+
+  const escala = Math.min(
+    1,
+    maxWidth / video.videoWidth
+  );
+
+  const width = Math.round(
+    video.videoWidth * escala
+  );
+
+  const height = Math.round(
+    video.videoHeight * escala
+  );
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const context =
+    canvas.getContext('2d');
+
+  if (!context) {
+    setCameraError(
+      'No se pudo procesar la fotografía.'
+    );
+    return;
+  }
+
+  // Corregir la orientación de la cámara frontal
+  if (cameraFacingMode === 'user') {
+    context.translate(width, 0);
+    context.scale(-1, 1);
+  }
+
+  context.drawImage(
+    video,
+    0,
+    0,
+    width,
+    height
+  );
+
+  canvas.toBlob(
+    (blob) => {
+      if (!blob) {
+        setCameraError(
+          'No se pudo generar la fotografía.'
+        );
+        return;
+      }
+
+      const archivoFoto = new File(
+        [blob],
+        `foto_socio_${Date.now()}.jpg`,
+        {
+          type: 'image/jpeg',
+        }
+      );
+
+      const errorValidacion =
+        validatePhoto(archivoFoto);
+
+      if (errorValidacion) {
+        setCameraError(errorValidacion);
+        return;
+      }
+
+      setPhotoFile(archivoFoto);
+
+      setPhotoPreview(
+        URL.createObjectURL(archivoFoto)
+      );
+
+      setPhotoError('');
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      cerrarCamara();
+    },
+    'image/jpeg',
+    0.85
+  );
+};
+  
   const handleChooseFile = () => fileInputRef.current?.click();
 
   const handleFileChange = (e) => {
@@ -1561,6 +1833,28 @@ const openFicha = async (socio) => {
 
       <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center md:justify-start">
         <button
+  type="button"
+  onClick={abrirCamara}
+  disabled={
+    photoUploading ||
+    saving
+  }
+  className="
+    w-full
+    sm:w-auto
+    px-4
+    py-2.5
+    bg-blue-600
+    text-white
+    rounded-xl
+    hover:bg-blue-700
+    disabled:opacity-50
+    font-medium
+  "
+>
+  📷 Tomar foto
+</button>
+        <button
           type="button"
           onClick={handleChooseFile}
           disabled={photoUploading || saving}
@@ -2578,7 +2872,133 @@ const pais = textoMayusculas(bancoPersonalizado.pais);
                     </div>
         </div>
       )}
-      
+
+{/* ================= MODAL DE CÁMARA ================= */}
+{showCameraModal && (
+  <div className="fixed inset-0 bg-black/70 z-[10000] flex items-center justify-center p-2 md:p-4">
+    <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[96vh] overflow-hidden flex flex-col">
+      {/* Encabezado */}
+      <div className="flex items-center justify-between gap-3 p-4 border-b border-slate-200">
+        <div>
+          <h3 className="text-lg font-bold text-slate-900">
+            Tomar foto del socio
+          </h3>
+
+          <p className="text-sm text-slate-500">
+            Coloque el rostro dentro del encuadre
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={cerrarCamara}
+          className="shrink-0 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
+        >
+          Cerrar
+        </button>
+      </div>
+
+      {/* Cámara */}
+      <div className="relative bg-black flex-1 min-h-[320px] md:min-h-[500px] flex items-center justify-center overflow-hidden">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={`
+            w-full
+            h-full
+            object-contain
+            ${
+              cameraFacingMode === 'user'
+                ? 'scale-x-[-1]'
+                : ''
+            }
+          `}
+        />
+
+        {/* Guía del rostro */}
+        {!cameraError && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="w-52 h-64 md:w-64 md:h-80 rounded-[50%] border-4 border-white/70 shadow-lg" />
+          </div>
+        )}
+
+        {cameraStarting && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+            <p className="text-white font-medium">
+              Activando cámara...
+            </p>
+          </div>
+        )}
+
+        {cameraError && (
+          <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-6">
+            <div className="max-w-md text-center">
+              <p className="text-red-300 font-semibold">
+                {cameraError}
+              </p>
+
+              <button
+                type="button"
+                onClick={() =>
+                  iniciarCamara(
+                    cameraFacingMode
+                  )
+                }
+                className="mt-4 px-4 py-2 bg-white text-slate-900 rounded-lg"
+              >
+                Intentar nuevamente
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Canvas invisible */}
+      <canvas
+        ref={canvasRef}
+        className="hidden"
+      />
+
+      {/* Acciones */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-4 border-t border-slate-200">
+        <button
+          type="button"
+          onClick={cambiarCamara}
+          disabled={
+            cameraStarting ||
+            !!cameraError
+          }
+          className="w-full px-4 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 disabled:opacity-50"
+        >
+          🔄 Cambiar cámara
+        </button>
+
+        <button
+          type="button"
+          onClick={capturarFoto}
+          disabled={
+            cameraStarting ||
+            !!cameraError
+          }
+          className="w-full px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 font-semibold"
+        >
+          📸 Capturar foto
+        </button>
+
+        <button
+          type="button"
+          onClick={cerrarCamara}
+          className="w-full px-4 py-2.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
       {/* MODAL PREVIEW SOLO MÓVIL */}
       {previewFile && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-3 z-[9999]">
