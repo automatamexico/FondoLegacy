@@ -106,6 +106,19 @@ const CentroDigitalModule = () => {
   const [documentosSocio, setDocumentosSocio] = useState([]);
   const [fotoUrlSocio, setFotoUrlSocio] = useState('');
 
+// --- visor interno de imágenes y documentos ---
+const [showPreviewModal, setShowPreviewModal] =
+  useState(false);
+
+const [previewUrl, setPreviewUrl] =
+  useState('');
+
+const [previewNombre, setPreviewNombre] =
+  useState('');
+
+const [previewTipo, setPreviewTipo] =
+  useState('');
+  
   // --- modal subida (SECCIÓN EXISTENTE) ---
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -119,6 +132,18 @@ const CentroDigitalModule = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const dropZoneRef = useRef(null);
+
+  useEffect(() => {
+  if (showPreviewModal) {
+    document.body.style.overflow = 'hidden';
+  } else {
+    document.body.style.overflow = '';
+  }
+
+  return () => {
+    document.body.style.overflow = '';
+  };
+}, [showPreviewModal]);
 
   // ====================== Funciones EXISTENTES (no tocar lógica previa) ======================
   const handleSearch = async (e) => {
@@ -165,6 +190,40 @@ const CentroDigitalModule = () => {
     setDocsError('');
   };
 
+const abrirPreview = ({
+  url,
+  nombre = 'Documento',
+  tipo = '',
+}) => {
+  if (!url) return;
+
+  const nombreLower = String(nombre || '')
+    .toLowerCase();
+
+  const esImagen =
+    tipo === 'imagen' ||
+    nombreLower.endsWith('.png') ||
+    nombreLower.endsWith('.jpg') ||
+    nombreLower.endsWith('.jpeg') ||
+    nombreLower.endsWith('.gif') ||
+    nombreLower.endsWith('.webp');
+
+  setPreviewUrl(url);
+  setPreviewNombre(nombre);
+  setPreviewTipo(
+    esImagen ? 'imagen' : 'pdf'
+  );
+
+  setShowPreviewModal(true);
+};
+
+const cerrarPreview = () => {
+  setShowPreviewModal(false);
+  setPreviewUrl('');
+  setPreviewNombre('');
+  setPreviewTipo('');
+};
+  
   const consultarDocumentacion = async () => {
     if (!selectedSocio) return;
     setDocsLoading(true);
@@ -418,29 +477,66 @@ const CentroDigitalModule = () => {
             </div>
           )}
 
-          <div className="flex items-center gap-3 mt-3">
-            <button
-              className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
-              disabled={!selectedSocio}
-              onClick={() => setShowUploadModal(true)}
-            >
-              Subir
-            </button>
-            <button
-              className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
-              disabled={!selectedSocio}
-              onClick={consultarDocumentacion}
-            >
-              Consultar documentación del socio
-            </button>
-            {selectedSocio && (
-              <span className="text-sm text-slate-500">
-                Seleccionado: <strong>
-                  ID {selectedSocio.id_socio} — {selectedSocio.nombre} {selectedSocio.apellido_paterno}
-                </strong>
-              </span>
-            )}
-          </div>
+  <div className="mt-3 space-y-3">
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <button
+      type="button"
+      className="
+        w-full
+        px-4
+        py-2.5
+        bg-green-600
+        text-white
+        rounded-xl
+        hover:bg-green-700
+        transition-colors
+        font-medium
+        disabled:opacity-50
+      "
+      disabled={!selectedSocio}
+      onClick={() =>
+        setShowUploadModal(true)
+      }
+    >
+      Subir
+    </button>
+
+    <button
+      type="button"
+      className="
+        w-full
+        px-4
+        py-2.5
+        bg-blue-600
+        text-white
+        rounded-xl
+        hover:bg-blue-700
+        transition-colors
+        font-medium
+        disabled:opacity-50
+      "
+      disabled={!selectedSocio}
+      onClick={consultarDocumentacion}
+    >
+      Consultar documentación del socio
+    </button>
+  </div>
+
+  {selectedSocio && (
+    <div className="w-full min-w-0 bg-white border border-slate-200 rounded-xl px-3 py-2">
+      <p className="text-xs text-slate-500">
+        Seleccionado:
+      </p>
+
+      <p className="text-sm font-semibold text-slate-700 break-words">
+        ID {selectedSocio.id_socio} —{' '}
+        {selectedSocio.nombre}{' '}
+        {selectedSocio.apellido_paterno}{' '}
+        {selectedSocio.apellido_materno}
+      </p>
+    </div>
+  )}
+</div>
         </div>
 
         {/* Resultado de consulta */}
@@ -461,63 +557,138 @@ const CentroDigitalModule = () => {
           {!docsLoading && !docsError && (fotoUrlSocio || documentosSocio.length > 0) && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Foto del socio */}
-              {fotoUrlSocio && (
-                <div className="border border-slate-200 rounded-xl p-4">
+             {fotoUrlSocio && (
+  <div className="min-w-0 border border-slate-200 rounded-xl p-4">
                   <div className="flex items-center mb-3">
                     <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden mr-3">
                       <img src={fotoUrlSocio} alt="Foto del socio" className="w-full h-full object-cover" />
                     </div>
-                    <div>
-                      <h4 className="font-medium text-slate-900">Foto del socio</h4>
-                      <p className="text-xs text-slate-500">Vista rápida</p>
-                    </div>
+                 <div className="min-w-0">
+  <h4 className="font-medium text-slate-900 break-words">
+    Foto del socio
+  </h4>
+
+  <p className="text-xs text-slate-500">
+    Vista rápida
+  </p>
+</div>
                   </div>
-                  <a
-                    href={fotoUrlSocio}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg bg-slate-100 hover:bg-slate-200"
-                  >
-                    Abrir imagen
-                  </a>
+                 <button
+  type="button"
+  onClick={() =>
+    abrirPreview({
+      url: fotoUrlSocio,
+      nombre: 'Foto del socio',
+      tipo: 'imagen',
+    })
+  }
+  className="
+    w-full
+    sm:w-auto
+    inline-flex
+    items-center
+    justify-center
+    px-3
+    py-2
+    text-sm
+    rounded-lg
+    bg-slate-100
+    hover:bg-slate-200
+  "
+>
+  Abrir imagen
+</button>
                 </div>
               )}
 
               {/* Documentos */}
-              {documentosSocio.map((doc) => (
-                <div key={doc.id_documento} className="border border-slate-200 rounded-xl p-4 hover:shadow-sm">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium text-slate-900">{doc.nombre_documento || 'Documento'}</h4>
-                      <p className="text-xs text-slate-500">
-                        Tipo: <span className="uppercase">{doc.tipo_documento}</span> • Subido: {formatFechaCorta(doc.fecha_subida)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={doc.url_documento}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-                    >
-                      Abrir
-                    </a>
-                    <a
-                      href={doc.url_documento}
-                      download
-                      className="px-3 py-1.5 text-sm rounded-lg bg-slate-100 hover:bg-slate-200"
-                    >
-                      Descargar
-                    </a>
-                  </div>
-                </div>
-              ))}
+{documentosSocio.map((doc) => (
+  <div
+    key={doc.id_documento}
+    className="min-w-0 border border-slate-200 rounded-xl p-4 hover:shadow-sm"
+  >
+    <div className="flex items-start gap-3 mb-3 min-w-0">
+      <div className="w-10 h-10 shrink-0 bg-blue-100 rounded-lg flex items-center justify-center">
+        <svg
+          className="w-5 h-5 text-blue-600"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          />
+        </svg>
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <h4 className="font-medium text-slate-900 break-words">
+          {doc.nombre_documento ||
+            'Documento'}
+        </h4>
+
+        <p className="text-xs text-slate-500 break-words mt-1">
+          Tipo:{' '}
+          <span className="uppercase">
+            {doc.tipo_documento}
+          </span>
+          {' • '}
+          Subido:{' '}
+          {formatFechaCorta(
+            doc.fecha_subida
+          )}
+        </p>
+      </div>
+    </div>
+
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <button
+        type="button"
+        onClick={() =>
+          abrirPreview({
+            url: doc.url_documento,
+            nombre:
+              doc.nombre_documento ||
+              'Documento',
+            tipo: 'pdf',
+          })
+        }
+        className="
+          w-full
+          px-3
+          py-2
+          text-sm
+          rounded-lg
+          bg-blue-600
+          text-white
+          hover:bg-blue-700
+        "
+      >
+        Abrir
+      </button>
+
+      <a
+        href={doc.url_documento}
+        download
+        className="
+          w-full
+          px-3
+          py-2
+          text-sm
+          text-center
+          rounded-lg
+          bg-slate-100
+          hover:bg-slate-200
+        "
+      >
+        Descargar
+      </a>
+    </div>
+  </div>
+))}
             </div>
           )}
         </div>
@@ -741,6 +912,72 @@ const CentroDigitalModule = () => {
           </div>
         </div>
       </div>
+
+{/* MODAL: VISTA PREVIA DE IMAGEN O PDF */}
+{showPreviewModal && previewUrl && (
+  <div className="fixed inset-0 bg-black/70 z-[80] flex items-center justify-center p-2 md:p-4">
+    <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl h-[94vh] md:h-[90vh] overflow-hidden flex flex-col">
+      {/* Encabezado */}
+      <div className="flex items-center justify-between gap-3 p-3 md:p-4 border-b border-slate-200">
+        <div className="min-w-0">
+          <h3 className="font-semibold text-slate-900 break-words">
+            {previewNombre}
+          </h3>
+
+          <p className="text-xs text-slate-500">
+            Vista previa
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={cerrarPreview}
+          className="shrink-0 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
+        >
+          Cerrar
+        </button>
+      </div>
+
+      {/* Contenido */}
+      <div className="flex-1 min-h-0 bg-slate-900 overflow-auto">
+        {previewTipo === 'imagen' ? (
+          <div className="w-full h-full flex items-center justify-center p-3">
+            <img
+              src={previewUrl}
+              alt={previewNombre}
+              className="max-w-full max-h-full object-contain"
+            />
+          </div>
+        ) : (
+          <iframe
+            src={previewUrl}
+            title={previewNombre}
+            className="w-full h-full bg-white border-0"
+          />
+        )}
+      </div>
+
+      {/* Pie */}
+      <div className="flex flex-col sm:flex-row justify-end gap-2 p-3 border-t border-slate-200">
+        <a
+          href={previewUrl}
+          download
+          className="w-full sm:w-auto text-center px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
+        >
+          Descargar
+        </a>
+
+        <button
+          type="button"
+          onClick={cerrarPreview}
+          className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Volver al sistema
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Confirmación de borrado */}
       {showConfirmDelete && selectedFile && (
