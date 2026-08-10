@@ -1126,7 +1126,6 @@ if (documentoIdentidadInputRef.current) {
   'vivienda_detalle',
 
   'red_social',
-  'red_social_url',
 ];
   const missing = required.filter(
   (k) => !String(newSocio[k] ?? '').trim()
@@ -1158,6 +1157,14 @@ if (
   return;
 }
 
+if (
+  newSocio.red_social !== 'NO' &&
+  !String(newSocio.red_social_url || '').trim()
+) {
+  setError('Debe escribir la dirección de la red social.');
+  return;
+}
+   
 if (
   !editingSocio &&
   !documentoIdentidadFile
@@ -1325,8 +1332,10 @@ domicilio_pais:
       ? textoMayusculas(newSocio.red_social_otro)
       : null,
 
-  red_social_url:
-    String(newSocio.red_social_url || '').trim(),
+ red_social_url:
+  newSocio.red_social === 'NO'
+    ? null
+    : String(newSocio.red_social_url || '').trim(),
 
   // Compatibilidad con sistema anterior
   direccion:
@@ -1453,7 +1462,9 @@ domicilio_pais:
       : null,
 
   red_social_url:
-    String(newSocio.red_social_url || '').trim(),
+  newSocio.red_social === 'NO'
+    ? null
+    : String(newSocio.red_social_url || '').trim(),
 
   // Compatibilidad con sistema anterior
   direccion:
@@ -3045,19 +3056,24 @@ domicilio_pais: '',
   <select
     name="red_social"
     value={newSocio.red_social}
-    onChange={(e) => {
-      const value = e.target.value;
+   onChange={(e) => {
+  const value = e.target.value;
 
-      setNewSocio((prev) => ({
-        ...prev,
-        red_social: value,
+  setNewSocio((prev) => ({
+    ...prev,
+    red_social: value,
 
-        red_social_otro:
-          value === 'OTRO'
-            ? prev.red_social_otro
-            : '',
-      }));
-    }}
+    red_social_otro:
+      value === 'OTRO'
+        ? prev.red_social_otro
+        : '',
+
+    red_social_url:
+      value === 'NO'
+        ? ''
+        : prev.red_social_url,
+  }));
+}}
     className="w-full px-4 py-2 border border-slate-200 rounded-lg"
     required
   >
@@ -3080,6 +3096,9 @@ domicilio_pais: '',
     <option value="OTRO">
       Otro
     </option>
+      <option value="NO">
+  No
+</option>
   </select>
 </div>
 
@@ -3102,21 +3121,23 @@ domicilio_pais: '',
 )}
 
 
-<div className="col-span-full">
-  <label className="block text-sm font-medium text-slate-700 mb-1">
-    Dirección de la red social *
-  </label>
+{newSocio.red_social !== 'NO' && (
+  <div className="col-span-full">
+    <label className="block text-sm font-medium text-slate-700 mb-1">
+      Dirección de la red social *
+    </label>
 
-  <input
-    type="text"
-    name="red_social_url"
-    value={newSocio.red_social_url}
-    onChange={handleInputChange}
-    placeholder="Ej. https://facebook.com/usuario o @usuario"
-    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
-    required
-  />
-</div>
+    <input
+      type="text"
+      name="red_social_url"
+      value={newSocio.red_social_url}
+      onChange={handleInputChange}
+      placeholder="Ej. https://facebook.com/usuario o @usuario"
+      className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+      required
+    />
+  </div>
+)}
             {/* Estatus */}
             <select
               name="estatus"
@@ -4013,7 +4034,7 @@ const pais = textoMayusculas(bancoPersonalizado.pais);
     <p>{socioFicha.telefono}</p>
   </div>
 
- <div>
+<div>
   <span className="font-semibold">
     Documento:
   </span>
@@ -4021,6 +4042,33 @@ const pais = textoMayusculas(bancoPersonalizado.pais);
   <p>
     {socioFicha.tipo_documento_identidad || '-'}
   </p>
+
+  {socioFicha.documento_identidad_path && (
+    <button
+      type="button"
+      onClick={() =>
+        abrirDocumentoIdentidadSocio(
+          socioFicha.documento_identidad_path
+        )
+      }
+      className="
+        inline-block
+        mt-2
+        px-3
+        py-1.5
+        bg-emerald-600
+        hover:bg-emerald-700
+        text-white
+        rounded-lg
+        text-xs
+        font-medium
+        w-full
+        sm:w-auto
+      "
+    >
+      Ver Documento
+    </button>
+  )}
 </div>
 
 
