@@ -2284,6 +2284,18 @@ domicilio_pais: '',
               className="px-4 py-2 border border-slate-200 rounded-lg"
               required
             />
+                    {/* Fecha de nacimiento */}
+            <div className="col-span-full">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de nacimiento</label>
+              <input
+                type="date"
+                name="fecha_nacimiento"
+                value={newSocio.fecha_nacimiento}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+              />
+              <p className="text-xs text-slate-500 mt-1">Opcional</p>
+            </div>
               {/* ================= DOCUMENTO DE IDENTIDAD ================= */}
 
 <div className="col-span-full border-t border-slate-200 pt-4 mt-2">
@@ -2506,7 +2518,163 @@ domicilio_pais: '',
   className="px-4 py-2 border border-slate-200 rounded-lg"
   required
 />
+{/* ================= FOTO DEL SOCIO ================= */}
+<div className="col-span-full">
+  <label className="block text-sm font-semibold text-slate-700 mb-2">
+    Foto del socio
+  </label>
 
+  <div
+    ref={dropRef}
+    onDragOver={handleDragOver}
+    onDragLeave={handleDragLeave}
+    onDrop={handleDrop}
+    className="
+      w-full
+      border-2
+      border-dashed
+      border-slate-300
+      rounded-2xl
+      bg-slate-50
+      p-5
+      flex
+      flex-col
+      md:flex-row
+      items-center
+      gap-5
+    "
+  >
+    <div className="shrink-0">
+      <img
+        src={photoPreview || avatarFallback(newSocio)}
+        alt="Vista previa del socio"
+        className="
+          w-24
+          h-24
+          rounded-full
+          object-cover
+          border-4
+          border-white
+          shadow
+        "
+      />
+    </div>
+
+    <div className="flex-1 w-full text-center md:text-left">
+      <p className="font-semibold text-slate-800">
+        {photoFile
+          ? photoFile.name
+          : photoPreview
+            ? 'Foto actual del socio'
+            : 'No se ha seleccionado ninguna foto'}
+      </p>
+
+      <p className="text-sm text-slate-500 mt-1">
+        Formatos permitidos: JPG y PNG. Tamaño máximo: 5 MB.
+      </p>
+
+      <p className="hidden md:block text-sm text-slate-500 mt-1">
+        También puedes arrastrar una imagen a esta área.
+      </p>
+
+      <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center md:justify-start">
+        <button
+  type="button"
+  onClick={abrirCamara}
+  disabled={
+    photoUploading ||
+    saving
+  }
+  className="
+    w-full
+    sm:w-auto
+    px-4
+    py-2.5
+    bg-blue-600
+    text-white
+    rounded-xl
+    hover:bg-blue-700
+    disabled:opacity-50
+    font-medium
+  "
+>
+  📷 Tomar foto
+</button>
+        <button
+          type="button"
+          onClick={handleChooseFile}
+          disabled={photoUploading || saving}
+          className="
+            w-full
+            sm:w-auto
+            px-4
+            py-2.5
+            bg-slate-800
+            text-white
+            rounded-xl
+            hover:bg-slate-900
+            disabled:opacity-50
+            font-medium
+          "
+        >
+          {photoPreview ? 'Cambiar foto' : 'Seleccionar foto'}
+        </button>
+
+        {photoFile && (
+          <button
+            type="button"
+            onClick={() => {
+              setPhotoFile(null);
+
+              setPhotoPreview(
+                editingSocio?.foto_url || ''
+              );
+
+              setPhotoError('');
+
+              if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+              }
+            }}
+            className="
+              w-full
+              sm:w-auto
+              px-4
+              py-2.5
+              bg-slate-200
+              text-slate-700
+              rounded-xl
+              hover:bg-slate-300
+              font-medium
+            "
+          >
+            Cancelar selección
+          </button>
+        )}
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      {photoError && (
+        <p className="mt-3 text-sm font-medium text-red-600">
+          {photoError}
+        </p>
+      )}
+
+      {photoUploading && (
+        <p className="mt-3 text-sm font-medium text-blue-600">
+          Subiendo foto del socio...
+        </p>
+      )}
+    </div>
+  </div>
+</div>
 {/* ================= DOMICILIO ================= */}
 
 <div className="col-span-full border-t-2 border-emerald-600 pt-6 mt-4">
@@ -2960,18 +3128,6 @@ domicilio_pais: '',
               <option value="inactivo">Inactivo</option>
             </select>
 
-            {/* Fecha de nacimiento */}
-            <div className="col-span-full">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de nacimiento</label>
-              <input
-                type="date"
-                name="fecha_nacimiento"
-                value={newSocio.fecha_nacimiento}
-                onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg"
-              />
-              <p className="text-xs text-slate-500 mt-1">Opcional</p>
-            </div>
 
 {/* Ahorro para el retiro */}
 <div className="col-span-full mt-4">
@@ -3029,163 +3185,7 @@ domicilio_pais: '',
 )}
 
 
-{/* ================= FOTO DEL SOCIO ================= */}
-<div className="col-span-full">
-  <label className="block text-sm font-semibold text-slate-700 mb-2">
-    Foto del socio
-  </label>
 
-  <div
-    ref={dropRef}
-    onDragOver={handleDragOver}
-    onDragLeave={handleDragLeave}
-    onDrop={handleDrop}
-    className="
-      w-full
-      border-2
-      border-dashed
-      border-slate-300
-      rounded-2xl
-      bg-slate-50
-      p-5
-      flex
-      flex-col
-      md:flex-row
-      items-center
-      gap-5
-    "
-  >
-    <div className="shrink-0">
-      <img
-        src={photoPreview || avatarFallback(newSocio)}
-        alt="Vista previa del socio"
-        className="
-          w-24
-          h-24
-          rounded-full
-          object-cover
-          border-4
-          border-white
-          shadow
-        "
-      />
-    </div>
-
-    <div className="flex-1 w-full text-center md:text-left">
-      <p className="font-semibold text-slate-800">
-        {photoFile
-          ? photoFile.name
-          : photoPreview
-            ? 'Foto actual del socio'
-            : 'No se ha seleccionado ninguna foto'}
-      </p>
-
-      <p className="text-sm text-slate-500 mt-1">
-        Formatos permitidos: JPG y PNG. Tamaño máximo: 5 MB.
-      </p>
-
-      <p className="hidden md:block text-sm text-slate-500 mt-1">
-        También puedes arrastrar una imagen a esta área.
-      </p>
-
-      <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center md:justify-start">
-        <button
-  type="button"
-  onClick={abrirCamara}
-  disabled={
-    photoUploading ||
-    saving
-  }
-  className="
-    w-full
-    sm:w-auto
-    px-4
-    py-2.5
-    bg-blue-600
-    text-white
-    rounded-xl
-    hover:bg-blue-700
-    disabled:opacity-50
-    font-medium
-  "
->
-  📷 Tomar foto
-</button>
-        <button
-          type="button"
-          onClick={handleChooseFile}
-          disabled={photoUploading || saving}
-          className="
-            w-full
-            sm:w-auto
-            px-4
-            py-2.5
-            bg-slate-800
-            text-white
-            rounded-xl
-            hover:bg-slate-900
-            disabled:opacity-50
-            font-medium
-          "
-        >
-          {photoPreview ? 'Cambiar foto' : 'Seleccionar foto'}
-        </button>
-
-        {photoFile && (
-          <button
-            type="button"
-            onClick={() => {
-              setPhotoFile(null);
-
-              setPhotoPreview(
-                editingSocio?.foto_url || ''
-              );
-
-              setPhotoError('');
-
-              if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-              }
-            }}
-            className="
-              w-full
-              sm:w-auto
-              px-4
-              py-2.5
-              bg-slate-200
-              text-slate-700
-              rounded-xl
-              hover:bg-slate-300
-              font-medium
-            "
-          >
-            Cancelar selección
-          </button>
-        )}
-      </div>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png"
-        className="hidden"
-        onChange={handleFileChange}
-      />
-
-      {photoError && (
-        <p className="mt-3 text-sm font-medium text-red-600">
-          {photoError}
-        </p>
-      )}
-
-      {photoUploading && (
-        <p className="mt-3 text-sm font-medium text-blue-600">
-          Subiendo foto del socio...
-        </p>
-      )}
-    </div>
-  </div>
-</div>
 {/* ================= REFERENCIAS PERSONALES ================= */}
 <div className="col-span-full border-t-2 border-blue-600 pt-6 mt-6">
   <h4 className="font-semibold text-slate-800 mb-4">
