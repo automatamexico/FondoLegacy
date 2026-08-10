@@ -89,6 +89,8 @@ const [socioConFaltantes, setSocioConFaltantes] = useState(null);
   domicilio_calle: '',
   domicilio_numero: '',
   domicilio_edificio: '',
+  domicilio_estado: '',
+domicilio_pais: '',
   domicilio_colonia: '',
   domicilio_municipio: '',
   domicilio_cp: '',
@@ -1007,6 +1009,8 @@ const uploadDocumentoIdentidad = async (socioId) => {
   domicilio_calle: '',
   domicilio_numero: '',
   domicilio_edificio: '',
+   domicilio_estado: '',
+domicilio_pais: '',
   domicilio_colonia: '',
   domicilio_municipio: '',
   domicilio_cp: '',
@@ -1109,6 +1113,7 @@ if (documentoIdentidadInputRef.current) {
   'domicilio_calle',
   'domicilio_numero',
   'domicilio_colonia',
+    'domicilio_estado',
   'domicilio_municipio',
   'domicilio_cp',
   'domicilio_entre_calles',
@@ -1195,7 +1200,12 @@ const direccionCompleta = [
 
   newSocio.domicilio_colonia &&
     `COL. ${newSocio.domicilio_colonia}`,
-
+newSocio.domicilio_estado &&
+  (
+    newSocio.domicilio_estado === 'EXTRANJERO'
+      ? newSocio.domicilio_pais
+      : newSocio.domicilio_estado
+  ),
   newSocio.domicilio_municipio,
 
   newSocio.domicilio_cp &&
@@ -1272,7 +1282,13 @@ const direccionCompleta = [
 
   domicilio_colonia:
     textoMayusculas(newSocio.domicilio_colonia),
+domicilio_estado:
+  textoMayusculas(newSocio.domicilio_estado),
 
+domicilio_pais:
+  newSocio.domicilio_estado === 'EXTRANJERO'
+    ? textoMayusculas(newSocio.domicilio_pais)
+    : 'MÉXICO',
   domicilio_municipio:
     textoMayusculas(newSocio.domicilio_municipio),
 
@@ -1393,7 +1409,13 @@ socioId = socio.id_socio;
 
   domicilio_colonia:
     textoMayusculas(newSocio.domicilio_colonia),
+domicilio_estado:
+  textoMayusculas(newSocio.domicilio_estado),
 
+domicilio_pais:
+  newSocio.domicilio_estado === 'EXTRANJERO'
+    ? textoMayusculas(newSocio.domicilio_pais)
+    : 'MÉXICO',
   domicilio_municipio:
     textoMayusculas(newSocio.domicilio_municipio),
 
@@ -1916,7 +1938,11 @@ const handleEditClick = async (socio) => {
 
   domicilio_colonia:
     socio.domicilio_colonia || '',
+domicilio_estado:
+  socio.domicilio_estado || '',
 
+domicilio_pais:
+  socio.domicilio_pais || '',
   domicilio_municipio:
     socio.domicilio_municipio || '',
 
@@ -2122,6 +2148,8 @@ const openFicha = async (socio) => {
           domicilio_numero: '',
           domicilio_edificio: '',
           domicilio_colonia: '',
+          domicilio_estado: '',
+domicilio_pais: '',
           domicilio_municipio: '',
           domicilio_cp: '',
           domicilio_entre_calles: '',
@@ -2555,7 +2583,94 @@ const openFicha = async (socio) => {
   />
 </div>
 
+{/* ================= ESTADO / PAÍS ================= */}
 
+<div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Estado *
+  </label>
+
+  <select
+    name="domicilio_estado"
+    value={newSocio.domicilio_estado}
+    onChange={(e) => {
+      const value = e.target.value;
+
+      setNewSocio((prev) => ({
+        ...prev,
+        domicilio_estado: value,
+
+        // Si deja de ser extranjero, limpiamos el país
+        domicilio_pais:
+          value === 'EXTRANJERO'
+            ? prev.domicilio_pais
+            : '',
+      }));
+    }}
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  >
+    <option value="">
+      Seleccione estado
+    </option>
+
+    <option value="AGUASCALIENTES">Aguascalientes</option>
+    <option value="BAJA CALIFORNIA">Baja California</option>
+    <option value="BAJA CALIFORNIA SUR">Baja California Sur</option>
+    <option value="CAMPECHE">Campeche</option>
+    <option value="CHIAPAS">Chiapas</option>
+    <option value="CHIHUAHUA">Chihuahua</option>
+    <option value="CIUDAD DE MÉXICO">Ciudad de México</option>
+    <option value="COAHUILA">Coahuila</option>
+    <option value="COLIMA">Colima</option>
+    <option value="DURANGO">Durango</option>
+    <option value="ESTADO DE MÉXICO">Estado de México</option>
+    <option value="GUANAJUATO">Guanajuato</option>
+    <option value="GUERRERO">Guerrero</option>
+    <option value="HIDALGO">Hidalgo</option>
+    <option value="JALISCO">Jalisco</option>
+    <option value="MICHOACÁN">Michoacán</option>
+    <option value="MORELOS">Morelos</option>
+    <option value="NAYARIT">Nayarit</option>
+    <option value="NUEVO LEÓN">Nuevo León</option>
+    <option value="OAXACA">Oaxaca</option>
+    <option value="PUEBLA">Puebla</option>
+    <option value="QUERÉTARO">Querétaro</option>
+    <option value="QUINTANA ROO">Quintana Roo</option>
+    <option value="SAN LUIS POTOSÍ">San Luis Potosí</option>
+    <option value="SINALOA">Sinaloa</option>
+    <option value="SONORA">Sonora</option>
+    <option value="TABASCO">Tabasco</option>
+    <option value="TAMAULIPAS">Tamaulipas</option>
+    <option value="TLAXCALA">Tlaxcala</option>
+    <option value="VERACRUZ">Veracruz</option>
+    <option value="YUCATÁN">Yucatán</option>
+    <option value="ZACATECAS">Zacatecas</option>
+
+    <option value="EXTRANJERO">
+      Extranjero
+    </option>
+  </select>
+</div>
+
+
+{newSocio.domicilio_estado === 'EXTRANJERO' && (
+  <div>
+    <label className="block text-sm font-medium text-slate-700 mb-1">
+      País *
+    </label>
+
+    <input
+      type="text"
+      name="domicilio_pais"
+      value={newSocio.domicilio_pais}
+      onChange={handleInputChange}
+      placeholder="Escriba el país"
+      className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+      required
+    />
+  </div>
+)}
 <div>
   <label className="block text-sm font-medium text-slate-700 mb-1">
     Alcaldía o Municipio *
