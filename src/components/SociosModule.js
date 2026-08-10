@@ -2501,7 +2501,7 @@ domicilio_pais: '',
               name="contrasena"
               value={newSocio.contrasena}
               onChange={handleInputChange}
-              placeholder="Contraseña *"
+             placeholder="Genere una contraseña para el acceso a su app *"
               className="px-4 py-2 border border-slate-200 rounded-lg"
               required
             />
