@@ -932,6 +932,61 @@ const uploadPhotoToAforeBucket = async (socioId) => {
     setNewSocio((prev) => ({ ...prev, [name]: value }));
   };
 
+const uploadDocumentoIdentidad = async (socioId) => {
+  if (!documentoIdentidadFile) {
+    return newSocio.documento_identidad_path || null;
+  }
+
+  setDocumentoIdentidadUploading(true);
+
+  try {
+    const extension =
+      documentoIdentidadFile.name
+        ?.split('.')
+        .pop()
+        ?.toLowerCase() || 'pdf';
+
+    const tipo = (
+      newSocio.tipo_documento_identidad || 'documento'
+    )
+      .toLowerCase()
+      .replace(/\s+/g, '_');
+
+    const path =
+      `socio_${socioId}/${tipo}_${Date.now()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('documentos-identidad-socios')
+      .upload(
+        path,
+        documentoIdentidadFile,
+        {
+          contentType:
+            documentoIdentidadFile.type ||
+            'application/octet-stream',
+
+          upsert: false,
+        }
+      );
+
+    if (uploadError) {
+      console.error(
+        'ERROR SUBIENDO DOCUMENTO IDENTIDAD:',
+        uploadError
+      );
+
+      throw new Error(
+        `No se pudo subir el documento de identidad: ${uploadError.message}`
+      );
+    }
+
+    return path;
+
+  } finally {
+    setDocumentoIdentidadUploading(false);
+  }
+};
+  
   const resetForm = () => {
  setNewSocio({
   nombre: '',
@@ -1233,7 +1288,7 @@ const direccionCompleta = [
             Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
             Prefer: 'return=representation',
           },
-          bbody: JSON.stringify({
+          body: JSON.stringify({
   ...newSocio,
 
   nombre: textoMayusculas(newSocio.nombre),
@@ -1451,7 +1506,7 @@ socioId = socio.id_socio;
   fecha_nacimiento:
     cleanDate(newSocio.fecha_nacimiento),
 }),
-
+    });
       if (!res.ok) throw new Error('Error creando socio');
 
      const inserted = await res.json();
@@ -2105,54 +2160,72 @@ const openFicha = async (socio) => {
           resetForm();
         } else {
           setShowForm(true);
-          setEditingSocio(null);
-          setNewSocio({
-  nombre: '',
-  apellido_paterno: '',
-  apellido_materno: '',
+       <button
+  onClick={() => {
+    if (showForm) {
+      resetForm();
+    } else {
+      setShowForm(true);
+      setEditingSocio(null);
 
-  tipo_documento_identidad: '',
-  documento_identidad_path: '',
+      setNewSocio({
+        nombre: '',
+        apellido_paterno: '',
+        apellido_materno: '',
 
-  estado_civil: '',
-  nombre_pareja: '',
-  dependientes_economicos: '',
+        tipo_documento_identidad: '',
+        documento_identidad_path: '',
 
-  email: '',
-  contrasena: '',
-  telefono: '',
+        estado_civil: '',
+        nombre_pareja: '',
+        dependientes_economicos: '',
 
-  domicilio_calle: '',
-  domicilio_numero: '',
-  domicilio_edificio: '',
-  domicilio_colonia: '',
-  domicilio_municipio: '',
-  domicilio_cp: '',
-  domicilio_entre_calles: '',
-  domicilio_referencias: '',
+        email: '',
+        contrasena: '',
+        telefono: '',
 
-  tiempo_domicilio_anios: '',
-  tiempo_domicilio_meses: '',
+        domicilio_calle: '',
+        domicilio_numero: '',
+        domicilio_edificio: '',
+        domicilio_colonia: '',
+        domicilio_municipio: '',
+        domicilio_cp: '',
+        domicilio_entre_calles: '',
+        domicilio_referencias: '',
 
-  tipo_vivienda: '',
-  vivienda_detalle: '',
+        tiempo_domicilio_anios: '',
+        tiempo_domicilio_meses: '',
 
-  red_social: '',
-  red_social_otro: '',
-  red_social_url: '',
+        tipo_vivienda: '',
+        vivienda_detalle: '',
 
-  direccion: '',
-  cp: '',
+        red_social: '',
+        red_social_otro: '',
+        red_social_url: '',
 
-  estatus: 'activo',
-  fecha_nacimiento: '',
-});
-     className="w-full md:w-auto px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
-    >
-      {showForm ? 'Cancelar' : 'Nuevo Socio'}
-    </button>
-  )}
-</div>
+        direccion: '',
+        cp: '',
+
+        estatus: 'activo',
+        fecha_nacimiento: '',
+      });
+
+      setDocumentoIdentidadFile(null);
+      setDocumentoIdentidadError('');
+
+      if (documentoIdentidadInputRef.current) {
+        documentoIdentidadInputRef.current.value = '';
+      }
+
+      setPhotoFile(null);
+      setPhotoPreview('');
+      setPhotoError('');
+    }
+  }}
+  className="w-full md:w-auto px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
+>
+  {showForm ? 'Cancelar' : 'Nuevo Socio'}
+</button>
 
     {/* Formulario */}
 {showForm && (
