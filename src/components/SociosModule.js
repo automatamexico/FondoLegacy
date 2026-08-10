@@ -1030,60 +1030,7 @@ const uploadDocumentoIdentidad = async (socioId) => {
   fecha_nacimiento: '',
 });
 
-const uploadDocumentoIdentidad = async (socioId) => {
-  if (!documentoIdentidadFile) {
-    return newSocio.documento_identidad_path || null;
-  }
 
-  setDocumentoIdentidadUploading(true);
-
-  try {
-    const extension =
-      documentoIdentidadFile.name
-        ?.split('.')
-        .pop()
-        ?.toLowerCase() || 'pdf';
-
-    const tipo = (
-      newSocio.tipo_documento_identidad || 'documento'
-    )
-      .toLowerCase()
-      .replace(/\s+/g, '_');
-
-    const path =
-      `socio_${socioId}/${tipo}_${Date.now()}.${extension}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('documentos-identidad-socios')
-      .upload(
-        path,
-        documentoIdentidadFile,
-        {
-          contentType:
-            documentoIdentidadFile.type ||
-            'application/octet-stream',
-
-          upsert: false,
-        }
-      );
-
-    if (uploadError) {
-      console.error(
-        'ERROR SUBIENDO DOCUMENTO IDENTIDAD:',
-        uploadError
-      );
-
-      throw new Error(
-        `No se pudo subir el documento de identidad: ${uploadError.message}`
-      );
-    }
-
-    return path;
-
-  } finally {
-    setDocumentoIdentidadUploading(false);
-  }
-};
     
   // 🔹 Limpiar referencia personal
   setReferencia({
@@ -1175,11 +1122,19 @@ if (documentoIdentidadInputRef.current) {
 
   'red_social',
   'red_social_url',
+];
+  const missing = required.filter(
+  (k) => !String(newSocio[k] ?? '').trim()
+);
 
-   const requierePareja =
+if (missing.length) {
+  setError('Complete todos los campos obligatorios.');
+  return;
+}
+
+const requierePareja =
   newSocio.estado_civil === 'CASADO' ||
   newSocio.estado_civil === 'UNION_LIBRE';
-
 if (
   requierePareja &&
   !String(newSocio.nombre_pareja || '').trim()
@@ -2143,79 +2098,74 @@ const openFicha = async (socio) => {
     <h2 className="text-2xl font-bold text-slate-900 mb-2">Gestión de Socios</h2>
   </div>
 
-  {(permisosSocios.puede_crear || showForm) && (
-    <button
-      onClick={() => {
-        if (showForm) {
-          resetForm();
-        } else {
-          setShowForm(true);
-       <button
-  onClick={() => {
-    if (showForm) {
-      resetForm();
-    } else {
-      setShowForm(true);
-      setEditingSocio(null);
+{(permisosSocios.puede_crear || showForm) && (
+  <button
+    onClick={() => {
+      if (showForm) {
+        resetForm();
+      } else {
+        setShowForm(true);
+        setEditingSocio(null);
 
-      setNewSocio({
-        nombre: '',
-        apellido_paterno: '',
-        apellido_materno: '',
+        setNewSocio({
+          nombre: '',
+          apellido_paterno: '',
+          apellido_materno: '',
 
-        tipo_documento_identidad: '',
-        documento_identidad_path: '',
+          tipo_documento_identidad: '',
+          documento_identidad_path: '',
 
-        estado_civil: '',
-        nombre_pareja: '',
-        dependientes_economicos: '',
+          estado_civil: '',
+          nombre_pareja: '',
+          dependientes_economicos: '',
 
-        email: '',
-        contrasena: '',
-        telefono: '',
+          email: '',
+          contrasena: '',
+          telefono: '',
 
-        domicilio_calle: '',
-        domicilio_numero: '',
-        domicilio_edificio: '',
-        domicilio_colonia: '',
-        domicilio_municipio: '',
-        domicilio_cp: '',
-        domicilio_entre_calles: '',
-        domicilio_referencias: '',
+          domicilio_calle: '',
+          domicilio_numero: '',
+          domicilio_edificio: '',
+          domicilio_colonia: '',
+          domicilio_municipio: '',
+          domicilio_cp: '',
+          domicilio_entre_calles: '',
+          domicilio_referencias: '',
 
-        tiempo_domicilio_anios: '',
-        tiempo_domicilio_meses: '',
+          tiempo_domicilio_anios: '',
+          tiempo_domicilio_meses: '',
 
-        tipo_vivienda: '',
-        vivienda_detalle: '',
+          tipo_vivienda: '',
+          vivienda_detalle: '',
 
-        red_social: '',
-        red_social_otro: '',
-        red_social_url: '',
+          red_social: '',
+          red_social_otro: '',
+          red_social_url: '',
 
-        direccion: '',
-        cp: '',
+          direccion: '',
+          cp: '',
 
-        estatus: 'activo',
-        fecha_nacimiento: '',
-      });
+          estatus: 'activo',
+          fecha_nacimiento: '',
+        });
 
-      setDocumentoIdentidadFile(null);
-      setDocumentoIdentidadError('');
+        setDocumentoIdentidadFile(null);
+        setDocumentoIdentidadError('');
 
-      if (documentoIdentidadInputRef.current) {
-        documentoIdentidadInputRef.current.value = '';
+        if (documentoIdentidadInputRef.current) {
+          documentoIdentidadInputRef.current.value = '';
+        }
+
+        setPhotoFile(null);
+        setPhotoPreview('');
+        setPhotoError('');
       }
-
-      setPhotoFile(null);
-      setPhotoPreview('');
-      setPhotoError('');
-    }
-  }}
-  className="w-full md:w-auto px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
->
-  {showForm ? 'Cancelar' : 'Nuevo Socio'}
-</button>
+    }}
+    className="w-full md:w-auto px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
+  >
+    {showForm ? 'Cancelar' : 'Nuevo Socio'}
+  </button>
+)}
 
     {/* Formulario */}
 {showForm && (
