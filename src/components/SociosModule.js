@@ -1175,16 +1175,6 @@ if (documentoIdentidadInputRef.current) {
 
   'red_social',
   'red_social_url',
-];
-
-const missing = required.filter(
-  (k) => !String(newSocio[k] ?? '').trim()
-);
-
-if (missing.length) {
-  setError('Complete todos los campos obligatorios.');
-  return;
-}
 
    const requierePareja =
   newSocio.estado_civil === 'CASADO' ||
