@@ -1173,11 +1173,6 @@ if (
   );
   return;
 }
-  const missing = required.filter((k) => !`${newSocio[k]}`.trim());
-  if (missing.length) {
-    setError('Complete los campos obligatorios.');
-    return;
-  }
 
   if (!editingSocio) {
     if (!montoAfiliacion || parseFloat(montoAfiliacion) <= 0) {
