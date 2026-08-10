@@ -70,18 +70,48 @@ const [socioConFaltantes, setSocioConFaltantes] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [showConfirmRegistro, setShowConfirmRegistro] = useState(false);
   const [editingSocio, setEditingSocio] = useState(null);
-  const [newSocio, setNewSocio] = useState({
-    nombre: '',
-    apellido_paterno: '',
-    apellido_materno: '',
-    email: '',
-    contrasena: '',
-    telefono: '',
-    direccion: '',
-    cp: '',
-    estatus: 'activo',
-    fecha_nacimiento: '',
-  });
+ const [newSocio, setNewSocio] = useState({
+  nombre: '',
+  apellido_paterno: '',
+  apellido_materno: '',
+
+  tipo_documento_identidad: '',
+  documento_identidad_path: '',
+
+  estado_civil: '',
+  nombre_pareja: '',
+  dependientes_economicos: '',
+
+  email: '',
+  contrasena: '',
+  telefono: '',
+
+  domicilio_calle: '',
+  domicilio_numero: '',
+  domicilio_edificio: '',
+  domicilio_colonia: '',
+  domicilio_municipio: '',
+  domicilio_cp: '',
+  domicilio_entre_calles: '',
+  domicilio_referencias: '',
+
+  tiempo_domicilio_anios: '',
+  tiempo_domicilio_meses: '',
+
+  tipo_vivienda: '',
+  vivienda_detalle: '',
+
+  red_social: '',
+  red_social_otro: '',
+  red_social_url: '',
+
+  // Se conservan por compatibilidad
+  direccion: '',
+  cp: '',
+
+  estatus: 'activo',
+  fecha_nacimiento: '',
+});
   const [ahorroRetiro, setAhorroRetiro] = useState(false);
   const [montoAfiliacion, setMontoAfiliacion] = useState('');
   const [loading, setLoading] = useState(true);
@@ -140,6 +170,12 @@ const [bancoPersonalizado, setBancoPersonalizado] = useState({
   const dropRef = useRef(null);
   const fileInputRef = useRef(null);
   const socioFormRef = useRef(null);
+
+  // ================= DOCUMENTO IDENTIDAD =================
+const [documentoIdentidadFile, setDocumentoIdentidadFile] = useState(null);
+const [documentoIdentidadError, setDocumentoIdentidadError] = useState('');
+const [documentoIdentidadUploading, setDocumentoIdentidadUploading] = useState(false);
+const documentoIdentidadInputRef = useRef(null);
 
   // ================= CÁMARA DEL SOCIO =================
 const [showCameraModal, setShowCameraModal] =
@@ -480,6 +516,50 @@ if (!String(banco.cuenta_clave || '').trim()) {
     return '';
   };
 
+const validateDocumentoIdentidad = (file) => {
+  if (!file) return '';
+
+  const tiposPermitidos = [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+  ];
+
+  if (!tiposPermitidos.includes(file.type)) {
+    return 'Formato inválido. Solo PDF, JPG o PNG.';
+  }
+
+  const maxMB = 10;
+
+  if (file.size > maxMB * 1024 * 1024) {
+    return `El archivo supera ${maxMB} MB.`;
+  }
+
+  return '';
+};
+
+const handleDocumentoIdentidadChange = (e) => {
+  const file = e.target.files?.[0];
+
+  if (!file) return;
+
+  const validationError = validateDocumentoIdentidad(file);
+
+  setDocumentoIdentidadError(validationError);
+
+  if (validationError) {
+    setDocumentoIdentidadFile(null);
+
+    if (documentoIdentidadInputRef.current) {
+      documentoIdentidadInputRef.current.value = '';
+    }
+
+    return;
+  }
+
+  setDocumentoIdentidadFile(file);
+};
+  
 // ================= FUNCIONES DE CÁMARA =================
 
 const detenerCamara = () => {
@@ -853,19 +933,103 @@ const uploadPhotoToAforeBucket = async (socioId) => {
   };
 
   const resetForm = () => {
-  setNewSocio({
-    nombre: '',
-    apellido_paterno: '',
-    apellido_materno: '',
-    email: '',
-    contrasena: '',
-    telefono: '',
-    direccion: '',
-    cp: '',
-    estatus: 'activo',
-    fecha_nacimiento: '',
-  });
+ setNewSocio({
+  nombre: '',
+  apellido_paterno: '',
+  apellido_materno: '',
 
+  tipo_documento_identidad: '',
+  documento_identidad_path: '',
+
+  estado_civil: '',
+  nombre_pareja: '',
+  dependientes_economicos: '',
+
+  email: '',
+  contrasena: '',
+  telefono: '',
+
+  domicilio_calle: '',
+  domicilio_numero: '',
+  domicilio_edificio: '',
+  domicilio_colonia: '',
+  domicilio_municipio: '',
+  domicilio_cp: '',
+  domicilio_entre_calles: '',
+  domicilio_referencias: '',
+
+  tiempo_domicilio_anios: '',
+  tiempo_domicilio_meses: '',
+
+  tipo_vivienda: '',
+  vivienda_detalle: '',
+
+  red_social: '',
+  red_social_otro: '',
+  red_social_url: '',
+
+  direccion: '',
+  cp: '',
+
+  estatus: 'activo',
+  fecha_nacimiento: '',
+});
+
+const uploadDocumentoIdentidad = async (socioId) => {
+  if (!documentoIdentidadFile) {
+    return newSocio.documento_identidad_path || null;
+  }
+
+  setDocumentoIdentidadUploading(true);
+
+  try {
+    const extension =
+      documentoIdentidadFile.name
+        ?.split('.')
+        .pop()
+        ?.toLowerCase() || 'pdf';
+
+    const tipo = (
+      newSocio.tipo_documento_identidad || 'documento'
+    )
+      .toLowerCase()
+      .replace(/\s+/g, '_');
+
+    const path =
+      `socio_${socioId}/${tipo}_${Date.now()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('documentos-identidad-socios')
+      .upload(
+        path,
+        documentoIdentidadFile,
+        {
+          contentType:
+            documentoIdentidadFile.type ||
+            'application/octet-stream',
+
+          upsert: false,
+        }
+      );
+
+    if (uploadError) {
+      console.error(
+        'ERROR SUBIENDO DOCUMENTO IDENTIDAD:',
+        uploadError
+      );
+
+      throw new Error(
+        `No se pudo subir el documento de identidad: ${uploadError.message}`
+      );
+    }
+
+    return path;
+
+  } finally {
+    setDocumentoIdentidadUploading(false);
+  }
+};
+    
   // 🔹 Limpiar referencia personal
   setReferencia({
     nombre: '',
@@ -911,7 +1075,12 @@ const uploadPhotoToAforeBucket = async (socioId) => {
     if (fileInputRef.current) {
   fileInputRef.current.value = '';
 }
+setDocumentoIdentidadFile(null);
+setDocumentoIdentidadError('');
 
+if (documentoIdentidadInputRef.current) {
+  documentoIdentidadInputRef.current.value = '';
+}
   setEditingSocio(null);
   setShowForm(false);
 };
@@ -922,7 +1091,88 @@ const uploadPhotoToAforeBucket = async (socioId) => {
   setShowConfirmRegistro(false);
   setError(null);
 
-  const required = ['nombre', 'apellido_paterno', 'apellido_materno', 'email', 'contrasena', 'telefono', 'direccion', 'cp'];
+  const required = [
+  'nombre',
+  'apellido_paterno',
+  'apellido_materno',
+
+  'tipo_documento_identidad',
+  'estado_civil',
+  'dependientes_economicos',
+
+  'email',
+  'contrasena',
+  'telefono',
+
+  'domicilio_calle',
+  'domicilio_numero',
+  'domicilio_colonia',
+  'domicilio_municipio',
+  'domicilio_cp',
+  'domicilio_entre_calles',
+  'domicilio_referencias',
+
+  'tiempo_domicilio_anios',
+  'tiempo_domicilio_meses',
+
+  'tipo_vivienda',
+  'vivienda_detalle',
+
+  'red_social',
+  'red_social_url',
+];
+
+const missing = required.filter(
+  (k) => !String(newSocio[k] ?? '').trim()
+);
+
+if (missing.length) {
+  setError('Complete todos los campos obligatorios.');
+  return;
+}
+
+   const requierePareja =
+  newSocio.estado_civil === 'CASADO' ||
+  newSocio.estado_civil === 'UNION_LIBRE';
+
+if (
+  requierePareja &&
+  !String(newSocio.nombre_pareja || '').trim()
+) {
+  setError(
+    'Debe registrar el nombre de esposo(a), compañero(a) o pareja.'
+  );
+  return;
+}
+
+if (
+  newSocio.red_social === 'OTRO' &&
+  !String(newSocio.red_social_otro || '').trim()
+) {
+  setError('Debe escribir el nombre de la red social.');
+  return;
+}
+
+if (
+  !editingSocio &&
+  !documentoIdentidadFile
+) {
+  setError(
+    'Debe cargar el archivo correspondiente al CURP, INE o Pasaporte.'
+  );
+  return;
+}
+
+if (
+  editingSocio &&
+  !documentoIdentidadFile &&
+  !newSocio.documento_identidad_path
+) {
+  setError(
+    'Debe cargar el archivo correspondiente al CURP, INE o Pasaporte.'
+  );
+  return;
+}
   const missing = required.filter((k) => !`${newSocio[k]}`.trim());
   if (missing.length) {
     setError('Complete los campos obligatorios.');
@@ -938,6 +1188,33 @@ const uploadPhotoToAforeBucket = async (socioId) => {
     }
   }
 
+const direccionCompleta = [
+  newSocio.domicilio_calle &&
+    `CALLE ${newSocio.domicilio_calle}`,
+
+  newSocio.domicilio_numero &&
+    `NÚM. ${newSocio.domicilio_numero}`,
+
+  newSocio.domicilio_edificio &&
+    `EDIFICIO ${newSocio.domicilio_edificio}`,
+
+  newSocio.domicilio_colonia &&
+    `COL. ${newSocio.domicilio_colonia}`,
+
+  newSocio.domicilio_municipio,
+
+  newSocio.domicilio_cp &&
+    `C.P. ${newSocio.domicilio_cp}`,
+
+  newSocio.domicilio_entre_calles &&
+    `ENTRE CALLES: ${newSocio.domicilio_entre_calles}`,
+
+  newSocio.domicilio_referencias &&
+    `REFERENCIAS: ${newSocio.domicilio_referencias}`,
+]
+  .filter(Boolean)
+  .join(', ');
+   
   setSaving(true);
 
   try {
@@ -956,17 +1233,102 @@ const uploadPhotoToAforeBucket = async (socioId) => {
             Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
             Prefer: 'return=representation',
           },
-          body: JSON.stringify({
+          bbody: JSON.stringify({
   ...newSocio,
+
   nombre: textoMayusculas(newSocio.nombre),
-  apellido_paterno: textoMayusculas(newSocio.apellido_paterno),
-  apellido_materno: textoMayusculas(newSocio.apellido_materno),
-  email: correoMinusculas(newSocio.email),
-  telefono: String(newSocio.telefono || '').trim(),
-  direccion: textoMayusculas(newSocio.direccion),
-  cp: String(newSocio.cp || '').trim(),
-  estatus: newSocio.estatus === 'activo',
-  fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
+  apellido_paterno: textoMayusculas(
+    newSocio.apellido_paterno
+  ),
+  apellido_materno: textoMayusculas(
+    newSocio.apellido_materno
+  ),
+
+  tipo_documento_identidad:
+    newSocio.tipo_documento_identidad,
+
+  estado_civil:
+    newSocio.estado_civil,
+
+  nombre_pareja:
+    requierePareja
+      ? textoMayusculas(newSocio.nombre_pareja)
+      : null,
+
+  dependientes_economicos:
+    Number(newSocio.dependientes_economicos),
+
+  email:
+    correoMinusculas(newSocio.email),
+
+  telefono:
+    String(newSocio.telefono || '').trim(),
+
+  domicilio_calle:
+    textoMayusculas(newSocio.domicilio_calle),
+
+  domicilio_numero:
+    textoMayusculas(newSocio.domicilio_numero),
+
+  domicilio_edificio:
+    newSocio.domicilio_edificio
+      ? textoMayusculas(newSocio.domicilio_edificio)
+      : null,
+
+  domicilio_colonia:
+    textoMayusculas(newSocio.domicilio_colonia),
+
+  domicilio_municipio:
+    textoMayusculas(newSocio.domicilio_municipio),
+
+  domicilio_cp:
+    String(newSocio.domicilio_cp || '').trim(),
+
+  domicilio_entre_calles:
+    textoMayusculas(
+      newSocio.domicilio_entre_calles
+    ),
+
+  domicilio_referencias:
+    textoMayusculas(
+      newSocio.domicilio_referencias
+    ),
+
+  tiempo_domicilio_anios:
+    Number(newSocio.tiempo_domicilio_anios),
+
+  tiempo_domicilio_meses:
+    Number(newSocio.tiempo_domicilio_meses),
+
+  tipo_vivienda:
+    newSocio.tipo_vivienda,
+
+  vivienda_detalle:
+    textoMayusculas(newSocio.vivienda_detalle),
+
+  red_social:
+    newSocio.red_social,
+
+  red_social_otro:
+    newSocio.red_social === 'OTRO'
+      ? textoMayusculas(newSocio.red_social_otro)
+      : null,
+
+  red_social_url:
+    String(newSocio.red_social_url || '').trim(),
+
+  // Compatibilidad con sistema anterior
+  direccion:
+    textoMayusculas(direccionCompleta),
+
+  cp:
+    String(newSocio.domicilio_cp || '').trim(),
+
+  estatus:
+    newSocio.estatus === 'activo',
+
+  fecha_nacimiento:
+    cleanDate(newSocio.fecha_nacimiento),
 }),
         }
       );
@@ -994,17 +1356,101 @@ socioId = socio.id_socio;
         },
       body: JSON.stringify({
   ...newSocio,
+
   nombre: textoMayusculas(newSocio.nombre),
-  apellido_paterno: textoMayusculas(newSocio.apellido_paterno),
-  apellido_materno: textoMayusculas(newSocio.apellido_materno),
-  email: correoMinusculas(newSocio.email),
-  telefono: String(newSocio.telefono || '').trim(),
-  direccion: textoMayusculas(newSocio.direccion),
-  cp: String(newSocio.cp || '').trim(),
-  estatus: newSocio.estatus === 'activo',
-  fecha_nacimiento: cleanDate(newSocio.fecha_nacimiento),
+  apellido_paterno: textoMayusculas(
+    newSocio.apellido_paterno
+  ),
+  apellido_materno: textoMayusculas(
+    newSocio.apellido_materno
+  ),
+
+  tipo_documento_identidad:
+    newSocio.tipo_documento_identidad,
+
+  estado_civil:
+    newSocio.estado_civil,
+
+  nombre_pareja:
+    requierePareja
+      ? textoMayusculas(newSocio.nombre_pareja)
+      : null,
+
+  dependientes_economicos:
+    Number(newSocio.dependientes_economicos),
+
+  email:
+    correoMinusculas(newSocio.email),
+
+  telefono:
+    String(newSocio.telefono || '').trim(),
+
+  domicilio_calle:
+    textoMayusculas(newSocio.domicilio_calle),
+
+  domicilio_numero:
+    textoMayusculas(newSocio.domicilio_numero),
+
+  domicilio_edificio:
+    newSocio.domicilio_edificio
+      ? textoMayusculas(newSocio.domicilio_edificio)
+      : null,
+
+  domicilio_colonia:
+    textoMayusculas(newSocio.domicilio_colonia),
+
+  domicilio_municipio:
+    textoMayusculas(newSocio.domicilio_municipio),
+
+  domicilio_cp:
+    String(newSocio.domicilio_cp || '').trim(),
+
+  domicilio_entre_calles:
+    textoMayusculas(
+      newSocio.domicilio_entre_calles
+    ),
+
+  domicilio_referencias:
+    textoMayusculas(
+      newSocio.domicilio_referencias
+    ),
+
+  tiempo_domicilio_anios:
+    Number(newSocio.tiempo_domicilio_anios),
+
+  tiempo_domicilio_meses:
+    Number(newSocio.tiempo_domicilio_meses),
+
+  tipo_vivienda:
+    newSocio.tipo_vivienda,
+
+  vivienda_detalle:
+    textoMayusculas(newSocio.vivienda_detalle),
+
+  red_social:
+    newSocio.red_social,
+
+  red_social_otro:
+    newSocio.red_social === 'OTRO'
+      ? textoMayusculas(newSocio.red_social_otro)
+      : null,
+
+  red_social_url:
+    String(newSocio.red_social_url || '').trim(),
+
+  // Compatibilidad con sistema anterior
+  direccion:
+    textoMayusculas(direccionCompleta),
+
+  cp:
+    String(newSocio.domicilio_cp || '').trim(),
+
+  estatus:
+    newSocio.estatus === 'activo',
+
+  fecha_nacimiento:
+    cleanDate(newSocio.fecha_nacimiento),
 }),
-      });
 
       if (!res.ok) throw new Error('Error creando socio');
 
@@ -1019,6 +1465,58 @@ socioId = socio.id_socio;
 
    
     }
+// ================= DOCUMENTO DE IDENTIDAD =================
+if (
+  documentoIdentidadFile ||
+  newSocio.documento_identidad_path
+) {
+  const documentoPath =
+    await uploadDocumentoIdentidad(socioId);
+
+  if (documentoPath) {
+    const updateDocumentoRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/socios?id_socio=eq.${socioId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=representation',
+        },
+
+        body: JSON.stringify({
+          tipo_documento_identidad:
+            newSocio.tipo_documento_identidad,
+
+          documento_identidad_path:
+            documentoPath,
+        }),
+      }
+    );
+
+    if (!updateDocumentoRes.ok) {
+      const errorText =
+        await updateDocumentoRes.text();
+
+      console.error(
+        'ERROR GUARDANDO DOCUMENTO IDENTIDAD:',
+        errorText
+      );
+
+      throw new Error(
+        `El documento se cargó, pero no se pudo registrar: ${errorText}`
+      );
+    }
+
+    socio = {
+      ...socio,
+      documento_identidad_path:
+        documentoPath,
+    };
+  }
+}
+    
 // ================= FOTO DEL SOCIO =================
 if (photoFile) {
   const fotoUrl = await uploadPhotoToSupabase(socioId);
@@ -1379,21 +1877,111 @@ const handleEditClick = async (socio) => {
   setEditingSocio(socio);
 
   setNewSocio({
-    nombre: socio.nombre || '',
-    apellido_paterno: socio.apellido_paterno || '',
-    apellido_materno: socio.apellido_materno || '',
-    email: socio.email || '',
-    contrasena: socio.contrasena || '',
-    telefono: socio.telefono || '',
-    direccion: socio.direccion || '',
-    cp: socio.cp || '',
-    estatus: socio.estatus ? 'activo' : 'inactivo',
-    fecha_nacimiento: toDateInput(socio.fecha_nacimiento),
-  });
+  nombre:
+    socio.nombre || '',
+
+  apellido_paterno:
+    socio.apellido_paterno || '',
+
+  apellido_materno:
+    socio.apellido_materno || '',
+
+  tipo_documento_identidad:
+    socio.tipo_documento_identidad || '',
+
+  documento_identidad_path:
+    socio.documento_identidad_path || '',
+
+  estado_civil:
+    socio.estado_civil || '',
+
+  nombre_pareja:
+    socio.nombre_pareja || '',
+
+  dependientes_economicos:
+    socio.dependientes_economicos ?? '',
+
+  email:
+    socio.email || '',
+
+  contrasena:
+    socio.contrasena || '',
+
+  telefono:
+    socio.telefono || '',
+
+  domicilio_calle:
+    socio.domicilio_calle || '',
+
+  domicilio_numero:
+    socio.domicilio_numero || '',
+
+  domicilio_edificio:
+    socio.domicilio_edificio || '',
+
+  domicilio_colonia:
+    socio.domicilio_colonia || '',
+
+  domicilio_municipio:
+    socio.domicilio_municipio || '',
+
+  domicilio_cp:
+    socio.domicilio_cp ||
+    socio.cp ||
+    '',
+
+  domicilio_entre_calles:
+    socio.domicilio_entre_calles || '',
+
+  domicilio_referencias:
+    socio.domicilio_referencias || '',
+
+  tiempo_domicilio_anios:
+    socio.tiempo_domicilio_anios ?? '',
+
+  tiempo_domicilio_meses:
+    socio.tiempo_domicilio_meses ?? '',
+
+  tipo_vivienda:
+    socio.tipo_vivienda || '',
+
+  vivienda_detalle:
+    socio.vivienda_detalle || '',
+
+  red_social:
+    socio.red_social || '',
+
+  red_social_otro:
+    socio.red_social_otro || '',
+
+  red_social_url:
+    socio.red_social_url || '',
+
+  // Compatibilidad
+  direccion:
+    socio.direccion || '',
+
+  cp:
+    socio.cp || '',
+
+  estatus:
+    socio.estatus
+      ? 'activo'
+      : 'inactivo',
+
+  fecha_nacimiento:
+    toDateInput(socio.fecha_nacimiento),
+});
 
   setPhotoFile(null);
   setPhotoPreview(socio.foto_url || '');
   setPhotoError('');
+  setDocumentoIdentidadFile(null);
+setDocumentoIdentidadError('');
+
+if (documentoIdentidadInputRef.current) {
+  documentoIdentidadInputRef.current.value = '';
+}
   setMontoAfiliacion('');
   setErrorMonto('');
 
@@ -1519,22 +2107,46 @@ const openFicha = async (socio) => {
           setShowForm(true);
           setEditingSocio(null);
           setNewSocio({
-            nombre: '',
-            apellido_paterno: '',
-            apellido_materno: '',
-            email: '',
-            contrasena: '',
-            telefono: '',
-            direccion: '',
-            cp: '',
-            estatus: 'activo',
-            fecha_nacimiento: '',
-          });
-          setPhotoFile(null);
-          setPhotoPreview('');
-          setPhotoError('');
-        }
-      }}
+  nombre: '',
+  apellido_paterno: '',
+  apellido_materno: '',
+
+  tipo_documento_identidad: '',
+  documento_identidad_path: '',
+
+  estado_civil: '',
+  nombre_pareja: '',
+  dependientes_economicos: '',
+
+  email: '',
+  contrasena: '',
+  telefono: '',
+
+  domicilio_calle: '',
+  domicilio_numero: '',
+  domicilio_edificio: '',
+  domicilio_colonia: '',
+  domicilio_municipio: '',
+  domicilio_cp: '',
+  domicilio_entre_calles: '',
+  domicilio_referencias: '',
+
+  tiempo_domicilio_anios: '',
+  tiempo_domicilio_meses: '',
+
+  tipo_vivienda: '',
+  vivienda_detalle: '',
+
+  red_social: '',
+  red_social_otro: '',
+  red_social_url: '',
+
+  direccion: '',
+  cp: '',
+
+  estatus: 'activo',
+  fecha_nacimiento: '',
+});
      className="w-full md:w-auto px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
     >
       {showForm ? 'Cancelar' : 'Nuevo Socio'}
@@ -1636,6 +2248,197 @@ const openFicha = async (socio) => {
               className="px-4 py-2 border border-slate-200 rounded-lg"
               required
             />
+              {/* ================= DOCUMENTO DE IDENTIDAD ================= */}
+
+<div className="col-span-full border-t border-slate-200 pt-4 mt-2">
+  <label className="block text-sm font-semibold text-slate-700 mb-2">
+    CURP / INE / Pasaporte *
+  </label>
+
+  <select
+    name="tipo_documento_identidad"
+    value={newSocio.tipo_documento_identidad}
+    onChange={handleInputChange}
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  >
+    <option value="">
+      Seleccione documento
+    </option>
+
+    <option value="CURP">
+      CURP
+    </option>
+
+    <option value="INE">
+      INE
+    </option>
+
+    <option value="PASAPORTE">
+      Pasaporte
+    </option>
+  </select>
+</div>
+
+
+<div className="col-span-full">
+  <label className="block text-sm font-medium text-slate-700 mb-2">
+    Cargar archivo *
+  </label>
+
+  <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+
+    <button
+      type="button"
+      onClick={() =>
+        documentoIdentidadInputRef.current?.click()
+      }
+      className="px-4 py-2 bg-slate-800 text-white rounded-xl hover:bg-slate-900 font-medium"
+    >
+      📎 Cargar archivo
+    </button>
+
+    <input
+      ref={documentoIdentidadInputRef}
+      type="file"
+      accept="application/pdf,image/jpeg,image/png"
+      onChange={handleDocumentoIdentidadChange}
+      className="hidden"
+    />
+
+    <div className="text-sm text-slate-600">
+
+      {documentoIdentidadFile ? (
+        <span className="font-medium text-emerald-700">
+          {documentoIdentidadFile.name}
+        </span>
+      ) : newSocio.documento_identidad_path ? (
+        <span className="font-medium text-emerald-700">
+          Documento actualmente cargado
+        </span>
+      ) : (
+        <span>
+          PDF, JPG o PNG. Máximo 10 MB.
+        </span>
+      )}
+
+    </div>
+
+  </div>
+
+  {documentoIdentidadError && (
+    <p className="text-sm text-red-600 mt-2">
+      {documentoIdentidadError}
+    </p>
+  )}
+
+  {documentoIdentidadUploading && (
+    <p className="text-sm text-blue-600 mt-2">
+      Subiendo documento...
+    </p>
+  )}
+</div>  
+  {/* ================= ESTADO CIVIL ================= */}
+
+<div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Estado Civil *
+  </label>
+
+  <select
+    name="estado_civil"
+    value={newSocio.estado_civil}
+    onChange={(e) => {
+      const value = e.target.value;
+
+      setNewSocio((prev) => ({
+        ...prev,
+        estado_civil: value,
+
+        nombre_pareja:
+          value === 'CASADO' ||
+          value === 'UNION_LIBRE'
+            ? prev.nombre_pareja
+            : '',
+      }));
+    }}
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  >
+    <option value="">
+      Seleccione estado civil
+    </option>
+
+    <option value="SOLTERO">
+      Soltero (a)
+    </option>
+
+    <option value="CASADO">
+      Casado (a)
+    </option>
+
+    <option value="VIUDO">
+      Viudo (a)
+    </option>
+
+    <option value="DIVORCIADO">
+      Divorciado (a)
+    </option>
+
+    <option value="UNION_LIBRE">
+      Unión Libre
+    </option>
+  </select>
+</div>
+      {(
+  newSocio.estado_civil === 'CASADO' ||
+  newSocio.estado_civil === 'UNION_LIBRE'
+) && (
+  <div>
+    <label className="block text-sm font-medium text-slate-700 mb-1">
+      Nombre esposo(a), compañero(a), pareja(a) *
+    </label>
+
+    <input
+      type="text"
+      name="nombre_pareja"
+      value={newSocio.nombre_pareja}
+      onChange={handleInputChange}
+      placeholder="Nombre completo"
+      className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+      required
+    />
+  </div>
+)}
+  <div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Dependientes económicos *
+  </label>
+
+  <select
+    name="dependientes_economicos"
+    value={newSocio.dependientes_economicos}
+    onChange={handleInputChange}
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  >
+    <option value="">
+      Seleccione
+    </option>
+
+    {Array.from(
+      { length: 10 },
+      (_, i) => i + 1
+    ).map((numero) => (
+      <option
+        key={numero}
+        value={numero}
+      >
+        {numero}
+      </option>
+    ))}
+  </select>
+</div>
             <input
               type="email"
               name="email"
@@ -1668,30 +2471,361 @@ const openFicha = async (socio) => {
   required
 />
 
-            <input
-              type="text"
-              name="direccion"
-              value={newSocio.direccion}
-              onChange={handleInputChange}
-              placeholder="Dirección *"
-              className="px-4 py-2 border border-slate-200 rounded-lg"
-              required
-            />
-            <input
-  type="tel"
-  inputMode="numeric"
-  pattern="[0-9]*"
-  name="cp"
-  value={newSocio.cp}
-  onChange={(e) =>
-    setNewSocio((prev) => ({ ...prev, cp: onlyDigitsMax(e.target.value, 5) }))
-  }
-  placeholder="Código Postal *"
-  className="px-4 py-2 border border-slate-200 rounded-lg"
-  required
-/>
+{/* ================= DOMICILIO ================= */}
+
+<div className="col-span-full border-t-2 border-emerald-600 pt-6 mt-4">
+  <h4 className="text-lg font-semibold text-slate-800">
+    Dirección completa donde vive
+  </h4>
+
+  <p className="text-sm text-slate-500 mt-1">
+    Todos los campos son obligatorios excepto Edificio.
+  </p>
+</div>
 
 
+<div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Calle *
+  </label>
+
+  <input
+    type="text"
+    name="domicilio_calle"
+    value={newSocio.domicilio_calle}
+    onChange={handleInputChange}
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  />
+</div>
+
+
+<div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Número *
+  </label>
+
+  <input
+    type="text"
+    name="domicilio_numero"
+    value={newSocio.domicilio_numero}
+    onChange={handleInputChange}
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  />
+</div>
+
+
+<div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Edificio
+  </label>
+
+  <input
+    type="text"
+    name="domicilio_edificio"
+    value={newSocio.domicilio_edificio}
+    onChange={handleInputChange}
+    placeholder="Opcional"
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+  />
+</div>
+
+
+<div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Colonia *
+  </label>
+
+  <input
+    type="text"
+    name="domicilio_colonia"
+    value={newSocio.domicilio_colonia}
+    onChange={handleInputChange}
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  />
+</div>
+
+
+<div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Alcaldía o Municipio *
+  </label>
+
+  <input
+    type="text"
+    name="domicilio_municipio"
+    value={newSocio.domicilio_municipio}
+    onChange={handleInputChange}
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  />
+</div>
+
+
+<div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Código Postal *
+  </label>
+
+  <input
+    type="tel"
+    inputMode="numeric"
+    pattern="[0-9]*"
+    name="domicilio_cp"
+    value={newSocio.domicilio_cp}
+    onChange={(e) =>
+      setNewSocio((prev) => ({
+        ...prev,
+        domicilio_cp:
+          onlyDigitsMax(e.target.value, 5),
+      }))
+    }
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  />
+</div>
+
+
+<div className="col-span-full">
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Entre Calles *
+  </label>
+
+  <input
+    type="text"
+    name="domicilio_entre_calles"
+    value={newSocio.domicilio_entre_calles}
+    onChange={handleInputChange}
+    placeholder="Ej. Avenida Juárez y Calle Hidalgo"
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  />
+</div>
+
+
+<div className="col-span-full">
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Referencias *
+  </label>
+
+  <textarea
+    name="domicilio_referencias"
+    value={newSocio.domicilio_referencias}
+    onChange={handleInputChange}
+    placeholder="Describa referencias para localizar el domicilio"
+    rows={3}
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  />
+</div>
+<div className="col-span-full mt-3">
+  <label className="block text-sm font-semibold text-slate-700 mb-2">
+    Tiempo viviendo en ese domicilio *
+  </label>
+</div>
+
+
+<div>
+  <label className="block text-sm text-slate-600 mb-1">
+    Años
+  </label>
+
+  <select
+    name="tiempo_domicilio_anios"
+    value={newSocio.tiempo_domicilio_anios}
+    onChange={handleInputChange}
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  >
+    <option value="">
+      Seleccione años
+    </option>
+
+    {Array.from(
+      { length: 30 },
+      (_, i) => i + 1
+    ).map((numero) => (
+      <option
+        key={numero}
+        value={numero}
+      >
+        {numero}
+      </option>
+    ))}
+  </select>
+</div>
+
+
+<div>
+  <label className="block text-sm text-slate-600 mb-1">
+    Meses
+  </label>
+
+  <select
+    name="tiempo_domicilio_meses"
+    value={newSocio.tiempo_domicilio_meses}
+    onChange={handleInputChange}
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  >
+    <option value="">
+      Seleccione meses
+    </option>
+
+    {Array.from(
+      { length: 11 },
+      (_, i) => i + 1
+    ).map((numero) => (
+      <option
+        key={numero}
+        value={numero}
+      >
+        {numero}
+      </option>
+    ))}
+  </select>
+</div>
+<div className="col-span-full mt-3">
+  <label className="block text-sm font-semibold text-slate-700 mb-2">
+    La vivienda es propia, rentada, de un familiar o paga hipoteca *
+  </label>
+</div>
+
+
+<div>
+  <select
+    name="tipo_vivienda"
+    value={newSocio.tipo_vivienda}
+    onChange={handleInputChange}
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  >
+    <option value="">
+      Seleccione
+    </option>
+
+    <option value="PROPIA">
+      Propia
+    </option>
+
+    <option value="RENTADA">
+      Rentada
+    </option>
+
+    <option value="FAMILIAR">
+      De un familiar
+    </option>
+
+    <option value="HIPOTECA">
+      Paga hipoteca
+    </option>
+  </select>
+</div>
+
+
+<div>
+  <input
+    type="text"
+    name="vivienda_detalle"
+    value={newSocio.vivienda_detalle}
+    onChange={handleInputChange}
+    maxLength={250}
+    placeholder="Especifique detalles de la vivienda *"
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  />
+</div>
+{/* ================= REDES SOCIALES ================= */}
+
+<div className="col-span-full border-t border-slate-200 pt-5 mt-4">
+  <h4 className="font-semibold text-slate-800 mb-3">
+    Redes Sociales
+  </h4>
+</div>
+
+
+<div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Red Social *
+  </label>
+
+  <select
+    name="red_social"
+    value={newSocio.red_social}
+    onChange={(e) => {
+      const value = e.target.value;
+
+      setNewSocio((prev) => ({
+        ...prev,
+        red_social: value,
+
+        red_social_otro:
+          value === 'OTRO'
+            ? prev.red_social_otro
+            : '',
+      }));
+    }}
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  >
+    <option value="">
+      Seleccione
+    </option>
+
+    <option value="FACEBOOK">
+      Facebook
+    </option>
+
+    <option value="INSTAGRAM">
+      Instagram
+    </option>
+
+    <option value="TIKTOK">
+      TikTok
+    </option>
+
+    <option value="OTRO">
+      Otro
+    </option>
+  </select>
+</div>
+
+
+{newSocio.red_social === 'OTRO' && (
+  <div>
+    <label className="block text-sm font-medium text-slate-700 mb-1">
+      Escriba el nombre de la red social *
+    </label>
+
+    <input
+      type="text"
+      name="red_social_otro"
+      value={newSocio.red_social_otro}
+      onChange={handleInputChange}
+      className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+      required
+    />
+  </div>
+)}
+
+
+<div className="col-span-full">
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Dirección de la red social *
+  </label>
+
+  <input
+    type="text"
+    name="red_social_url"
+    value={newSocio.red_social_url}
+    onChange={handleInputChange}
+    placeholder="Ej. https://facebook.com/usuario o @usuario"
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+    required
+  />
+</div>
             {/* Estatus */}
             <select
               name="estatus"
@@ -2756,15 +3890,208 @@ const pais = textoMayusculas(bancoPersonalizado.pais);
     <p>{socioFicha.telefono}</p>
   </div>
 
-  <div>
-    <span className="font-semibold">Código Postal:</span>
-    <p>{socioFicha.cp}</p>
-  </div>
+ <div>
+  <span className="font-semibold">
+    Documento:
+  </span>
 
+  <p>
+    {socioFicha.tipo_documento_identidad || '-'}
+  </p>
+</div>
+
+
+<div>
+  <span className="font-semibold">
+    Estado Civil:
+  </span>
+
+  <p>
+    {socioFicha.estado_civil || '-'}
+  </p>
+</div>
+
+
+{(
+  socioFicha.estado_civil === 'CASADO' ||
+  socioFicha.estado_civil === 'UNION_LIBRE'
+) && (
   <div className="col-span-full">
-    <span className="font-semibold">Dirección:</span>
-    <p>{socioFicha.direccion}</p>
+    <span className="font-semibold">
+      Esposo(a) / Pareja:
+    </span>
+
+    <p>
+      {socioFicha.nombre_pareja || '-'}
+    </p>
   </div>
+)}
+
+
+<div>
+  <span className="font-semibold">
+    Dependientes económicos:
+  </span>
+
+  <p>
+    {socioFicha.dependientes_economicos ?? '-'}
+  </p>
+</div>
+
+
+<div className="col-span-full mt-4">
+  <h4 className="font-semibold text-emerald-700 text-lg">
+    Dirección completa donde vive
+  </h4>
+</div>
+
+
+<div>
+  <span className="font-semibold">
+    Calle:
+  </span>
+
+  <p>
+    {socioFicha.domicilio_calle || '-'}
+  </p>
+</div>
+
+
+<div>
+  <span className="font-semibold">
+    Número:
+  </span>
+
+  <p>
+    {socioFicha.domicilio_numero || '-'}
+  </p>
+</div>
+
+
+<div>
+  <span className="font-semibold">
+    Edificio:
+  </span>
+
+  <p>
+    {socioFicha.domicilio_edificio || '-'}
+  </p>
+</div>
+
+
+<div>
+  <span className="font-semibold">
+    Colonia:
+  </span>
+
+  <p>
+    {socioFicha.domicilio_colonia || '-'}
+  </p>
+</div>
+
+
+<div>
+  <span className="font-semibold">
+    Alcaldía / Municipio:
+  </span>
+
+  <p>
+    {socioFicha.domicilio_municipio || '-'}
+  </p>
+</div>
+
+
+<div>
+  <span className="font-semibold">
+    Código Postal:
+  </span>
+
+  <p>
+    {socioFicha.domicilio_cp ||
+      socioFicha.cp ||
+      '-'}
+  </p>
+</div>
+
+
+<div className="col-span-full">
+  <span className="font-semibold">
+    Entre Calles:
+  </span>
+
+  <p>
+    {socioFicha.domicilio_entre_calles || '-'}
+  </p>
+</div>
+
+
+<div className="col-span-full">
+  <span className="font-semibold">
+    Referencias:
+  </span>
+
+  <p>
+    {socioFicha.domicilio_referencias || '-'}
+  </p>
+</div>
+
+
+<div>
+  <span className="font-semibold">
+    Tiempo en domicilio:
+  </span>
+
+  <p>
+    {socioFicha.tiempo_domicilio_anios || '-'} años,{' '}
+    {socioFicha.tiempo_domicilio_meses || '-'} meses
+  </p>
+</div>
+
+
+<div>
+  <span className="font-semibold">
+    Tipo de vivienda:
+  </span>
+
+  <p>
+    {socioFicha.tipo_vivienda || '-'}
+  </p>
+</div>
+
+
+<div className="col-span-full">
+  <span className="font-semibold">
+    Detalles de vivienda:
+  </span>
+
+  <p>
+    {socioFicha.vivienda_detalle || '-'}
+  </p>
+</div>
+
+
+<div>
+  <span className="font-semibold">
+    Red Social:
+  </span>
+
+  <p>
+    {socioFicha.red_social === 'OTRO'
+      ? socioFicha.red_social_otro
+      : socioFicha.red_social || '-'}
+  </p>
+</div>
+
+
+<div>
+  <span className="font-semibold">
+    Dirección de Red Social:
+  </span>
+
+  <p className="break-all">
+    {socioFicha.red_social_url || '-'}
+  </p>
+</div>
 
   <div>
     <span className="font-semibold">Fecha de nacimiento:</span>
