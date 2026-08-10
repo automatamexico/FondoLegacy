@@ -2161,7 +2161,7 @@ const openFicha = async (socio) => {
     {showForm ? 'Cancelar' : 'Nuevo Socio'}
   </button>
 )}
-
+</div>
     {/* Formulario */}
 {showForm && (
   <>
