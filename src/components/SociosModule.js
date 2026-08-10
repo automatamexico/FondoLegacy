@@ -2123,6 +2123,54 @@ const openFicha = async (socio) => {
   setBenefFicha([]);
   setBancoFicha([]);
 };
+
+const abrirDocumentoIdentidadSocio = async (path) => {
+  try {
+    if (!path) {
+      setError('Este socio no tiene documento cargado.');
+      return;
+    }
+
+    const { data, error } = await supabase.storage
+      .from('documentos-identidad-socios')
+      .createSignedUrl(path, 300);
+
+    if (error) {
+      console.error('ERROR GENERANDO URL DOCUMENTO:', error);
+      throw error;
+    }
+
+    if (!data?.signedUrl) {
+      throw new Error('Supabase no devolvió una URL válida.');
+    }
+
+    const extension =
+      path.split('.').pop()?.toLowerCase();
+
+    const type =
+      extension === 'pdf'
+        ? 'pdf'
+        : 'image';
+
+    setPreviewFile({
+      type,
+      url: data.signedUrl,
+    });
+
+  } catch (err) {
+    console.error(
+      'ERROR ABRIENDO DOCUMENTO DEL SOCIO:',
+      err
+    );
+
+    setError(
+      `No se pudo abrir el documento del socio: ${
+        err?.message || 'Error desconocido'
+      }`
+    );
+  }
+};
+  
   return (
     <div className="p-3 md:p-6 space-y-6">
     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
