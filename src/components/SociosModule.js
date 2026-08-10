@@ -2736,10 +2736,11 @@ domicilio_pais: '',
 </div>
 {/* ================= DOMICILIO ================= */}
 
-<div className="col-span-full border-t-2 border-emerald-600 pt-6 mt-4">
-  <h4 className="text-lg font-semibold text-slate-800">
+<div className="col-span-full mt-4">
+  <h4 className="font-bold text-slate-900 text-lg">
     Dirección completa donde vive
   </h4>
+</div>
 
   <p className="text-sm text-slate-500 mt-1">
     Todos los campos son obligatorios excepto Edificio.
@@ -4159,7 +4160,7 @@ const pais = textoMayusculas(bancoPersonalizado.pais);
 
 
 <div className="col-span-full mt-4">
-  <h4 className="font-semibold text-emerald-700 text-lg">
+  <h4 className="font-bold text-slate-900 text-lg">
     Dirección completa donde vive
   </h4>
 </div>
