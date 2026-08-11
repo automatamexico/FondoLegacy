@@ -5,6 +5,41 @@ import { convertirFechaHoraLocal } from '../utils/dateFormatter';
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
 
+const ESTADOS_MEXICO = [
+  'AGUASCALIENTES',
+  'BAJA CALIFORNIA',
+  'BAJA CALIFORNIA SUR',
+  'CAMPECHE',
+  'CHIAPAS',
+  'CHIHUAHUA',
+  'CIUDAD DE MÉXICO',
+  'COAHUILA',
+  'COLIMA',
+  'DURANGO',
+  'ESTADO DE MÉXICO',
+  'GUANAJUATO',
+  'GUERRERO',
+  'HIDALGO',
+  'JALISCO',
+  'MICHOACÁN',
+  'MORELOS',
+  'NAYARIT',
+  'NUEVO LEÓN',
+  'OAXACA',
+  'PUEBLA',
+  'QUERÉTARO',
+  'QUINTANA ROO',
+  'SAN LUIS POTOSÍ',
+  'SINALOA',
+  'SONORA',
+  'TABASCO',
+  'TAMAULIPAS',
+  'TLAXCALA',
+  'VERACRUZ',
+  'YUCATÁN',
+  'ZACATECAS',
+];
+
 const PrestamosModule = ({ idSocio }) => {
   const [prestamosList, setPrestamosList] = useState([]);
   const [sociosList, setSociosList] = useState(null);
@@ -68,14 +103,62 @@ const [guardandoPagoPrestamo, setGuardandoPagoPrestamo] =
     ? (JSON.parse(localStorage.getItem('currentUser')).role || 'admin')
     : 'admin';
 
-  const [newPrestamo, setNewPrestamo] = useState({
-    id_socio: '',
-    monto_solicitado: '',
-    numero_plazos: '',
-    tipo_plazo: 'mensual', // mensual | quincenal | semanal
-    interes: '',           // % por periodo
-    fecha_solicitud: ''    // puede venir dd/mm/yyyy o yyyy-mm-dd
-  });
+ const [newPrestamo, setNewPrestamo] = useState({
+  id_socio: '',
+
+  // ================= DATOS LABORALES =================
+  tipo_fuente_ingreso: '',
+
+  // EMPLEADO
+  empleado_nombre_empresa: '',
+
+  empleado_empresa_calle: '',
+  empleado_empresa_numero: '',
+  empleado_empresa_edificio: '',
+  empleado_empresa_colonia: '',
+  empleado_empresa_estado: '',
+  empleado_empresa_pais: '',
+  empleado_empresa_municipio: '',
+  empleado_empresa_cp: '',
+  empleado_empresa_entre_calles: '',
+  empleado_empresa_referencias: '',
+
+  empleado_ocupacion: '',
+  empleado_tiempo_anios: '',
+  empleado_tiempo_meses: '',
+  empleado_tipo_contrato: '',
+  empleado_ingreso_mensual_neto: '',
+  empleado_comprueba_ingresos: '',
+  empleado_tipo_comprobante: '',
+
+  // NEGOCIO PROPIO
+  negocio_tipo: '',
+  negocio_tiempo_anios: '',
+  negocio_tiempo_meses: '',
+
+  negocio_calle: '',
+  negocio_numero: '',
+  negocio_edificio: '',
+  negocio_colonia: '',
+  negocio_estado: '',
+  negocio_pais: '',
+  negocio_municipio: '',
+  negocio_cp: '',
+  negocio_entre_calles: '',
+  negocio_referencias: '',
+
+  negocio_formal: '',
+  negocio_num_empleados: '',
+  negocio_gastos_mensuales: '',
+  negocio_utilidad_aproximada: '',
+
+  // ================= PRÉSTAMO =================
+  monto_solicitado: '',
+  numero_plazos: '',
+  tipo_plazo: 'mensual',
+  interes: '',
+  fecha_solicitud: ''
+});
 
   const [pagoPeriodo, setPagoPeriodo] = useState(0);
   const [abonoCapitalPeriodo, setAbonoCapitalPeriodo] = useState(0);
@@ -676,14 +759,58 @@ const confirmarPagoDesdePrestamo = async () => {
   }, [idSocio, sociosList]);
 
   const resetNuevoPrestamo = () => {
-    setNewPrestamo({
-      id_socio: idSocio || '',
-      monto_solicitado: '',
-      numero_plazos: '',
-      tipo_plazo: 'mensual',
-      interes: '',
-      fecha_solicitud: ''
-    });
+ setNewPrestamo({
+  id_socio: idSocio || '',
+
+  tipo_fuente_ingreso: '',
+
+  empleado_nombre_empresa: '',
+
+  empleado_empresa_calle: '',
+  empleado_empresa_numero: '',
+  empleado_empresa_edificio: '',
+  empleado_empresa_colonia: '',
+  empleado_empresa_estado: '',
+  empleado_empresa_pais: '',
+  empleado_empresa_municipio: '',
+  empleado_empresa_cp: '',
+  empleado_empresa_entre_calles: '',
+  empleado_empresa_referencias: '',
+
+  empleado_ocupacion: '',
+  empleado_tiempo_anios: '',
+  empleado_tiempo_meses: '',
+  empleado_tipo_contrato: '',
+  empleado_ingreso_mensual_neto: '',
+  empleado_comprueba_ingresos: '',
+  empleado_tipo_comprobante: '',
+
+  negocio_tipo: '',
+  negocio_tiempo_anios: '',
+  negocio_tiempo_meses: '',
+
+  negocio_calle: '',
+  negocio_numero: '',
+  negocio_edificio: '',
+  negocio_colonia: '',
+  negocio_estado: '',
+  negocio_pais: '',
+  negocio_municipio: '',
+  negocio_cp: '',
+  negocio_entre_calles: '',
+  negocio_referencias: '',
+
+  negocio_formal: '',
+  negocio_num_empleados: '',
+  negocio_gastos_mensuales: '',
+  negocio_utilidad_aproximada: '',
+
+  monto_solicitado: '',
+  numero_plazos: '',
+  tipo_plazo: 'mensual',
+  interes: '',
+  fecha_solicitud: ''
+});
     setPagoPeriodo(0);
     setInteresPeriodoEstimado(0);
     setAbonoCapitalPeriodo(0);
@@ -691,6 +818,54 @@ const confirmarPagoDesdePrestamo = async () => {
 
   const handleCreatePrestamo = async () => {
     if (!newPrestamo.id_socio) return alert('Selecciona un socio.');
+    if (!newPrestamo.tipo_fuente_ingreso) {
+  return alert(
+    'Seleccione si el socio es empleado o tiene negocio propio.'
+  );
+}
+
+if (newPrestamo.tipo_fuente_ingreso === 'EMPLEADO') {
+  if (!newPrestamo.empleado_nombre_empresa.trim()) {
+    return alert('Indique el nombre de la empresa.');
+  }
+
+  if (!newPrestamo.empleado_ocupacion.trim()) {
+    return alert('Indique la ocupación actual.');
+  }
+
+  if (!newPrestamo.empleado_ingreso_mensual_neto) {
+    return alert('Indique el ingreso mensual neto.');
+  }
+
+  if (!newPrestamo.empleado_comprueba_ingresos) {
+    return alert('Indique si puede comprobar ingresos.');
+  }
+
+  if (
+    newPrestamo.empleado_comprueba_ingresos === 'SI' &&
+    !newPrestamo.empleado_tipo_comprobante.trim()
+  ) {
+    return alert('Indique el tipo de comprobante.');
+  }
+}
+
+if (newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO') {
+  if (!newPrestamo.negocio_tipo.trim()) {
+    return alert('Indique el tipo de negocio.');
+  }
+
+  if (!newPrestamo.negocio_formal) {
+    return alert('Indique si el negocio es formal.');
+  }
+
+  if (!newPrestamo.negocio_num_empleados) {
+    return alert('Indique cuántos empleados tiene.');
+  }
+
+  if (!newPrestamo.negocio_utilidad_aproximada) {
+    return alert('Indique la utilidad aproximada.');
+  }
+}
     if (!newPrestamo.monto_solicitado || Number(newPrestamo.monto_solicitado) <= 0) return alert('Monto inválido.');
     if (!newPrestamo.numero_plazos || Number(newPrestamo.numero_plazos) <= 0) return alert('Plazos inválidos.');
     if (newPrestamo.interes === '' || Number(newPrestamo.interes) < 0) return alert('Interés por periodo inválido.');
@@ -703,17 +878,230 @@ const confirmarPagoDesdePrestamo = async () => {
     setSubmitting(true);
     try {
       // 1) Insert préstamo (incluye fecha_vencimiento si tu tabla la usa)
-      const bodyPrestamo = {
-        id_socio: Number(newPrestamo.id_socio),
-        monto_solicitado: Number(newPrestamo.monto_solicitado),
-        numero_plazos: nPlazos,
-        tipo_plazo: newPrestamo.tipo_plazo,
-        interes: Number(newPrestamo.interes),
-        fecha_solicitud: fechaSolicitudISO,
-        fecha_vencimiento: fechaVencimientoISO,
-        pago_requerido: pagoRequerido,
-        estatus: 'activo'
-      };
+     const bodyPrestamo = {
+  id_socio: Number(newPrestamo.id_socio),
+
+  // ================= INFORMACIÓN LABORAL =================
+  tipo_fuente_ingreso:
+    newPrestamo.tipo_fuente_ingreso,
+
+  // ================= EMPLEADO =================
+  empleado_nombre_empresa:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? newPrestamo.empleado_nombre_empresa.trim().toUpperCase()
+      : null,
+
+  empleado_empresa_calle:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? newPrestamo.empleado_empresa_calle.trim().toUpperCase()
+      : null,
+
+  empleado_empresa_numero:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? newPrestamo.empleado_empresa_numero.trim().toUpperCase()
+      : null,
+
+  empleado_empresa_edificio:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? newPrestamo.empleado_empresa_edificio.trim().toUpperCase() || null
+      : null,
+
+  empleado_empresa_colonia:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? newPrestamo.empleado_empresa_colonia.trim().toUpperCase()
+      : null,
+
+  empleado_empresa_estado:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? newPrestamo.empleado_empresa_estado
+      : null,
+
+  empleado_empresa_pais:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? (
+          newPrestamo.empleado_empresa_estado === 'EXTRANJERO'
+            ? newPrestamo.empleado_empresa_pais.trim().toUpperCase()
+            : 'MÉXICO'
+        )
+      : null,
+
+  empleado_empresa_municipio:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? newPrestamo.empleado_empresa_municipio.trim().toUpperCase()
+      : null,
+
+  empleado_empresa_cp:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? newPrestamo.empleado_empresa_cp
+      : null,
+
+  empleado_empresa_entre_calles:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? newPrestamo.empleado_empresa_entre_calles.trim().toUpperCase()
+      : null,
+
+  empleado_empresa_referencias:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? newPrestamo.empleado_empresa_referencias.trim().toUpperCase()
+      : null,
+
+  empleado_ocupacion:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? newPrestamo.empleado_ocupacion.trim().toUpperCase()
+      : null,
+
+  empleado_tiempo_anios:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO' &&
+    newPrestamo.empleado_tiempo_anios
+      ? Number(newPrestamo.empleado_tiempo_anios)
+      : null,
+
+  empleado_tiempo_meses:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO' &&
+    newPrestamo.empleado_tiempo_meses
+      ? Number(newPrestamo.empleado_tiempo_meses)
+      : null,
+
+  empleado_tipo_contrato:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? newPrestamo.empleado_tipo_contrato.trim().toUpperCase()
+      : null,
+
+  empleado_ingreso_mensual_neto:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? Number(newPrestamo.empleado_ingreso_mensual_neto || 0)
+      : null,
+
+  empleado_comprueba_ingresos:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+      ? newPrestamo.empleado_comprueba_ingresos
+      : null,
+
+  empleado_tipo_comprobante:
+    newPrestamo.tipo_fuente_ingreso === 'EMPLEADO' &&
+    newPrestamo.empleado_comprueba_ingresos === 'SI'
+      ? newPrestamo.empleado_tipo_comprobante.trim().toUpperCase()
+      : null,
+
+
+  // ================= NEGOCIO PROPIO =================
+  negocio_tipo:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? newPrestamo.negocio_tipo.trim().toUpperCase()
+      : null,
+
+  negocio_tiempo_anios:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO' &&
+    newPrestamo.negocio_tiempo_anios
+      ? Number(newPrestamo.negocio_tiempo_anios)
+      : null,
+
+  negocio_tiempo_meses:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO' &&
+    newPrestamo.negocio_tiempo_meses
+      ? Number(newPrestamo.negocio_tiempo_meses)
+      : null,
+
+  negocio_calle:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? newPrestamo.negocio_calle.trim().toUpperCase()
+      : null,
+
+  negocio_numero:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? newPrestamo.negocio_numero.trim().toUpperCase()
+      : null,
+
+  negocio_edificio:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? newPrestamo.negocio_edificio.trim().toUpperCase() || null
+      : null,
+
+  negocio_colonia:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? newPrestamo.negocio_colonia.trim().toUpperCase()
+      : null,
+
+  negocio_estado:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? newPrestamo.negocio_estado
+      : null,
+
+  negocio_pais:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? (
+          newPrestamo.negocio_estado === 'EXTRANJERO'
+            ? newPrestamo.negocio_pais.trim().toUpperCase()
+            : 'MÉXICO'
+        )
+      : null,
+
+  negocio_municipio:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? newPrestamo.negocio_municipio.trim().toUpperCase()
+      : null,
+
+  negocio_cp:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? newPrestamo.negocio_cp
+      : null,
+
+  negocio_entre_calles:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? newPrestamo.negocio_entre_calles.trim().toUpperCase()
+      : null,
+
+  negocio_referencias:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? newPrestamo.negocio_referencias.trim().toUpperCase()
+      : null,
+
+  negocio_formal:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? newPrestamo.negocio_formal
+      : null,
+
+  negocio_num_empleados:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? newPrestamo.negocio_num_empleados
+      : null,
+
+  negocio_gastos_mensuales:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? newPrestamo.negocio_gastos_mensuales.trim().toUpperCase()
+      : null,
+
+  negocio_utilidad_aproximada:
+    newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+      ? Number(newPrestamo.negocio_utilidad_aproximada || 0)
+      : null,
+
+
+  // ================= PRÉSTAMO ACTUAL =================
+  monto_solicitado:
+    Number(newPrestamo.monto_solicitado),
+
+  numero_plazos:
+    nPlazos,
+
+  tipo_plazo:
+    newPrestamo.tipo_plazo,
+
+  interes:
+    Number(newPrestamo.interes),
+
+  fecha_solicitud:
+    fechaSolicitudISO,
+
+  fecha_vencimiento:
+    fechaVencimientoISO,
+
+  pago_requerido:
+    pagoRequerido,
+
+  estatus:
+    'activo'
+};
 
       const rPrest = await fetch(`${SUPABASE_URL}/rest/v1/prestamos`, {
         method: 'POST',
@@ -1746,7 +2134,7 @@ const confirmarPagoDesdePrestamo = async () => {
       {/* === MODAL: Registrar nuevo préstamo === */}
       {showAddPrestamoModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl">
+        <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[94vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-semibold">Registrar nuevo préstamo</h3>
               <button
@@ -1776,6 +2164,773 @@ const confirmarPagoDesdePrestamo = async () => {
                   ))}
                 </select>
               </div>
+
+{/* ================= INFORMACIÓN LABORAL ================= */}
+<div className="border-t border-slate-200 pt-4">
+
+  <label className="block text-sm font-semibold text-slate-700 mb-2">
+    ¿Es empleado o tiene negocio propio?
+  </label>
+
+  <select
+    value={newPrestamo.tipo_fuente_ingreso}
+    onChange={(e) => {
+      const value = e.target.value;
+
+      setNewPrestamo((p) => ({
+        ...p,
+        tipo_fuente_ingreso: value,
+      }));
+    }}
+    className="w-full px-3 py-2 border rounded-lg"
+  >
+    <option value="">
+      Seleccione una opción...
+    </option>
+
+    <option value="EMPLEADO">
+      Empleado
+    </option>
+
+    <option value="NEGOCIO_PROPIO">
+      Negocio propio
+    </option>
+  </select>
+</div>
+
+
+{/* ====================================================== */}
+{/* ===================== EMPLEADO ======================= */}
+{/* ====================================================== */}
+
+{newPrestamo.tipo_fuente_ingreso === 'EMPLEADO' && (
+  <div className="space-y-4 border border-slate-200 rounded-xl p-4 bg-slate-50">
+
+    <h4 className="font-semibold text-slate-900">
+      Información laboral
+    </h4>
+
+
+    {/* NOMBRE EMPRESA */}
+    <div>
+      <label className="block text-sm text-slate-700 mb-1">
+        ¿Nombre de la empresa?
+      </label>
+
+      <input
+        type="text"
+        value={newPrestamo.empleado_nombre_empresa}
+        onChange={(e) =>
+          setNewPrestamo((p) => ({
+            ...p,
+            empleado_nombre_empresa: e.target.value,
+          }))
+        }
+        className="w-full px-3 py-2 border rounded-lg"
+        placeholder="Nombre de la empresa"
+      />
+    </div>
+
+
+    {/* DIRECCIÓN EMPRESA */}
+    <div>
+      <h5 className="font-semibold text-slate-800 mb-3">
+        Dirección de la empresa
+      </h5>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+        <input
+          type="text"
+          placeholder="Calle"
+          value={newPrestamo.empleado_empresa_calle}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              empleado_empresa_calle: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        />
+
+        <input
+          type="text"
+          placeholder="Número"
+          value={newPrestamo.empleado_empresa_numero}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              empleado_empresa_numero: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        />
+
+        <input
+          type="text"
+          placeholder="Edificio (opcional)"
+          value={newPrestamo.empleado_empresa_edificio}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              empleado_empresa_edificio: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        />
+
+        <input
+          type="text"
+          placeholder="Colonia"
+          value={newPrestamo.empleado_empresa_colonia}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              empleado_empresa_colonia: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        />
+
+
+        <select
+          value={newPrestamo.empleado_empresa_estado}
+          onChange={(e) => {
+            const estado = e.target.value;
+
+            setNewPrestamo((p) => ({
+              ...p,
+              empleado_empresa_estado: estado,
+              empleado_empresa_pais:
+                estado === 'EXTRANJERO'
+                  ? p.empleado_empresa_pais
+                  : '',
+            }));
+          }}
+          className="px-3 py-2 border rounded-lg"
+        >
+          <option value="">Estado</option>
+
+          {ESTADOS_MEXICO.map((estado) => (
+            <option key={estado} value={estado}>
+              {estado}
+            </option>
+          ))}
+
+          <option value="EXTRANJERO">
+            Extranjero
+          </option>
+        </select>
+
+
+        {newPrestamo.empleado_empresa_estado ===
+          'EXTRANJERO' && (
+          <input
+            type="text"
+            placeholder="País"
+            value={newPrestamo.empleado_empresa_pais}
+            onChange={(e) =>
+              setNewPrestamo((p) => ({
+                ...p,
+                empleado_empresa_pais: e.target.value,
+              }))
+            }
+            className="px-3 py-2 border rounded-lg"
+          />
+        )}
+
+
+        <input
+          type="text"
+          placeholder="Alcaldía o Municipio"
+          value={newPrestamo.empleado_empresa_municipio}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              empleado_empresa_municipio: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        />
+
+        <input
+          type="text"
+          inputMode="numeric"
+          placeholder="Código Postal"
+          value={newPrestamo.empleado_empresa_cp}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              empleado_empresa_cp:
+                e.target.value.replace(/\D/g, '').slice(0, 5),
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        />
+
+        <input
+          type="text"
+          placeholder="Entre Calles"
+          value={newPrestamo.empleado_empresa_entre_calles}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              empleado_empresa_entre_calles: e.target.value,
+            }))
+          }
+          className="md:col-span-2 px-3 py-2 border rounded-lg"
+        />
+
+        <textarea
+          rows="2"
+          placeholder="Referencias del domicilio"
+          value={newPrestamo.empleado_empresa_referencias}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              empleado_empresa_referencias: e.target.value,
+            }))
+          }
+          className="md:col-span-2 px-3 py-2 border rounded-lg"
+        />
+
+      </div>
+    </div>
+
+
+    {/* OCUPACIÓN */}
+    <div>
+      <label className="block text-sm text-slate-700 mb-1">
+        ¿Ocupación actual?
+      </label>
+
+      <input
+        type="text"
+        value={newPrestamo.empleado_ocupacion}
+        onChange={(e) =>
+          setNewPrestamo((p) => ({
+            ...p,
+            empleado_ocupacion: e.target.value,
+          }))
+        }
+        className="w-full px-3 py-2 border rounded-lg"
+      />
+    </div>
+
+
+    {/* TIEMPO TRABAJANDO */}
+    <div>
+      <label className="block text-sm text-slate-700 mb-2">
+        ¿Cuánto tiempo lleva trabajando ahí?
+      </label>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+        <select
+          value={newPrestamo.empleado_tiempo_anios}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              empleado_tiempo_anios: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        >
+          <option value="">Años</option>
+
+          {Array.from({ length: 50 }, (_, i) => i + 1).map(
+            (n) => (
+              <option key={n} value={n}>
+                {n} años
+              </option>
+            )
+          )}
+        </select>
+
+        <select
+          value={newPrestamo.empleado_tiempo_meses}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              empleado_tiempo_meses: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        >
+          <option value="">Meses</option>
+
+          {Array.from({ length: 11 }, (_, i) => i + 1).map(
+            (n) => (
+              <option key={n} value={n}>
+                {n} meses
+              </option>
+            )
+          )}
+        </select>
+
+      </div>
+    </div>
+
+
+    {/* CONTRATO */}
+    <div>
+      <label className="block text-sm text-slate-700 mb-1">
+        ¿Tiene contrato fijo o temporal?
+      </label>
+
+      <input
+        type="text"
+        value={newPrestamo.empleado_tipo_contrato}
+        onChange={(e) =>
+          setNewPrestamo((p) => ({
+            ...p,
+            empleado_tipo_contrato: e.target.value,
+          }))
+        }
+        className="w-full px-3 py-2 border rounded-lg"
+        placeholder="Ej. Fijo, temporal, eventual..."
+      />
+    </div>
+
+
+    {/* INGRESO */}
+    <div>
+      <label className="block text-sm text-slate-700 mb-1">
+        Ingreso mensual neto
+      </label>
+
+      <p className="text-xs text-slate-500 mb-2">
+        Después de deducciones, descuentos, créditos, etc.
+      </p>
+
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600">
+          $
+        </span>
+
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={newPrestamo.empleado_ingreso_mensual_neto}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              empleado_ingreso_mensual_neto: e.target.value,
+            }))
+          }
+          className="w-full pl-8 pr-3 py-2 border rounded-lg"
+          placeholder="0.00"
+        />
+      </div>
+    </div>
+
+
+    {/* COMPROBANTE */}
+    <div>
+      <label className="block text-sm text-slate-700 mb-1">
+        ¿Puede comprobar ingresos?
+      </label>
+
+      <select
+        value={newPrestamo.empleado_comprueba_ingresos}
+        onChange={(e) => {
+          const value = e.target.value;
+
+          setNewPrestamo((p) => ({
+            ...p,
+            empleado_comprueba_ingresos: value,
+            empleado_tipo_comprobante:
+              value === 'SI'
+                ? p.empleado_tipo_comprobante
+                : '',
+          }));
+        }}
+        className="w-full px-3 py-2 border rounded-lg"
+      >
+        <option value="">Seleccione</option>
+        <option value="SI">Sí</option>
+        <option value="NO">No</option>
+      </select>
+    </div>
+
+
+    {newPrestamo.empleado_comprueba_ingresos === 'SI' && (
+      <div>
+        <label className="block text-sm text-slate-700 mb-1">
+          Tipo de comprobante
+        </label>
+
+        <input
+          type="text"
+          value={newPrestamo.empleado_tipo_comprobante}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              empleado_tipo_comprobante: e.target.value,
+            }))
+          }
+          className="w-full px-3 py-2 border rounded-lg"
+          placeholder="Ej. Recibo de nómina, estado de cuenta..."
+        />
+      </div>
+    )}
+
+  </div>
+)}
+
+
+{/* ====================================================== */}
+{/* ================= NEGOCIO PROPIO ====================== */}
+{/* ====================================================== */}
+
+{newPrestamo.tipo_fuente_ingreso ===
+  'NEGOCIO_PROPIO' && (
+  <div className="space-y-4 border border-slate-200 rounded-xl p-4 bg-slate-50">
+
+    <h4 className="font-semibold text-slate-900">
+      Información del negocio
+    </h4>
+
+
+    <div>
+      <label className="block text-sm text-slate-700 mb-1">
+        ¿Qué tipo de negocio tiene?
+      </label>
+
+      <input
+        type="text"
+        value={newPrestamo.negocio_tipo}
+        onChange={(e) =>
+          setNewPrestamo((p) => ({
+            ...p,
+            negocio_tipo: e.target.value,
+          }))
+        }
+        className="w-full px-3 py-2 border rounded-lg"
+      />
+    </div>
+
+
+    {/* TIEMPO NEGOCIO */}
+    <div>
+      <label className="block text-sm text-slate-700 mb-2">
+        ¿Cuánto tiempo lleva con el negocio?
+      </label>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+        <select
+          value={newPrestamo.negocio_tiempo_anios}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              negocio_tiempo_anios: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        >
+          <option value="">Años</option>
+
+          {Array.from({ length: 50 }, (_, i) => i + 1).map(
+            (n) => (
+              <option key={n} value={n}>
+                {n} años
+              </option>
+            )
+          )}
+        </select>
+
+        <select
+          value={newPrestamo.negocio_tiempo_meses}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              negocio_tiempo_meses: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        >
+          <option value="">Meses</option>
+
+          {Array.from({ length: 11 }, (_, i) => i + 1).map(
+            (n) => (
+              <option key={n} value={n}>
+                {n} meses
+              </option>
+            )
+          )}
+        </select>
+
+      </div>
+    </div>
+
+
+    {/* DOMICILIO NEGOCIO */}
+    <div>
+      <h5 className="font-semibold text-slate-800 mb-3">
+        Domicilio del Negocio
+      </h5>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+        <input
+          type="text"
+          placeholder="Calle"
+          value={newPrestamo.negocio_calle}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              negocio_calle: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        />
+
+        <input
+          type="text"
+          placeholder="Número"
+          value={newPrestamo.negocio_numero}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              negocio_numero: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        />
+
+        <input
+          type="text"
+          placeholder="Edificio (opcional)"
+          value={newPrestamo.negocio_edificio}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              negocio_edificio: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        />
+
+        <input
+          type="text"
+          placeholder="Colonia"
+          value={newPrestamo.negocio_colonia}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              negocio_colonia: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        />
+
+
+        <select
+          value={newPrestamo.negocio_estado}
+          onChange={(e) => {
+            const estado = e.target.value;
+
+            setNewPrestamo((p) => ({
+              ...p,
+              negocio_estado: estado,
+              negocio_pais:
+                estado === 'EXTRANJERO'
+                  ? p.negocio_pais
+                  : '',
+            }));
+          }}
+          className="px-3 py-2 border rounded-lg"
+        >
+          <option value="">Estado</option>
+
+          {ESTADOS_MEXICO.map((estado) => (
+            <option key={estado} value={estado}>
+              {estado}
+            </option>
+          ))}
+
+          <option value="EXTRANJERO">
+            Extranjero
+          </option>
+        </select>
+
+
+        {newPrestamo.negocio_estado === 'EXTRANJERO' && (
+          <input
+            type="text"
+            placeholder="País"
+            value={newPrestamo.negocio_pais}
+            onChange={(e) =>
+              setNewPrestamo((p) => ({
+                ...p,
+                negocio_pais: e.target.value,
+              }))
+            }
+            className="px-3 py-2 border rounded-lg"
+          />
+        )}
+
+
+        <input
+          type="text"
+          placeholder="Alcaldía o Municipio"
+          value={newPrestamo.negocio_municipio}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              negocio_municipio: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        />
+
+        <input
+          type="text"
+          inputMode="numeric"
+          placeholder="Código Postal"
+          value={newPrestamo.negocio_cp}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              negocio_cp:
+                e.target.value.replace(/\D/g, '').slice(0, 5),
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        />
+
+        <input
+          type="text"
+          placeholder="Entre Calles"
+          value={newPrestamo.negocio_entre_calles}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              negocio_entre_calles: e.target.value,
+            }))
+          }
+          className="md:col-span-2 px-3 py-2 border rounded-lg"
+        />
+
+        <textarea
+          rows="2"
+          placeholder="Referencias del domicilio"
+          value={newPrestamo.negocio_referencias}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              negocio_referencias: e.target.value,
+            }))
+          }
+          className="md:col-span-2 px-3 py-2 border rounded-lg"
+        />
+
+      </div>
+    </div>
+
+
+    {/* FORMAL */}
+    <div>
+      <label className="block text-sm text-slate-700 mb-1">
+        ¿Su negocio es formal?
+      </label>
+
+      <select
+        value={newPrestamo.negocio_formal}
+        onChange={(e) =>
+          setNewPrestamo((p) => ({
+            ...p,
+            negocio_formal: e.target.value,
+          }))
+        }
+        className="w-full px-3 py-2 border rounded-lg"
+      >
+        <option value="">Seleccione</option>
+        <option value="SI">Sí</option>
+        <option value="NO">No</option>
+      </select>
+    </div>
+
+
+    {/* EMPLEADOS */}
+    <div>
+      <label className="block text-sm text-slate-700 mb-1">
+        ¿Cuántos empleados tiene?
+      </label>
+
+      <select
+        value={newPrestamo.negocio_num_empleados}
+        onChange={(e) =>
+          setNewPrestamo((p) => ({
+            ...p,
+            negocio_num_empleados: e.target.value,
+          }))
+        }
+        className="w-full px-3 py-2 border rounded-lg"
+      >
+        <option value="">Seleccione</option>
+        <option value="0">0</option>
+        <option value="1_A_2">1 a 2</option>
+        <option value="MAS_DE_2">Más de 2</option>
+        <option value="MAS_DE_10">Más de 10</option>
+        <option value="MAS_DE_50">Más de 50</option>
+      </select>
+    </div>
+
+
+    {/* GASTOS */}
+    <div>
+      <label className="block text-sm text-slate-700 mb-1">
+        ¿Cuáles son sus gastos mensuales del negocio?
+      </label>
+
+      <input
+        type="text"
+        value={newPrestamo.negocio_gastos_mensuales}
+        onChange={(e) =>
+          setNewPrestamo((p) => ({
+            ...p,
+            negocio_gastos_mensuales: e.target.value,
+          }))
+        }
+        className="w-full px-3 py-2 border rounded-lg"
+        placeholder="Describa los gastos mensuales"
+      />
+    </div>
+
+
+    {/* UTILIDAD */}
+    <div>
+      <label className="block text-sm text-slate-700 mb-1">
+        ¿Cuál es su utilidad aproximada?
+      </label>
+
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600">
+          $
+        </span>
+
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={newPrestamo.negocio_utilidad_aproximada}
+          onChange={(e) =>
+            setNewPrestamo((p) => ({
+              ...p,
+              negocio_utilidad_aproximada: e.target.value,
+            }))
+          }
+          className="w-full pl-8 pr-3 py-2 border rounded-lg"
+          placeholder="0.00"
+        />
+      </div>
+    </div>
+
+  </div>
+)}
 
               {/* Monto / Plazos */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
