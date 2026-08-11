@@ -988,6 +988,125 @@ const uploadDocumentoIdentidad = async (socioId) => {
     setDocumentoIdentidadUploading(false);
   }
 };
+
+// ================= CREAR USUARIO AUTOMÁTICO DEL SOCIO =================
+const crearUsuarioSocio = async (socioId) => {
+  const emailSocio = correoMinusculas(newSocio.email);
+
+  if (!socioId) {
+    throw new Error(
+      'No se puede crear el usuario porque no se obtuvo el ID del socio.'
+    );
+  }
+
+  if (!emailSocio) {
+    throw new Error(
+      'No se puede crear el usuario porque el socio no tiene correo electrónico.'
+    );
+  }
+
+  if (!newSocio.contrasena) {
+    throw new Error(
+      'No se puede crear el usuario porque el socio no tiene contraseña.'
+    );
+  }
+
+  // Verificar si ya existe usuario con ese ID de socio
+  const verificarRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/usuarios_sistema?id_socio=eq.${socioId}&select=id_usuario,id_socio,email`,
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    }
+  );
+
+  if (!verificarRes.ok) {
+    const errorText = await verificarRes.text();
+
+    throw new Error(
+      `No se pudo verificar si el socio ya tiene usuario: ${errorText}`
+    );
+  }
+
+  const usuariosExistentes = await verificarRes.json();
+
+  // Si ya existe, no duplicarlo
+  if (usuariosExistentes.length > 0) {
+    console.log(
+      'El socio ya tiene usuario registrado:',
+      usuariosExistentes[0]
+    );
+
+    return usuariosExistentes[0];
+  }
+
+  const nombreUsuario = [
+    newSocio.nombre,
+    newSocio.apellido_paterno,
+    newSocio.apellido_materno,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  const usuarioLogin =
+    emailSocio.split('@')[0];
+
+  const payloadUsuario = {
+    nombre: textoMayusculas(nombreUsuario),
+    usuario: usuarioLogin,
+    email: emailSocio,
+    contrasena: newSocio.contrasena,
+    rol: 'usuario',
+    id_socio: Number(socioId),
+    activo: true,
+  };
+
+  console.log(
+    'CREANDO USUARIO DEL SOCIO:',
+    payloadUsuario
+  );
+
+  const usuarioRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/usuarios_sistema`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify(payloadUsuario),
+    }
+  );
+
+  if (!usuarioRes.ok) {
+    const errorText = await usuarioRes.text();
+
+    console.error(
+      'ERROR CREANDO USUARIO DEL SOCIO:',
+      errorText
+    );
+
+    throw new Error(
+      `El socio fue registrado, pero no se pudo crear su usuario: ${errorText}`
+    );
+  }
+
+  const usuarioCreado = await usuarioRes.json();
+
+  if (!usuarioCreado?.[0]) {
+    throw new Error(
+      'El socio fue registrado, pero Supabase no devolvió el usuario creado.'
+    );
+  }
+
+  return usuarioCreado[0];
+};
   
   const resetForm = () => {
  setNewSocio({
@@ -1482,17 +1601,23 @@ domicilio_pais:
     });
       if (!res.ok) throw new Error('Error creando socio');
 
-     const inserted = await res.json();
+const inserted = await res.json();
 socio = inserted?.[0];
 
 if (!socio) {
-  throw new Error('Supabase no devolvió el socio registrado.');
+  throw new Error(
+    'Supabase no devolvió el socio registrado.'
+  );
 }
 
 socioId = socio.id_socio;
 
-   
-    }
+
+// ================= CREAR USUARIO DEL SOCIO =================
+await crearUsuarioSocio(socioId);
+
+
+}
 // ================= DOCUMENTO DE IDENTIDAD =================
 if (
   documentoIdentidadFile ||
