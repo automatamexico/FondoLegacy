@@ -4122,73 +4122,7 @@ domicilio_pais: '',
     />
   </div>
 )}
-            {/* Estatus */}
-            <select
-              name="estatus"
-              value={newSocio.estatus}
-              onChange={handleInputChange}
-              className="px-4 py-2 border border-slate-200 rounded-lg"
-            >
-              <option value="activo">Activo</option>
-              <option value="inactivo">Inactivo</option>
-            </select>
-
-
-{/* Ahorro para el retiro */}
-<div className="col-span-full mt-4">
-  <label className="block text-sm font-medium text-slate-700 mb-2">
-    ¿Ahorro para el retiro?
-  </label>
-  <div className="flex gap-6">
-    <label>
-      <input
-        type="radio"
-        checked={ahorroRetiro}
-        onChange={() => setAhorroRetiro(true)}
-      />{" "}
-      Sí
-    </label>
-    <label>
-      <input
-        type="radio"
-        checked={!ahorroRetiro}
-        onChange={() => setAhorroRetiro(false)}
-      />{" "}
-      No
-    </label>
-  </div>
-</div>
-
-{/* Pago Afiliación */}
-{!editingSocio && (
-  <div className="col-span-full mt-4">
-    <label className="block text-sm font-medium text-slate-700 mb-2">
-      Pago Afiliación
-    </label>
-
-    <input
-      type="number"
-      step="0.01"
-      value={montoAfiliacion}
-      onChange={(e) => {
-        setMontoAfiliacion(e.target.value);
-        if (errorMonto) setErrorMonto('');
-      }}
-      placeholder="Ingrese monto pagado"
-      className={`w-full px-4 py-2 border rounded-lg ${
-        errorMonto ? 'border-red-500 focus:ring-red-500' : 'border-slate-200'
-      }`}
-      required
-    />
-
-    {errorMonto && (
-      <p className="text-sm text-red-600 mt-1">
-        {errorMonto}
-      </p>
-    )}
-  </div>
-)}
-
+         
 
 
 {/* ================= REFERENCIA FAMILIAR ================= */}
@@ -4380,7 +4314,101 @@ domicilio_pais: '',
   }
 />
 
+{/* ================= ESTATUS Y AFILIACIÓN ================= */}
+<div className="col-span-full border-t-2 border-blue-600 pt-6 mt-6">
+  <h4 className="font-bold text-slate-900 text-lg">
+    Estatus y Afiliación
+  </h4>
+</div>
 
+
+{/* ================= ESTATUS DEL SOCIO ================= */}
+<div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Estatus del Socio
+  </label>
+
+  <select
+    name="estatus"
+    value={newSocio.estatus}
+    onChange={handleInputChange}
+    className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+  >
+    <option value="activo">Activo</option>
+    <option value="inactivo">Inactivo</option>
+  </select>
+</div>
+
+
+{/* ================= AHORRO PARA EL RETIRO ================= */}
+<div>
+  <label className="block text-sm font-medium text-slate-700 mb-2">
+    ¿Desea Ahorro para el Retiro?
+  </label>
+
+  <div className="flex items-center gap-6 min-h-[42px]">
+    <label className="flex items-center gap-2">
+      <input
+        type="radio"
+        checked={ahorroRetiro}
+        onChange={() => setAhorroRetiro(true)}
+      />
+      Sí
+    </label>
+
+    <label className="flex items-center gap-2">
+      <input
+        type="radio"
+        checked={!ahorroRetiro}
+        onChange={() => setAhorroRetiro(false)}
+      />
+      No
+    </label>
+  </div>
+</div>
+
+
+{/* ================= PAGO DE AFILIACIÓN ================= */}
+{!editingSocio && (
+  <div className="col-span-full">
+    <label className="block text-sm font-medium text-slate-700 mb-1">
+      Pago de Afiliación
+    </label>
+
+    <div className="relative">
+      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700 font-medium">
+        $
+      </span>
+
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        value={montoAfiliacion}
+        onChange={(e) => {
+          setMontoAfiliacion(e.target.value);
+
+          if (errorMonto) {
+            setErrorMonto('');
+          }
+        }}
+        placeholder="0.00"
+        className={`w-full pl-8 pr-4 py-2 border rounded-lg ${
+          errorMonto
+            ? 'border-red-500 focus:ring-red-500'
+            : 'border-slate-200'
+        }`}
+        required
+      />
+    </div>
+
+    {errorMonto && (
+      <p className="text-sm text-red-600 mt-1">
+        {errorMonto}
+      </p>
+    )}
+  </div>
+)}
       
 <button
   type="button"
