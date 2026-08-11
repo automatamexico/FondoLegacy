@@ -3026,6 +3026,11 @@ const openFicha = async (socio) => {
       .select("*")
       .eq("id_socio", socio.id_socio);
 
+    const { data: refsFamiliares } = await supabase
+  .from("refs_familiares_fondo")
+  .select("*")
+  .eq("id_socio", socio.id_socio);
+
     const { data: benef } = await supabase
       .from("beneficiarios_fondo")
       .select("*")
@@ -3037,6 +3042,7 @@ const openFicha = async (socio) => {
       .eq("id_socio", socio.id_socio);
 
     setRefsFicha(refs || []);
+    setRefsFamiliaresFicha(refsFamiliares || []);
     setBenefFicha(benef || []);
     setBancoFicha(bancos || []);
 
@@ -3045,10 +3051,11 @@ const openFicha = async (socio) => {
   }
 };
 
-  const closeFicha = () => {
+ const closeFicha = () => {
   setShowFicha(false);
   setSocioFicha(null);
   setRefsFicha([]);
+  setRefsFamiliaresFicha([]);
   setBenefFicha([]);
   setBancoFicha([]);
 };
@@ -4941,7 +4948,7 @@ const pais = textoMayusculas(bancoPersonalizado.pais);
               ✕
             </button>
 
-            <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-center gap-4 mb-4">
               <img
                 src={socioFicha.foto_url || avatarFallback(socioFicha)}
                 alt="avatar"
@@ -4955,7 +4962,7 @@ const pais = textoMayusculas(bancoPersonalizado.pais);
               </div>
             </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-base md:text-lg">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-sm md:text-base">
 
   <div>
     <span className="font-semibold">ID Socio:</span>
@@ -5220,15 +5227,193 @@ const pais = textoMayusculas(bancoPersonalizado.pais);
 
 </div>
 
+{/* REFERENCIAS FAMILIARES */}
+{refsFamiliaresFicha.length > 0 && (
+  <div className="mt-4 border-t border-slate-200 pt-4">
+
+    <h4 className="font-bold text-slate-900 text-lg mb-3">
+      Referencias Familiares
+    </h4>
+
+    {refsFamiliaresFicha.map((r) => (
+      <div
+        key={r.id_referencia_familiar}
+        className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm md:text-base"
+      >
+
+        <div className="col-span-full">
+          <strong>Nombre:</strong>{' '}
+          {r.nombre} {r.apellido_paterno} {r.apellido_materno}
+        </div>
+
+        <div>
+          <strong>Teléfono:</strong>{' '}
+          {r.telefono || '-'}
+        </div>
+
+        <div>
+          <strong>Parentesco:</strong>{' '}
+          {r.parentesco || '-'}
+        </div>
+
+        <div>
+          <strong>Tiempo de conocerlo:</strong>{' '}
+          {r.tiempo_conocer_anios || '-'} años,{' '}
+          {r.tiempo_conocer_meses || '-'} meses
+        </div>
+
+        <div className="col-span-full mt-2">
+          <strong>Dirección completa:</strong>
+        </div>
+
+        <div>
+          <strong>Calle:</strong>{' '}
+          {r.domicilio_calle || '-'}
+        </div>
+
+        <div>
+          <strong>Número:</strong>{' '}
+          {r.domicilio_numero || '-'}
+        </div>
+
+        <div>
+          <strong>Edificio:</strong>{' '}
+          {r.domicilio_edificio || '-'}
+        </div>
+
+        <div>
+          <strong>Colonia:</strong>{' '}
+          {r.domicilio_colonia || '-'}
+        </div>
+
+        <div>
+          <strong>Estado:</strong>{' '}
+          {r.domicilio_estado || '-'}
+        </div>
+
+        {r.domicilio_estado === 'EXTRANJERO' && (
+          <div>
+            <strong>País:</strong>{' '}
+            {r.domicilio_pais || '-'}
+          </div>
+        )}
+
+        <div>
+          <strong>Alcaldía / Municipio:</strong>{' '}
+          {r.domicilio_municipio || '-'}
+        </div>
+
+        <div>
+          <strong>Código Postal:</strong>{' '}
+          {r.domicilio_cp || '-'}
+        </div>
+
+        <div className="col-span-full">
+          <strong>Entre Calles:</strong>{' '}
+          {r.domicilio_entre_calles || '-'}
+        </div>
+
+        <div className="col-span-full">
+          <strong>Referencias:</strong>{' '}
+          {r.domicilio_referencias || '-'}
+        </div>
+
+      </div>
+    ))}
+  </div>
+)}
+
 {/* REFERENCIAS PERSONALES */}
 {refsFicha.length > 0 && (
-  <div className="mt-6">
-   <h4 className="font-semibold text-slate-800 text-lg mb-3 mt-6">Referencias Personales</h4>
+  <div className="mt-4 border-t border-slate-200 pt-4">
+
+    <h4 className="font-bold text-slate-900 text-lg mb-3">
+      Referencias Personales
+    </h4>
+
     {refsFicha.map((r) => (
-      <div key={r.id_referencia} className="mb-3">
-        <p><strong>Nombre:</strong> {r.nombre} {r.apellido_paterno} {r.apellido_materno}</p>
-        <p><strong>Teléfono:</strong> {r.telefono}</p>
-        <p><strong>Dirección:</strong> {r.direccion}</p>
+      <div
+        key={r.id_referencia}
+        className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm md:text-base"
+      >
+
+        <div className="col-span-full">
+          <strong>Nombre:</strong>{' '}
+          {r.nombre} {r.apellido_paterno} {r.apellido_materno}
+        </div>
+
+        <div>
+          <strong>Teléfono:</strong>{' '}
+          {r.telefono || '-'}
+        </div>
+
+        <div>
+          <strong>Relación:</strong>{' '}
+          {r.parentesco || '-'}
+        </div>
+
+        <div>
+          <strong>Tiempo de conocerlo:</strong>{' '}
+          {r.tiempo_conocer_anios || '-'} años,{' '}
+          {r.tiempo_conocer_meses || '-'} meses
+        </div>
+
+        <div className="col-span-full mt-2">
+          <strong>Dirección completa:</strong>
+        </div>
+
+        <div>
+          <strong>Calle:</strong>{' '}
+          {r.domicilio_calle || '-'}
+        </div>
+
+        <div>
+          <strong>Número:</strong>{' '}
+          {r.domicilio_numero || '-'}
+        </div>
+
+        <div>
+          <strong>Edificio:</strong>{' '}
+          {r.domicilio_edificio || '-'}
+        </div>
+
+        <div>
+          <strong>Colonia:</strong>{' '}
+          {r.domicilio_colonia || '-'}
+        </div>
+
+        <div>
+          <strong>Estado:</strong>{' '}
+          {r.domicilio_estado || '-'}
+        </div>
+
+        {r.domicilio_estado === 'EXTRANJERO' && (
+          <div>
+            <strong>País:</strong>{' '}
+            {r.domicilio_pais || '-'}
+          </div>
+        )}
+
+        <div>
+          <strong>Alcaldía / Municipio:</strong>{' '}
+          {r.domicilio_municipio || '-'}
+        </div>
+
+        <div>
+          <strong>Código Postal:</strong>{' '}
+          {r.domicilio_cp || '-'}
+        </div>
+
+        <div className="col-span-full">
+          <strong>Entre Calles:</strong>{' '}
+          {r.domicilio_entre_calles || '-'}
+        </div>
+
+        <div className="col-span-full">
+          <strong>Referencias:</strong>{' '}
+          {r.domicilio_referencias || '-'}
+        </div>
+
       </div>
     ))}
   </div>
