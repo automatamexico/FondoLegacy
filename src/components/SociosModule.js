@@ -62,6 +62,402 @@ const textoMayusculas = (valor = '') =>
 const correoMinusculas = (valor = '') =>
   String(valor || '').trim().toLowerCase();
 
+const ESTADOS_MEXICO = [
+  'AGUASCALIENTES',
+  'BAJA CALIFORNIA',
+  'BAJA CALIFORNIA SUR',
+  'CAMPECHE',
+  'CHIAPAS',
+  'CHIHUAHUA',
+  'CIUDAD DE MÉXICO',
+  'COAHUILA',
+  'COLIMA',
+  'DURANGO',
+  'ESTADO DE MÉXICO',
+  'GUANAJUATO',
+  'GUERRERO',
+  'HIDALGO',
+  'JALISCO',
+  'MICHOACÁN',
+  'MORELOS',
+  'NAYARIT',
+  'NUEVO LEÓN',
+  'OAXACA',
+  'PUEBLA',
+  'QUERÉTARO',
+  'QUINTANA ROO',
+  'SAN LUIS POTOSÍ',
+  'SINALOA',
+  'SONORA',
+  'TABASCO',
+  'TAMAULIPAS',
+  'TLAXCALA',
+  'VERACRUZ',
+  'YUCATÁN',
+  'ZACATECAS',
+];
+
+
+const PARENTESCOS_FAMILIARES = [
+  'PAPÁ',
+  'MAMÁ',
+  'HERMANO (A)',
+  'TÍO (A)',
+  'ABUELO (A)',
+  'PRIMO (A)',
+  'SOBRINO (A)',
+  'CUÑADO (A)',
+  'COMPADRE (A)',
+];
+
+
+const PARENTESCOS_PERSONALES = [
+  'VECINO (A)',
+  'AMIGO (A)',
+  'PATRÓN (A)',
+];
+
+const FormularioReferencia = ({
+  titulo,
+  datos,
+  setDatos,
+  opcionesParentesco,
+}) => {
+
+  const actualizar = (campo, valor) => {
+    setDatos((prev) => ({
+      ...prev,
+      [campo]: valor,
+    }));
+  };
+
+  return (
+    <>
+      <div className="col-span-full border-t-2 border-blue-600 pt-6 mt-6">
+        <h4 className="font-bold text-slate-900 text-lg">
+          {titulo}
+        </h4>
+      </div>
+
+      <input
+        type="text"
+        placeholder="Nombre *"
+        value={datos.nombre}
+        onChange={(e) =>
+          actualizar('nombre', e.target.value)
+        }
+        className="px-4 py-2 border border-slate-200 rounded-lg"
+      />
+
+      <input
+        type="text"
+        placeholder="Apellido Paterno *"
+        value={datos.apellido_paterno}
+        onChange={(e) =>
+          actualizar(
+            'apellido_paterno',
+            e.target.value
+          )
+        }
+        className="px-4 py-2 border border-slate-200 rounded-lg"
+      />
+
+      <input
+        type="text"
+        placeholder="Apellido Materno *"
+        value={datos.apellido_materno}
+        onChange={(e) =>
+          actualizar(
+            'apellido_materno',
+            e.target.value
+          )
+        }
+        className="px-4 py-2 border border-slate-200 rounded-lg"
+      />
+
+      <input
+        type="tel"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        placeholder="Teléfono *"
+        value={datos.telefono}
+        onChange={(e) =>
+          actualizar(
+            'telefono',
+            onlyDigitsMax(e.target.value, 15)
+          )
+        }
+        className="px-4 py-2 border border-slate-200 rounded-lg"
+      />
+
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">
+          Parentesco *
+        </label>
+
+        <select
+          value={datos.parentesco}
+          onChange={(e) =>
+            actualizar(
+              'parentesco',
+              e.target.value
+            )
+          }
+          className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+        >
+          <option value="">
+            Seleccione
+          </option>
+
+          {opcionesParentesco.map((opcion) => (
+            <option
+              key={opcion}
+              value={opcion}
+            >
+              {opcion}
+            </option>
+          ))}
+        </select>
+      </div>
+
+
+      <div className="col-span-full">
+        <label className="block text-sm font-semibold text-slate-700 mb-2">
+          Tiempo de conocerlo
+        </label>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+          <select
+            value={datos.tiempo_conocer_anios}
+            onChange={(e) =>
+              actualizar(
+                'tiempo_conocer_anios',
+                e.target.value
+              )
+            }
+            className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+          >
+            <option value="">
+              Años
+            </option>
+
+            {Array.from(
+              { length: 50 },
+              (_, i) => i + 1
+            ).map((numero) => (
+              <option
+                key={numero}
+                value={numero}
+              >
+                {numero} años
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={datos.tiempo_conocer_meses}
+            onChange={(e) =>
+              actualizar(
+                'tiempo_conocer_meses',
+                e.target.value
+              )
+            }
+            className="w-full px-4 py-2 border border-slate-200 rounded-lg"
+          >
+            <option value="">
+              Meses
+            </option>
+
+            {Array.from(
+              { length: 11 },
+              (_, i) => i + 1
+            ).map((numero) => (
+              <option
+                key={numero}
+                value={numero}
+              >
+                {numero} meses
+              </option>
+            ))}
+          </select>
+
+        </div>
+      </div>
+
+
+      <div className="col-span-full mt-2">
+        <h5 className="font-semibold text-slate-800">
+          Dirección completa
+        </h5>
+      </div>
+
+
+      <input
+        type="text"
+        placeholder="Calle *"
+        value={datos.domicilio_calle}
+        onChange={(e) =>
+          actualizar(
+            'domicilio_calle',
+            e.target.value
+          )
+        }
+        className="px-4 py-2 border border-slate-200 rounded-lg"
+      />
+
+      <input
+        type="text"
+        placeholder="Número *"
+        value={datos.domicilio_numero}
+        onChange={(e) =>
+          actualizar(
+            'domicilio_numero',
+            e.target.value
+          )
+        }
+        className="px-4 py-2 border border-slate-200 rounded-lg"
+      />
+
+      <input
+        type="text"
+        placeholder="Edificio"
+        value={datos.domicilio_edificio}
+        onChange={(e) =>
+          actualizar(
+            'domicilio_edificio',
+            e.target.value
+          )
+        }
+        className="px-4 py-2 border border-slate-200 rounded-lg"
+      />
+
+      <input
+        type="text"
+        placeholder="Colonia *"
+        value={datos.domicilio_colonia}
+        onChange={(e) =>
+          actualizar(
+            'domicilio_colonia',
+            e.target.value
+          )
+        }
+        className="px-4 py-2 border border-slate-200 rounded-lg"
+      />
+
+
+      <select
+        value={datos.domicilio_estado}
+        onChange={(e) => {
+          const estado = e.target.value;
+
+          setDatos((prev) => ({
+            ...prev,
+            domicilio_estado: estado,
+
+            domicilio_pais:
+              estado === 'EXTRANJERO'
+                ? prev.domicilio_pais
+                : '',
+          }));
+        }}
+        className="px-4 py-2 border border-slate-200 rounded-lg"
+      >
+        <option value="">
+          Estado *
+        </option>
+
+        {ESTADOS_MEXICO.map((estado) => (
+          <option
+            key={estado}
+            value={estado}
+          >
+            {estado}
+          </option>
+        ))}
+
+        <option value="EXTRANJERO">
+          Extranjero
+        </option>
+      </select>
+
+
+      {datos.domicilio_estado ===
+        'EXTRANJERO' && (
+        <input
+          type="text"
+          placeholder="País *"
+          value={datos.domicilio_pais}
+          onChange={(e) =>
+            actualizar(
+              'domicilio_pais',
+              e.target.value
+            )
+          }
+          className="px-4 py-2 border border-slate-200 rounded-lg"
+        />
+      )}
+
+
+      <input
+        type="text"
+        placeholder="Alcaldía o Municipio *"
+        value={datos.domicilio_municipio}
+        onChange={(e) =>
+          actualizar(
+            'domicilio_municipio',
+            e.target.value
+          )
+        }
+        className="px-4 py-2 border border-slate-200 rounded-lg"
+      />
+
+      <input
+        type="tel"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        placeholder="Código Postal *"
+        value={datos.domicilio_cp}
+        onChange={(e) =>
+          actualizar(
+            'domicilio_cp',
+            onlyDigitsMax(e.target.value, 5)
+          )
+        }
+        className="px-4 py-2 border border-slate-200 rounded-lg"
+      />
+
+
+      <input
+        type="text"
+        placeholder="Entre Calles *"
+        value={datos.domicilio_entre_calles}
+        onChange={(e) =>
+          actualizar(
+            'domicilio_entre_calles',
+            e.target.value
+          )
+        }
+        className="col-span-full px-4 py-2 border border-slate-200 rounded-lg"
+      />
+
+
+      <textarea
+        placeholder="Referencias del domicilio *"
+        value={datos.domicilio_referencias}
+        onChange={(e) =>
+          actualizar(
+            'domicilio_referencias',
+            e.target.value
+          )
+        }
+        rows={3}
+        className="col-span-full px-4 py-2 border border-slate-200 rounded-lg"
+      />
+    </>
+  );
+};
+
 const SociosModule = ({ currentUser }) => {
   const [sociosList, setSociosList] = useState([]);
   const [searchSocio, setSearchSocio] = useState('');
@@ -121,16 +517,58 @@ domicilio_pais: '',
   const [error, setError] = useState(null);
   const [errorMonto, setErrorMonto] = useState('');
 // ================= REFERENCIAS =================
+// ================= REFERENCIA PERSONAL =================
 const [referencia, setReferencia] = useState({
   nombre: '',
   apellido_paterno: '',
   apellido_materno: '',
   telefono: '',
-  direccion: ''
+
+  parentesco: '',
+  tiempo_conocer_anios: '',
+  tiempo_conocer_meses: '',
+
+  domicilio_calle: '',
+  domicilio_numero: '',
+  domicilio_edificio: '',
+  domicilio_colonia: '',
+  domicilio_estado: '',
+  domicilio_pais: '',
+  domicilio_municipio: '',
+  domicilio_cp: '',
+  domicilio_entre_calles: '',
+  domicilio_referencias: '',
+
+  direccion: '',
 });
 
 const [referenciaId, setReferenciaId] = useState(null);
 
+
+// ================= REFERENCIA FAMILIAR =================
+const [referenciaFamiliar, setReferenciaFamiliar] = useState({
+  nombre: '',
+  apellido_paterno: '',
+  apellido_materno: '',
+  telefono: '',
+
+  parentesco: '',
+  tiempo_conocer_anios: '',
+  tiempo_conocer_meses: '',
+
+  domicilio_calle: '',
+  domicilio_numero: '',
+  domicilio_edificio: '',
+  domicilio_colonia: '',
+  domicilio_estado: '',
+  domicilio_pais: '',
+  domicilio_municipio: '',
+  domicilio_cp: '',
+  domicilio_entre_calles: '',
+  domicilio_referencias: '',
+
+  direccion: '',
+});
 
 // ================= BENEFICIARIO =================
 const [beneficiario, setBeneficiario] = useState({
@@ -201,6 +639,7 @@ const cameraStreamRef = useRef(null);
   const [socioFicha, setSocioFicha] = useState(null);
   // ===== DATOS RELACIONADOS FICHA =====
 const [refsFicha, setRefsFicha] = useState([]);
+  const [refsFamiliaresFicha, setRefsFamiliaresFicha] = useState([]);
 const [benefFicha, setBenefFicha] = useState([]);
 const [bancoFicha, setBancoFicha] = useState([]);
   const [previewFile, setPreviewFile] = useState(null);
@@ -1156,13 +1595,53 @@ domicilio_pais: '',
 
     
   // 🔹 Limpiar referencia personal
-  setReferencia({
-    nombre: '',
-    apellido_paterno: '',
-    apellido_materno: '',
-    telefono: '',
-    direccion: ''
-  });
+ setReferencia({
+  nombre: '',
+  apellido_paterno: '',
+  apellido_materno: '',
+  telefono: '',
+
+  parentesco: '',
+  tiempo_conocer_anios: '',
+  tiempo_conocer_meses: '',
+
+  domicilio_calle: '',
+  domicilio_numero: '',
+  domicilio_edificio: '',
+  domicilio_colonia: '',
+  domicilio_estado: '',
+  domicilio_pais: '',
+  domicilio_municipio: '',
+  domicilio_cp: '',
+  domicilio_entre_calles: '',
+  domicilio_referencias: '',
+
+  direccion: '',
+});
+
+setReferenciaFamiliar({
+  nombre: '',
+  apellido_paterno: '',
+  apellido_materno: '',
+  telefono: '',
+
+  parentesco: '',
+  tiempo_conocer_anios: '',
+  tiempo_conocer_meses: '',
+
+  domicilio_calle: '',
+  domicilio_numero: '',
+  domicilio_edificio: '',
+  domicilio_colonia: '',
+  domicilio_estado: '',
+  domicilio_pais: '',
+  domicilio_municipio: '',
+  domicilio_cp: '',
+  domicilio_entre_calles: '',
+  domicilio_referencias: '',
+
+  direccion: '',
+});
 
   // 🔹 Limpiar beneficiario
   setBeneficiario({
@@ -1342,6 +1821,71 @@ newSocio.domicilio_estado &&
 
   newSocio.domicilio_referencias &&
     `REFERENCIAS: ${newSocio.domicilio_referencias}`,
+]
+  .filter(Boolean)
+  .join(', ');
+
+   // ================= DIRECCIÓN REFERENCIA PERSONAL =================
+const direccionReferenciaPersonal = [
+  referencia.domicilio_calle &&
+    `CALLE ${referencia.domicilio_calle}`,
+
+  referencia.domicilio_numero &&
+    `NÚM. ${referencia.domicilio_numero}`,
+
+  referencia.domicilio_edificio &&
+    `EDIFICIO ${referencia.domicilio_edificio}`,
+
+  referencia.domicilio_colonia &&
+    `COL. ${referencia.domicilio_colonia}`,
+
+  referencia.domicilio_estado === 'EXTRANJERO'
+    ? referencia.domicilio_pais
+    : referencia.domicilio_estado,
+
+  referencia.domicilio_municipio,
+
+  referencia.domicilio_cp &&
+    `C.P. ${referencia.domicilio_cp}`,
+
+  referencia.domicilio_entre_calles &&
+    `ENTRE CALLES: ${referencia.domicilio_entre_calles}`,
+
+  referencia.domicilio_referencias &&
+    `REFERENCIAS: ${referencia.domicilio_referencias}`,
+]
+  .filter(Boolean)
+  .join(', ');
+
+
+// ================= DIRECCIÓN REFERENCIA FAMILIAR =================
+const direccionReferenciaFamiliar = [
+  referenciaFamiliar.domicilio_calle &&
+    `CALLE ${referenciaFamiliar.domicilio_calle}`,
+
+  referenciaFamiliar.domicilio_numero &&
+    `NÚM. ${referenciaFamiliar.domicilio_numero}`,
+
+  referenciaFamiliar.domicilio_edificio &&
+    `EDIFICIO ${referenciaFamiliar.domicilio_edificio}`,
+
+  referenciaFamiliar.domicilio_colonia &&
+    `COL. ${referenciaFamiliar.domicilio_colonia}`,
+
+  referenciaFamiliar.domicilio_estado === 'EXTRANJERO'
+    ? referenciaFamiliar.domicilio_pais
+    : referenciaFamiliar.domicilio_estado,
+
+  referenciaFamiliar.domicilio_municipio,
+
+  referenciaFamiliar.domicilio_cp &&
+    `C.P. ${referenciaFamiliar.domicilio_cp}`,
+
+  referenciaFamiliar.domicilio_entre_calles &&
+    `ENTRE CALLES: ${referenciaFamiliar.domicilio_entre_calles}`,
+
+  referenciaFamiliar.domicilio_referencias &&
+    `REFERENCIAS: ${referenciaFamiliar.domicilio_referencias}`,
 ]
   .filter(Boolean)
   .join(', ');
@@ -1712,59 +2256,319 @@ if (photoFile) {
     foto_url: fotoUrl,
   };
 }
-    // ================= REFERENCIA PERSONAL =================
-    if (referencia.nombre.trim() !== '') {
+// ================= REFERENCIA PERSONAL =================
+if (referencia.nombre.trim() !== '') {
 
-      const checkRef = await fetch(
-        `${SUPABASE_URL}/rest/v1/refs_fondo?id_socio=eq.${socioId}`,
-        {
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-        }
-      );
-
-      const existingRef = await checkRef.json();
-
-      if (existingRef?.length > 0) {
-        await fetch(
-          `${SUPABASE_URL}/rest/v1/refs_fondo?id_referencia=eq.${existingRef[0].id_referencia}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            },
-            body: JSON.stringify({
-  nombre: textoMayusculas(referencia.nombre),
-  apellido_paterno: textoMayusculas(referencia.apellido_paterno),
-  apellido_materno: textoMayusculas(referencia.apellido_materno),
-  telefono: String(referencia.telefono || '').trim(),
-  direccion: textoMayusculas(referencia.direccion),
-}),
-          }
-        );
-      } else {
-        await fetch(`${SUPABASE_URL}/rest/v1/refs_fondo`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({
-  id_socio: socioId,
-  nombre: textoMayusculas(referencia.nombre),
-  apellido_paterno: textoMayusculas(referencia.apellido_paterno),
-  apellido_materno: textoMayusculas(referencia.apellido_materno),
-  telefono: String(referencia.telefono || '').trim(),
-  direccion: textoMayusculas(referencia.direccion),
-}),
-        });
-      }
+  const checkRef = await fetch(
+    `${SUPABASE_URL}/rest/v1/refs_fondo?id_socio=eq.${socioId}&select=*`,
+    {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
     }
+  );
+
+  if (!checkRef.ok) {
+    const errorText = await checkRef.text();
+    throw new Error(
+      `No se pudo consultar la referencia personal: ${errorText}`
+    );
+  }
+
+  const existingRef = await checkRef.json();
+
+  const payloadReferencia = {
+    nombre: textoMayusculas(referencia.nombre),
+
+    apellido_paterno:
+      textoMayusculas(referencia.apellido_paterno),
+
+    apellido_materno:
+      textoMayusculas(referencia.apellido_materno),
+
+    telefono:
+      String(referencia.telefono || '').trim(),
+
+    parentesco:
+      referencia.parentesco,
+
+    tiempo_conocer_anios:
+      referencia.tiempo_conocer_anios
+        ? Number(referencia.tiempo_conocer_anios)
+        : null,
+
+    tiempo_conocer_meses:
+      referencia.tiempo_conocer_meses
+        ? Number(referencia.tiempo_conocer_meses)
+        : null,
+
+    domicilio_calle:
+      textoMayusculas(referencia.domicilio_calle),
+
+    domicilio_numero:
+      textoMayusculas(referencia.domicilio_numero),
+
+    domicilio_edificio:
+      referencia.domicilio_edificio
+        ? textoMayusculas(referencia.domicilio_edificio)
+        : null,
+
+    domicilio_colonia:
+      textoMayusculas(referencia.domicilio_colonia),
+
+    domicilio_estado:
+      textoMayusculas(referencia.domicilio_estado),
+
+    domicilio_pais:
+      referencia.domicilio_estado === 'EXTRANJERO'
+        ? textoMayusculas(referencia.domicilio_pais)
+        : 'MÉXICO',
+
+    domicilio_municipio:
+      textoMayusculas(referencia.domicilio_municipio),
+
+    domicilio_cp:
+      String(referencia.domicilio_cp || '').trim(),
+
+    domicilio_entre_calles:
+      textoMayusculas(referencia.domicilio_entre_calles),
+
+    domicilio_referencias:
+      textoMayusculas(referencia.domicilio_referencias),
+
+    direccion:
+      textoMayusculas(direccionReferenciaPersonal),
+  };
+
+  if (existingRef?.length > 0) {
+
+    const updateRef = await fetch(
+      `${SUPABASE_URL}/rest/v1/refs_fondo?id_referencia=eq.${existingRef[0].id_referencia}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify(payloadReferencia),
+      }
+    );
+
+    if (!updateRef.ok) {
+      const errorText = await updateRef.text();
+
+      throw new Error(
+        `No se pudo actualizar la referencia personal: ${errorText}`
+      );
+    }
+
+  } else {
+
+    const insertRef = await fetch(
+      `${SUPABASE_URL}/rest/v1/refs_fondo`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+
+        body: JSON.stringify({
+          id_socio: socioId,
+          ...payloadReferencia,
+        }),
+      }
+    );
+
+    if (!insertRef.ok) {
+      const errorText = await insertRef.text();
+
+      throw new Error(
+        `No se pudo registrar la referencia personal: ${errorText}`
+      );
+    }
+  }
+}
+
+
+// ================= REFERENCIA FAMILIAR =================
+if (referenciaFamiliar.nombre.trim() !== '') {
+
+  const checkFamiliar = await fetch(
+    `${SUPABASE_URL}/rest/v1/refs_familiares_fondo?id_socio=eq.${socioId}&select=*`,
+    {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    }
+  );
+
+  if (!checkFamiliar.ok) {
+    const errorText = await checkFamiliar.text();
+
+    throw new Error(
+      `No se pudo consultar la referencia familiar: ${errorText}`
+    );
+  }
+
+  const familiarExistente =
+    await checkFamiliar.json();
+
+  const payloadFamiliar = {
+    nombre:
+      textoMayusculas(referenciaFamiliar.nombre),
+
+    apellido_paterno:
+      textoMayusculas(
+        referenciaFamiliar.apellido_paterno
+      ),
+
+    apellido_materno:
+      textoMayusculas(
+        referenciaFamiliar.apellido_materno
+      ),
+
+    telefono:
+      String(
+        referenciaFamiliar.telefono || ''
+      ).trim(),
+
+    parentesco:
+      referenciaFamiliar.parentesco,
+
+    tiempo_conocer_anios:
+      referenciaFamiliar.tiempo_conocer_anios
+        ? Number(
+            referenciaFamiliar.tiempo_conocer_anios
+          )
+        : null,
+
+    tiempo_conocer_meses:
+      referenciaFamiliar.tiempo_conocer_meses
+        ? Number(
+            referenciaFamiliar.tiempo_conocer_meses
+          )
+        : null,
+
+    domicilio_calle:
+      textoMayusculas(
+        referenciaFamiliar.domicilio_calle
+      ),
+
+    domicilio_numero:
+      textoMayusculas(
+        referenciaFamiliar.domicilio_numero
+      ),
+
+    domicilio_edificio:
+      referenciaFamiliar.domicilio_edificio
+        ? textoMayusculas(
+            referenciaFamiliar.domicilio_edificio
+          )
+        : null,
+
+    domicilio_colonia:
+      textoMayusculas(
+        referenciaFamiliar.domicilio_colonia
+      ),
+
+    domicilio_estado:
+      textoMayusculas(
+        referenciaFamiliar.domicilio_estado
+      ),
+
+    domicilio_pais:
+      referenciaFamiliar.domicilio_estado ===
+      'EXTRANJERO'
+        ? textoMayusculas(
+            referenciaFamiliar.domicilio_pais
+          )
+        : 'MÉXICO',
+
+    domicilio_municipio:
+      textoMayusculas(
+        referenciaFamiliar.domicilio_municipio
+      ),
+
+    domicilio_cp:
+      String(
+        referenciaFamiliar.domicilio_cp || ''
+      ).trim(),
+
+    domicilio_entre_calles:
+      textoMayusculas(
+        referenciaFamiliar.domicilio_entre_calles
+      ),
+
+    domicilio_referencias:
+      textoMayusculas(
+        referenciaFamiliar.domicilio_referencias
+      ),
+
+    direccion:
+      textoMayusculas(
+        direccionReferenciaFamiliar
+      ),
+  };
+
+  if (familiarExistente?.length > 0) {
+
+    const updateFamiliar = await fetch(
+      `${SUPABASE_URL}/rest/v1/refs_familiares_fondo?id_referencia_familiar=eq.${familiarExistente[0].id_referencia_familiar}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+
+        body: JSON.stringify(payloadFamiliar),
+      }
+    );
+
+    if (!updateFamiliar.ok) {
+      const errorText =
+        await updateFamiliar.text();
+
+      throw new Error(
+        `No se pudo actualizar la referencia familiar: ${errorText}`
+      );
+    }
+
+  } else {
+
+    const insertFamiliar = await fetch(
+      `${SUPABASE_URL}/rest/v1/refs_familiares_fondo`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+
+        body: JSON.stringify({
+          id_socio: socioId,
+          ...payloadFamiliar,
+        }),
+      }
+    );
+
+    if (!insertFamiliar.ok) {
+      const errorText =
+        await insertFamiliar.text();
+
+      throw new Error(
+        `No se pudo registrar la referencia familiar: ${errorText}`
+      );
+    }
+  }
+}
 
    // ================= BENEFICIARIO =================
 if (beneficiario.nombre.trim() !== '') {
@@ -3380,56 +4184,21 @@ domicilio_pais: '',
 
 
 
-{/* ================= REFERENCIAS PERSONALES ================= */}
-<div className="col-span-full border-t-2 border-blue-600 pt-6 mt-6">
-  <h4 className="font-semibold text-slate-800 mb-4">
-    Referencias Personales
-  </h4>
-</div>
-
-<input
-  type="text"
-  placeholder="Nombre"
-  className="px-4 py-2 border border-slate-200 rounded-lg"
-  value={referencia.nombre}
-  onChange={(e) => setReferencia({ ...referencia, nombre: e.target.value })}
-/>
-
-<input
-  type="text"
-  placeholder="Apellido Paterno"
-  className="px-4 py-2 border border-slate-200 rounded-lg"
-  value={referencia.apellido_paterno}
-  onChange={(e) => setReferencia({ ...referencia, apellido_paterno: e.target.value })}
-/>
-
-<input
-  type="text"
-  placeholder="Apellido Materno"
-  className="px-4 py-2 border border-slate-200 rounded-lg"
-  value={referencia.apellido_materno}
-  onChange={(e) => setReferencia({ ...referencia, apellido_materno: e.target.value })}
-/>
-
-<input
-  type="tel"
-  inputMode="numeric"
-  pattern="[0-9]*"
-  placeholder="Teléfono"
-  className="px-4 py-2 border border-slate-200 rounded-lg"
-  value={referencia.telefono}
-  onChange={(e) =>
-    setReferencia({ ...referencia, telefono: onlyDigitsMax(e.target.value, 15) })
-  }
+{/* ================= REFERENCIA FAMILIAR ================= */}
+<FormularioReferencia
+  titulo="Referencias Familiares"
+  datos={referenciaFamiliar}
+  setDatos={setReferenciaFamiliar}
+  opcionesParentesco={PARENTESCOS_FAMILIARES}
 />
 
 
-<input
-  type="text"
-  placeholder="Dirección"
-  className="col-span-full px-4 py-2 border border-slate-200 rounded-lg"
-  value={referencia.direccion}
-  onChange={(e) => setReferencia({ ...referencia, direccion: e.target.value })}
+{/* ================= REFERENCIA PERSONAL ================= */}
+<FormularioReferencia
+  titulo="Referencias Personales"
+  datos={referencia}
+  setDatos={setReferencia}
+  opcionesParentesco={PARENTESCOS_PERSONALES}
 />
 
 {/* ================= BENEFICIARIO ================= */}
