@@ -160,6 +160,57 @@ const [guardandoPagoPrestamo, setGuardandoPagoPrestamo] =
   fecha_solicitud: ''
 });
 
+// ================= EVALUACIÓN CREDITICIA =================
+const [evaluacionCrediticia, setEvaluacionCrediticia] = useState({
+  capacidad_pago_periodicidad: '',
+  capacidad_pago_monto: '',
+
+  destino_dinero: '',
+  uso_generara_ingresos: '',
+  tiempo_recuperacion: '',
+  riesgo_si_no_funciona: '',
+
+  otros_ingresos: '',
+  accion_si_no_puede_pagar: '',
+  accion_si_sin_ingresos_mes: '',
+  accion_emergencia_fuerte: '',
+
+  fuente_pago_prestamo: '',
+
+  cuenta_con_aval: false,
+
+  tiene_redes_sociales: '',
+  redes_sociales_detalle: '',
+
+  tiene_automovil: '',
+  tiene_propiedades: '',
+
+  garantia_declarada: '',
+});
+
+
+// ================= AVAL =================
+const [avalPrestamo, setAvalPrestamo] = useState({
+  nombre: '',
+  edad: '',
+  celular: '',
+  ocupacion: '',
+
+  domicilio_calle: '',
+  domicilio_numero: '',
+  domicilio_edificio: '',
+  domicilio_colonia: '',
+  domicilio_estado: '',
+  domicilio_pais: '',
+  domicilio_municipio: '',
+  domicilio_cp: '',
+  domicilio_entre_calles: '',
+  domicilio_referencias: '',
+
+  tiene_redes_sociales: '',
+  redes_sociales_detalle: '',
+});
+  
   const [pagoPeriodo, setPagoPeriodo] = useState(0);
   const [abonoCapitalPeriodo, setAbonoCapitalPeriodo] = useState(0);
   const [interesPeriodoEstimado, setInteresPeriodoEstimado] = useState(0);
@@ -811,6 +862,55 @@ const confirmarPagoDesdePrestamo = async () => {
   interes: '',
   fecha_solicitud: ''
 });
+
+setEvaluacionCrediticia({
+  capacidad_pago_periodicidad: '',
+  capacidad_pago_monto: '',
+
+  destino_dinero: '',
+  uso_generara_ingresos: '',
+  tiempo_recuperacion: '',
+  riesgo_si_no_funciona: '',
+
+  otros_ingresos: '',
+  accion_si_no_puede_pagar: '',
+  accion_si_sin_ingresos_mes: '',
+  accion_emergencia_fuerte: '',
+
+  fuente_pago_prestamo: '',
+
+  cuenta_con_aval: false,
+
+  tiene_redes_sociales: '',
+  redes_sociales_detalle: '',
+
+  tiene_automovil: '',
+  tiene_propiedades: '',
+
+  garantia_declarada: '',
+});
+
+setAvalPrestamo({
+  nombre: '',
+  edad: '',
+  celular: '',
+  ocupacion: '',
+
+  domicilio_calle: '',
+  domicilio_numero: '',
+  domicilio_edificio: '',
+  domicilio_colonia: '',
+  domicilio_estado: '',
+  domicilio_pais: '',
+  domicilio_municipio: '',
+  domicilio_cp: '',
+  domicilio_entre_calles: '',
+  domicilio_referencias: '',
+
+  tiene_redes_sociales: '',
+  redes_sociales_detalle: '',
+});
+    
     setPagoPeriodo(0);
     setInteresPeriodoEstimado(0);
     setAbonoCapitalPeriodo(0);
@@ -866,6 +966,83 @@ if (newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO') {
     return alert('Indique la utilidad aproximada.');
   }
 }
+
+// ================= VALIDACIÓN EVALUACIÓN CREDITICIA =================
+if (!evaluacionCrediticia.capacidad_pago_periodicidad) {
+  return alert(
+    'Seleccione la periodicidad del pago máximo que puede realizar.'
+  );
+}
+
+if (
+  !evaluacionCrediticia.capacidad_pago_monto ||
+  Number(evaluacionCrediticia.capacidad_pago_monto) <= 0
+) {
+  return alert(
+    'Indique el monto máximo que puede pagar sin atrasarse.'
+  );
+}
+
+if (!evaluacionCrediticia.destino_dinero.trim()) {
+  return alert('Indique para qué necesita el dinero.');
+}
+
+if (!evaluacionCrediticia.uso_generara_ingresos) {
+  return alert(
+    'Indique si el uso del préstamo generará ingresos.'
+  );
+}
+
+if (!evaluacionCrediticia.riesgo_si_no_funciona.trim()) {
+  return alert(
+    'Indique qué pasaría si el negocio, plan o proyecto no funciona.'
+  );
+}
+
+if (!evaluacionCrediticia.accion_si_no_puede_pagar.trim()) {
+  return alert(
+    'Indique qué haría si no puede pagar una mensualidad.'
+  );
+}
+
+if (!evaluacionCrediticia.accion_si_sin_ingresos_mes.trim()) {
+  return alert(
+    'Indique qué pasaría si deja de recibir dinero un mes.'
+  );
+}
+
+if (!evaluacionCrediticia.accion_emergencia_fuerte.trim()) {
+  return alert(
+    'Indique cómo resolvería una emergencia fuerte.'
+  );
+}
+
+if (!evaluacionCrediticia.fuente_pago_prestamo.trim()) {
+  return alert(
+    'Debe indicar exactamente de dónde saldrá el dinero para pagar el préstamo.'
+  );
+}
+
+
+// ================= VALIDACIÓN AVAL =================
+if (evaluacionCrediticia.cuenta_con_aval) {
+  if (!avalPrestamo.nombre.trim()) {
+    return alert('Indique el nombre del aval.');
+  }
+
+  if (!avalPrestamo.edad) {
+    return alert('Indique la edad del aval.');
+  }
+
+  if (!avalPrestamo.celular.trim()) {
+    return alert('Indique el celular del aval.');
+  }
+
+  if (!avalPrestamo.ocupacion.trim()) {
+    return alert('Indique a qué se dedica el aval.');
+  }
+}
+    
     if (!newPrestamo.monto_solicitado || Number(newPrestamo.monto_solicitado) <= 0) return alert('Monto inválido.');
     if (!newPrestamo.numero_plazos || Number(newPrestamo.numero_plazos) <= 0) return alert('Plazos inválidos.');
     if (newPrestamo.interes === '' || Number(newPrestamo.interes) < 0) return alert('Interés por periodo inválido.');
@@ -1123,6 +1300,250 @@ if (newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO') {
       const prestamo = prestInsert[0];
       const id_prestamo = prestamo?.id_prestamo;
 
+if (!id_prestamo) {
+  throw new Error(
+    'El préstamo fue registrado pero no se obtuvo su ID.'
+  );
+}
+
+
+// ======================================================
+// ============ GUARDAR EVALUACIÓN CREDITICIA ==========
+// ======================================================
+
+const evaluacionBody = {
+  id_prestamo,
+  id_socio: Number(newPrestamo.id_socio),
+
+  capacidad_pago_periodicidad:
+    evaluacionCrediticia.capacidad_pago_periodicidad,
+
+  capacidad_pago_monto:
+    Number(
+      evaluacionCrediticia.capacidad_pago_monto
+    ),
+
+  destino_dinero:
+    evaluacionCrediticia.destino_dinero
+      .trim()
+      .toUpperCase(),
+
+  uso_generara_ingresos:
+    evaluacionCrediticia.uso_generara_ingresos === 'SI',
+
+  tiempo_recuperacion:
+    evaluacionCrediticia.uso_generara_ingresos === 'SI'
+      ? evaluacionCrediticia.tiempo_recuperacion
+          .trim()
+          .toUpperCase() || null
+      : null,
+
+  riesgo_si_no_funciona:
+    evaluacionCrediticia.riesgo_si_no_funciona
+      .trim()
+      .toUpperCase(),
+
+  otros_ingresos:
+    evaluacionCrediticia.otros_ingresos
+      .trim()
+      .toUpperCase() || null,
+
+  accion_si_no_puede_pagar:
+    evaluacionCrediticia.accion_si_no_puede_pagar
+      .trim()
+      .toUpperCase(),
+
+  accion_si_sin_ingresos_mes:
+    evaluacionCrediticia.accion_si_sin_ingresos_mes
+      .trim()
+      .toUpperCase(),
+
+  accion_emergencia_fuerte:
+    evaluacionCrediticia.accion_emergencia_fuerte
+      .trim()
+      .toUpperCase(),
+
+  fuente_pago_prestamo:
+    evaluacionCrediticia.fuente_pago_prestamo
+      .trim()
+      .toUpperCase(),
+
+  cuenta_con_aval:
+    evaluacionCrediticia.cuenta_con_aval,
+
+  tiene_redes_sociales:
+    evaluacionCrediticia.tiene_redes_sociales === 'SI'
+      ? true
+      : evaluacionCrediticia.tiene_redes_sociales === 'NO'
+      ? false
+      : null,
+
+  redes_sociales_detalle:
+    evaluacionCrediticia.tiene_redes_sociales === 'SI'
+      ? evaluacionCrediticia.redes_sociales_detalle
+          .trim()
+          .toUpperCase() || null
+      : null,
+
+  tiene_automovil:
+    evaluacionCrediticia.tiene_automovil === 'SI'
+      ? true
+      : evaluacionCrediticia.tiene_automovil === 'NO'
+      ? false
+      : null,
+
+  tiene_propiedades:
+    evaluacionCrediticia.tiene_propiedades === 'SI'
+      ? true
+      : evaluacionCrediticia.tiene_propiedades === 'NO'
+      ? false
+      : null,
+
+  garantia_declarada:
+    evaluacionCrediticia.garantia_declarada
+      .trim()
+      .toUpperCase() || null,
+};
+
+
+const rEvaluacion = await fetch(
+  `${SUPABASE_URL}/rest/v1/evaluaciones_crediticias`,
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify(evaluacionBody),
+  }
+);
+
+if (!rEvaluacion.ok) {
+  const detalle =
+    await rEvaluacion.text();
+
+  throw new Error(
+    `El préstamo se creó, pero no se pudo guardar la evaluación crediticia. Detalle: ${detalle}`
+  );
+}
+
+
+// ======================================================
+// ================= GUARDAR AVAL =======================
+// ======================================================
+
+if (evaluacionCrediticia.cuenta_con_aval) {
+
+  const avalBody = {
+    id_prestamo,
+    id_socio: Number(newPrestamo.id_socio),
+
+    nombre:
+      avalPrestamo.nombre
+        .trim()
+        .toUpperCase(),
+
+    edad:
+      Number(avalPrestamo.edad),
+
+    celular:
+      avalPrestamo.celular.trim(),
+
+    ocupacion:
+      avalPrestamo.ocupacion
+        .trim()
+        .toUpperCase(),
+
+    domicilio_calle:
+      avalPrestamo.domicilio_calle
+        .trim()
+        .toUpperCase(),
+
+    domicilio_numero:
+      avalPrestamo.domicilio_numero
+        .trim()
+        .toUpperCase(),
+
+    domicilio_edificio:
+      avalPrestamo.domicilio_edificio
+        .trim()
+        .toUpperCase() || null,
+
+    domicilio_colonia:
+      avalPrestamo.domicilio_colonia
+        .trim()
+        .toUpperCase(),
+
+    domicilio_estado:
+      avalPrestamo.domicilio_estado || null,
+
+    domicilio_pais:
+      avalPrestamo.domicilio_estado === 'EXTRANJERO'
+        ? avalPrestamo.domicilio_pais
+            .trim()
+            .toUpperCase()
+        : 'MÉXICO',
+
+    domicilio_municipio:
+      avalPrestamo.domicilio_municipio
+        .trim()
+        .toUpperCase(),
+
+    domicilio_cp:
+      avalPrestamo.domicilio_cp.trim(),
+
+    domicilio_entre_calles:
+      avalPrestamo.domicilio_entre_calles
+        .trim()
+        .toUpperCase() || null,
+
+    domicilio_referencias:
+      avalPrestamo.domicilio_referencias
+        .trim()
+        .toUpperCase() || null,
+
+    tiene_redes_sociales:
+      avalPrestamo.tiene_redes_sociales === 'SI'
+        ? true
+        : avalPrestamo.tiene_redes_sociales === 'NO'
+        ? false
+        : null,
+
+    redes_sociales_detalle:
+      avalPrestamo.tiene_redes_sociales === 'SI'
+        ? avalPrestamo.redes_sociales_detalle
+            .trim()
+            .toUpperCase() || null
+        : null,
+  };
+
+
+  const rAval = await fetch(
+    `${SUPABASE_URL}/rest/v1/avales_prestamos`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify(avalBody),
+    }
+  );
+
+  if (!rAval.ok) {
+    const detalle =
+      await rAval.text();
+
+    throw new Error(
+      `El préstamo se creó, pero no se pudo guardar el aval. Detalle: ${detalle}`
+    );
+  }
+}
+      
       // 2) Generar corrida
       const pagos = [];
       for (let k = 1; k <= nPlazos; k++) {
@@ -2928,6 +3349,583 @@ if (newPrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO') {
         />
       </div>
     </div>
+
+  </div>
+)}
+
+{/* ====================================================== */}
+{/* ============== EVALUACIÓN CREDITICIA ================= */}
+{/* ====================================================== */}
+
+<div className="border-t-2 border-indigo-500 pt-5 mt-5">
+  <h4 className="text-lg font-bold text-slate-900 mb-1">
+    Evaluación Crediticia
+  </h4>
+
+  <p className="text-sm text-slate-500">
+    Capacidad de pago, destino del crédito y contingencias.
+  </p>
+</div>
+
+
+{/* CAPACIDAD MÁXIMA */}
+<div>
+  <label className="block text-sm font-semibold text-slate-700 mb-2">
+    ¿Cuál es el pago máximo que podría hacer sin atrasarse?
+  </label>
+
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+    <select
+      value={evaluacionCrediticia.capacidad_pago_periodicidad}
+      onChange={(e) =>
+        setEvaluacionCrediticia((p) => ({
+          ...p,
+          capacidad_pago_periodicidad: e.target.value,
+        }))
+      }
+      className="w-full px-3 py-2 border rounded-lg"
+    >
+      <option value="">Periodicidad</option>
+      <option value="SEMANAL">Semanal</option>
+      <option value="QUINCENAL">Quincenal</option>
+      <option value="MENSUAL">Mensual</option>
+    </select>
+
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600">
+        $
+      </span>
+
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        value={evaluacionCrediticia.capacidad_pago_monto}
+        onChange={(e) =>
+          setEvaluacionCrediticia((p) => ({
+            ...p,
+            capacidad_pago_monto: e.target.value,
+          }))
+        }
+        className="w-full pl-8 pr-3 py-2 border rounded-lg"
+        placeholder="Monto máximo"
+      />
+    </div>
+
+  </div>
+</div>
+
+
+{/* DESTINO DEL DINERO */}
+<div>
+  <label className="block text-sm text-slate-700 mb-1">
+    ¿Para qué necesita el dinero?
+  </label>
+
+  <textarea
+    rows="2"
+    value={evaluacionCrediticia.destino_dinero}
+    onChange={(e) =>
+      setEvaluacionCrediticia((p) => ({
+        ...p,
+        destino_dinero: e.target.value,
+      }))
+    }
+    className="w-full px-3 py-2 border rounded-lg"
+  />
+</div>
+
+
+{/* GENERARÁ INGRESOS */}
+<div>
+  <label className="block text-sm text-slate-700 mb-1">
+    ¿Ese uso generará ingresos?
+  </label>
+
+  <select
+    value={evaluacionCrediticia.uso_generara_ingresos}
+    onChange={(e) =>
+      setEvaluacionCrediticia((p) => ({
+        ...p,
+        uso_generara_ingresos: e.target.value,
+      }))
+    }
+    className="w-full px-3 py-2 border rounded-lg"
+  >
+    <option value="">Seleccione</option>
+    <option value="SI">Sí</option>
+    <option value="NO">No</option>
+  </select>
+</div>
+
+
+{evaluacionCrediticia.uso_generara_ingresos === 'SI' && (
+  <div>
+    <label className="block text-sm text-slate-700 mb-1">
+      ¿En cuánto tiempo recuperará la inversión?
+    </label>
+
+    <input
+      type="text"
+      value={evaluacionCrediticia.tiempo_recuperacion}
+      onChange={(e) =>
+        setEvaluacionCrediticia((p) => ({
+          ...p,
+          tiempo_recuperacion: e.target.value,
+        }))
+      }
+      className="w-full px-3 py-2 border rounded-lg"
+      placeholder="Ej. 6 meses, 1 año..."
+    />
+  </div>
+)}
+
+
+{/* RIESGO */}
+<div>
+  <label className="block text-sm text-slate-700 mb-1">
+    ¿Qué pasaría si el negocio, plan o proyecto no funciona?
+  </label>
+
+  <textarea
+    rows="3"
+    value={evaluacionCrediticia.riesgo_si_no_funciona}
+    onChange={(e) =>
+      setEvaluacionCrediticia((p) => ({
+        ...p,
+        riesgo_si_no_funciona: e.target.value,
+      }))
+    }
+    className="w-full px-3 py-2 border rounded-lg"
+  />
+</div>
+
+
+{/* OTROS INGRESOS */}
+<div>
+  <label className="block text-sm text-slate-700 mb-1">
+    Otros ingresos
+  </label>
+
+  <textarea
+    rows="2"
+    value={evaluacionCrediticia.otros_ingresos}
+    onChange={(e) =>
+      setEvaluacionCrediticia((p) => ({
+        ...p,
+        otros_ingresos: e.target.value,
+      }))
+    }
+    className="w-full px-3 py-2 border rounded-lg"
+    placeholder="Indique otros ingresos, si existen"
+  />
+</div>
+
+
+{/* NO PUEDE PAGAR */}
+<div>
+  <label className="block text-sm text-slate-700 mb-1">
+    ¿Qué haría si no puede pagar una mensualidad?
+  </label>
+
+  <textarea
+    rows="2"
+    value={evaluacionCrediticia.accion_si_no_puede_pagar}
+    onChange={(e) =>
+      setEvaluacionCrediticia((p) => ({
+        ...p,
+        accion_si_no_puede_pagar: e.target.value,
+      }))
+    }
+    className="w-full px-3 py-2 border rounded-lg"
+  />
+</div>
+
+
+{/* SIN INGRESOS UN MES */}
+<div>
+  <label className="block text-sm text-slate-700 mb-1">
+    ¿Qué pasaría si deja de recibir dinero un mes?
+  </label>
+
+  <textarea
+    rows="2"
+    value={evaluacionCrediticia.accion_si_sin_ingresos_mes}
+    onChange={(e) =>
+      setEvaluacionCrediticia((p) => ({
+        ...p,
+        accion_si_sin_ingresos_mes: e.target.value,
+      }))
+    }
+    className="w-full px-3 py-2 border rounded-lg"
+  />
+</div>
+
+
+{/* EMERGENCIA */}
+<div>
+  <label className="block text-sm text-slate-700 mb-1">
+    Si hoy tuviera una emergencia fuerte, ¿cómo la resolvería?
+  </label>
+
+  <textarea
+    rows="2"
+    value={evaluacionCrediticia.accion_emergencia_fuerte}
+    onChange={(e) =>
+      setEvaluacionCrediticia((p) => ({
+        ...p,
+        accion_emergencia_fuerte: e.target.value,
+      }))
+    }
+    className="w-full px-3 py-2 border rounded-lg"
+  />
+</div>
+
+
+{/* PREGUNTA PRINCIPAL */}
+<div className="border-2 border-amber-400 bg-amber-50 rounded-xl p-4">
+  <p className="text-xs font-bold text-amber-700 uppercase mb-1">
+    Pregunta más importante de la entrevista
+  </p>
+
+  <label className="block text-sm font-bold text-slate-900 mb-2">
+    Explíqueme exactamente de dónde saldrá el dinero para pagar este préstamo
+  </label>
+
+  <textarea
+    rows="4"
+    value={evaluacionCrediticia.fuente_pago_prestamo}
+    onChange={(e) =>
+      setEvaluacionCrediticia((p) => ({
+        ...p,
+        fuente_pago_prestamo: e.target.value,
+      }))
+    }
+    className="w-full px-3 py-2 border rounded-lg bg-white"
+  />
+</div>
+
+
+{/* ====================================================== */}
+{/* ======================= AVAL ========================== */}
+{/* ====================================================== */}
+
+<div className="border-t-2 border-indigo-500 pt-5 mt-5">
+
+  <label className="block text-sm font-bold text-slate-900 mb-2">
+    ¿Cuenta con Aval?
+  </label>
+
+  <div className="flex gap-6">
+
+    <label className="flex items-center gap-2">
+      <input
+        type="radio"
+        name="cuenta_con_aval"
+        checked={evaluacionCrediticia.cuenta_con_aval === true}
+        onChange={() =>
+          setEvaluacionCrediticia((p) => ({
+            ...p,
+            cuenta_con_aval: true,
+          }))
+        }
+      />
+      Sí
+    </label>
+
+    <label className="flex items-center gap-2">
+      <input
+        type="radio"
+        name="cuenta_con_aval"
+        checked={evaluacionCrediticia.cuenta_con_aval === false}
+        onChange={() =>
+          setEvaluacionCrediticia((p) => ({
+            ...p,
+            cuenta_con_aval: false,
+          }))
+        }
+      />
+      No
+    </label>
+
+  </div>
+</div>
+
+
+{evaluacionCrediticia.cuenta_con_aval && (
+  <div className="space-y-4 border border-slate-200 rounded-xl p-4 bg-slate-50">
+
+    <h4 className="font-bold text-slate-900">
+      Datos del Aval
+    </h4>
+
+
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+      <input
+        type="text"
+        placeholder="Nombre completo"
+        value={avalPrestamo.nombre}
+        onChange={(e) =>
+          setAvalPrestamo((p) => ({
+            ...p,
+            nombre: e.target.value,
+          }))
+        }
+        className="px-3 py-2 border rounded-lg"
+      />
+
+      <input
+        type="number"
+        min="18"
+        max="120"
+        placeholder="Edad"
+        value={avalPrestamo.edad}
+        onChange={(e) =>
+          setAvalPrestamo((p) => ({
+            ...p,
+            edad: e.target.value,
+          }))
+        }
+        className="px-3 py-2 border rounded-lg"
+      />
+
+      <input
+        type="tel"
+        inputMode="numeric"
+        placeholder="Celular"
+        value={avalPrestamo.celular}
+        onChange={(e) =>
+          setAvalPrestamo((p) => ({
+            ...p,
+            celular: e.target.value
+              .replace(/\D/g, '')
+              .slice(0, 15),
+          }))
+        }
+        className="px-3 py-2 border rounded-lg"
+      />
+
+      <input
+        type="text"
+        placeholder="¿A qué se dedica?"
+        value={avalPrestamo.ocupacion}
+        onChange={(e) =>
+          setAvalPrestamo((p) => ({
+            ...p,
+            ocupacion: e.target.value,
+          }))
+        }
+        className="px-3 py-2 border rounded-lg"
+      />
+
+    </div>
+
+
+    <h5 className="font-semibold text-slate-800">
+      Domicilio del Aval
+    </h5>
+
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+      <input
+        type="text"
+        placeholder="Calle"
+        value={avalPrestamo.domicilio_calle}
+        onChange={(e) =>
+          setAvalPrestamo((p) => ({
+            ...p,
+            domicilio_calle: e.target.value,
+          }))
+        }
+        className="px-3 py-2 border rounded-lg"
+      />
+
+      <input
+        type="text"
+        placeholder="Número"
+        value={avalPrestamo.domicilio_numero}
+        onChange={(e) =>
+          setAvalPrestamo((p) => ({
+            ...p,
+            domicilio_numero: e.target.value,
+          }))
+        }
+        className="px-3 py-2 border rounded-lg"
+      />
+
+      <input
+        type="text"
+        placeholder="Edificio (opcional)"
+        value={avalPrestamo.domicilio_edificio}
+        onChange={(e) =>
+          setAvalPrestamo((p) => ({
+            ...p,
+            domicilio_edificio: e.target.value,
+          }))
+        }
+        className="px-3 py-2 border rounded-lg"
+      />
+
+      <input
+        type="text"
+        placeholder="Colonia"
+        value={avalPrestamo.domicilio_colonia}
+        onChange={(e) =>
+          setAvalPrestamo((p) => ({
+            ...p,
+            domicilio_colonia: e.target.value,
+          }))
+        }
+        className="px-3 py-2 border rounded-lg"
+      />
+
+
+      <select
+        value={avalPrestamo.domicilio_estado}
+        onChange={(e) => {
+          const estado = e.target.value;
+
+          setAvalPrestamo((p) => ({
+            ...p,
+            domicilio_estado: estado,
+            domicilio_pais:
+              estado === 'EXTRANJERO'
+                ? p.domicilio_pais
+                : '',
+          }));
+        }}
+        className="px-3 py-2 border rounded-lg"
+      >
+        <option value="">Estado</option>
+
+        {ESTADOS_MEXICO.map((estado) => (
+          <option key={estado} value={estado}>
+            {estado}
+          </option>
+        ))}
+
+        <option value="EXTRANJERO">
+          Extranjero
+        </option>
+      </select>
+
+
+      {avalPrestamo.domicilio_estado === 'EXTRANJERO' && (
+        <input
+          type="text"
+          placeholder="País"
+          value={avalPrestamo.domicilio_pais}
+          onChange={(e) =>
+            setAvalPrestamo((p) => ({
+              ...p,
+              domicilio_pais: e.target.value,
+            }))
+          }
+          className="px-3 py-2 border rounded-lg"
+        />
+      )}
+
+
+      <input
+        type="text"
+        placeholder="Alcaldía o Municipio"
+        value={avalPrestamo.domicilio_municipio}
+        onChange={(e) =>
+          setAvalPrestamo((p) => ({
+            ...p,
+            domicilio_municipio: e.target.value,
+          }))
+        }
+        className="px-3 py-2 border rounded-lg"
+      />
+
+      <input
+        type="text"
+        inputMode="numeric"
+        placeholder="Código Postal"
+        value={avalPrestamo.domicilio_cp}
+        onChange={(e) =>
+          setAvalPrestamo((p) => ({
+            ...p,
+            domicilio_cp: e.target.value
+              .replace(/\D/g, '')
+              .slice(0, 5),
+          }))
+        }
+        className="px-3 py-2 border rounded-lg"
+      />
+
+      <input
+        type="text"
+        placeholder="Entre Calles"
+        value={avalPrestamo.domicilio_entre_calles}
+        onChange={(e) =>
+          setAvalPrestamo((p) => ({
+            ...p,
+            domicilio_entre_calles: e.target.value,
+          }))
+        }
+        className="md:col-span-2 px-3 py-2 border rounded-lg"
+      />
+
+      <textarea
+        rows="2"
+        placeholder="Referencias del domicilio"
+        value={avalPrestamo.domicilio_referencias}
+        onChange={(e) =>
+          setAvalPrestamo((p) => ({
+            ...p,
+            domicilio_referencias: e.target.value,
+          }))
+        }
+        className="md:col-span-2 px-3 py-2 border rounded-lg"
+      />
+
+    </div>
+
+
+    <div>
+      <label className="block text-sm text-slate-700 mb-1">
+        ¿Tiene redes sociales?
+      </label>
+
+      <select
+        value={avalPrestamo.tiene_redes_sociales}
+        onChange={(e) =>
+          setAvalPrestamo((p) => ({
+            ...p,
+            tiene_redes_sociales: e.target.value,
+            redes_sociales_detalle:
+              e.target.value === 'SI'
+                ? p.redes_sociales_detalle
+                : '',
+          }))
+        }
+        className="w-full px-3 py-2 border rounded-lg"
+      >
+        <option value="">Seleccione</option>
+        <option value="SI">Sí</option>
+        <option value="NO">No</option>
+      </select>
+    </div>
+
+
+    {avalPrestamo.tiene_redes_sociales === 'SI' && (
+      <input
+        type="text"
+        placeholder="Red social / usuario / enlace"
+        value={avalPrestamo.redes_sociales_detalle}
+        onChange={(e) =>
+          setAvalPrestamo((p) => ({
+            ...p,
+            redes_sociales_detalle: e.target.value,
+          }))
+        }
+        className="w-full px-3 py-2 border rounded-lg"
+      />
+    )}
 
   </div>
 )}
