@@ -6265,10 +6265,12 @@ if (garantiasParaGuardar.length > 0) {
     Documento que acredita la propiedad del vehículo *
   </label>
 
-  <p className="text-xs text-slate-500 mb-3">
-    Adjunte factura, título del vehículo, carta factura u otro documento
-    que acredite la propiedad. PDF, JPG o PNG. Máximo 10 MB.
-      {erroresFormulario.documentoVehiculo && (
+<p className="text-xs text-slate-500 mb-3">
+  Adjunte factura, título del vehículo, carta factura u otro documento
+  que acredite la propiedad. PDF, JPG o PNG. Máximo 10 MB.
+</p>
+
+{erroresFormulario.documentoVehiculo && (
   <p className="mb-3 text-sm font-semibold text-red-600">
     ⚠ {erroresFormulario.documentoVehiculo}
   </p>
