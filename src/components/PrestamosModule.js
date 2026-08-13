@@ -251,6 +251,9 @@ const [archivoIdentificacionAval, setArchivoIdentificacionAval] =
 
 const [archivoDocumentoPropiedad, setArchivoDocumentoPropiedad] =
   useState(null);
+
+  const [archivoDocumentoVehiculo, setArchivoDocumentoVehiculo] =
+  useState(null);
   
   const [pagoPeriodo, setPagoPeriodo] = useState(0);
   const [abonoCapitalPeriodo, setAbonoCapitalPeriodo] = useState(0);
@@ -1057,6 +1060,7 @@ setGarantiasPrestamo({
 
 setArchivoIdentificacionAval(null);
 setArchivoDocumentoPropiedad(null);
+    setArchivoDocumentoVehiculo(null);
     
     setPagoPeriodo(0);
     setInteresPeriodoEstimado(0);
@@ -1257,6 +1261,12 @@ if (evaluacionCrediticia.tiene_automovil === 'SI') {
       'Indique el valor estimado del vehículo.'
     );
   }
+if (!archivoDocumentoVehiculo) {
+  return alert(
+    'Debe adjuntar el documento que acredita la propiedad del vehículo.'
+  );
+}
+  
 }
 
 
@@ -1554,6 +1564,7 @@ if (!id_prestamo) {
 
 let identificacionAvalPath = null;
 let documentoPropiedadPath = null;
+let documentoVehiculoPath = null;
 
 // Identificación del aval
 if (
@@ -1580,6 +1591,20 @@ if (
       idPrestamo: id_prestamo,
       carpeta: 'propiedad',
       prefijo: 'documento_propiedad',
+    });
+}
+
+// Documento del vehículo
+if (
+  evaluacionCrediticia.tiene_automovil === 'SI' &&
+  archivoDocumentoVehiculo
+) {
+  documentoVehiculoPath =
+    await subirDocumentoPrestamo({
+      file: archivoDocumentoVehiculo,
+      idPrestamo: id_prestamo,
+      carpeta: 'vehiculo',
+      prefijo: 'documento_vehiculo',
     });
 }
       
@@ -1906,7 +1931,8 @@ if (evaluacionCrediticia.tiene_automovil === 'SI') {
 
     pertenece_a: garantiasPrestamo.vehiculo_pertenece_a,
     tipo_garantia: 'VEHICULO',
-    documento_path: null,
+    documento_path:
+  documentoVehiculoPath,
 
     descripcion:
       `${garantiasPrestamo.vehiculo_marca} ${garantiasPrestamo.vehiculo_modelo}`
@@ -5032,6 +5058,95 @@ if (garantiasParaGuardar.length > 0) {
           />
         </div>
 
+{/* ================= DOCUMENTO DEL VEHÍCULO ================= */}
+<div className="border border-slate-200 rounded-xl p-4 bg-white">
+
+  <label className="block text-sm font-semibold text-slate-800 mb-2">
+    Documento que acredita la propiedad del vehículo *
+  </label>
+
+  <p className="text-xs text-slate-500 mb-3">
+    Adjunte factura, título del vehículo, carta factura u otro documento
+    que acredite la propiedad. PDF, JPG o PNG. Máximo 10 MB.
+  </p>
+
+  <label
+    className="
+      flex
+      items-center
+      justify-center
+      gap-2
+      w-full
+      sm:w-auto
+      sm:inline-flex
+      px-4
+      py-3
+      sm:py-2
+      bg-indigo-600
+      text-white
+      rounded-xl
+      cursor-pointer
+      hover:bg-indigo-700
+      transition-colors
+      font-medium
+      text-sm
+    "
+  >
+    <span>📎</span>
+
+    <span>
+      {archivoDocumentoVehiculo
+        ? 'Cambiar documento'
+        : 'Adjuntar documento'}
+    </span>
+
+    <input
+      type="file"
+      accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+      onChange={(e) => {
+        const file = e.target.files?.[0] || null;
+        setArchivoDocumentoVehiculo(file);
+      }}
+      className="hidden"
+    />
+  </label>
+
+  {archivoDocumentoVehiculo && (
+    <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+
+      <div className="flex items-start justify-between gap-3">
+
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-emerald-800">
+            Documento seleccionado
+          </p>
+
+          <p className="text-xs text-emerald-700 break-all mt-1">
+            {archivoDocumentoVehiculo.name}
+          </p>
+
+          <p className="text-xs text-slate-500 mt-1">
+            {(archivoDocumentoVehiculo.size / 1024 / 1024).toFixed(2)} MB
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            setArchivoDocumentoVehiculo(null)
+          }
+          className="shrink-0 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+        >
+          Quitar
+        </button>
+
+      </div>
+
+    </div>
+  )}
+
+</div>
+              
         <div>
           <label className="block text-sm text-slate-700 mb-1">
             Gravámenes o préstamos pendientes
