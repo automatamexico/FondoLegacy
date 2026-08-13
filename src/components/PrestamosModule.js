@@ -273,6 +273,33 @@ const [archivoDocumentoPropiedad, setArchivoDocumentoPropiedad] =
 
   const [archivoDocumentoVehiculo, setArchivoDocumentoVehiculo] =
   useState(null);
+
+  // ================= ERRORES FORMULARIO =================
+const [erroresFormulario, setErroresFormulario] = useState({});
+
+  const validarArchivoPrestamo = (file) => {
+  if (!file) {
+    return 'Debe seleccionar un archivo.';
+  }
+
+  const tiposPermitidos = [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+  ];
+
+  if (!tiposPermitidos.includes(file.type)) {
+    return 'Solo se permiten archivos PDF, JPG o PNG.';
+  }
+
+  const maxSize = 10 * 1024 * 1024;
+
+  if (file.size > maxSize) {
+    return 'El archivo supera el tamaño máximo permitido de 10 MB.';
+  }
+
+  return '';
+};
   
   const [pagoPeriodo, setPagoPeriodo] = useState(0);
   const [abonoCapitalPeriodo, setAbonoCapitalPeriodo] = useState(0);
@@ -288,6 +315,21 @@ const [archivoDocumentoPropiedad, setArchivoDocumentoPropiedad] =
   // --- Utils ---
   const formatCurrency = (value) =>
     new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
+
+  const formatFechaSolo = (fecha) => {
+  if (!fecha) return '—';
+
+  const soloFecha = String(fecha).slice(0, 10);
+  const partes = soloFecha.split('-');
+
+  if (partes.length !== 3) {
+    return fecha;
+  }
+
+  const [anio, mes, dia] = partes;
+
+  return `${dia}/${mes}/${anio}`;
+};
 
   const calcularPagoRequerido = (monto, tasaPctPorPeriodo, nPlazos) => {
     const P = Number(monto) || 0;
@@ -1234,6 +1276,8 @@ setGarantiasPrestamo({
 setArchivoIdentificacionAval(null);
 setArchivoDocumentoPropiedad(null);
     setArchivoDocumentoVehiculo(null);
+
+    setErroresFormulario({});
     
     setPagoPeriodo(0);
     setInteresPeriodoEstimado(0);
@@ -1472,11 +1516,62 @@ if (garantiasPrestamo.tiene_otro_activo === 'SI') {
     if (!newPrestamo.numero_plazos || Number(newPrestamo.numero_plazos) <= 0) return alert('Plazos inválidos.');
     if (newPrestamo.interes === '' || Number(newPrestamo.interes) < 0) return alert('Interés por periodo inválido.');
 
+    // ======================================================
+// ========= VALIDACIÓN FINAL DE DOCUMENTOS =============
+// ======================================================
+
+const erroresArchivos = {};
+
+if (evaluacionCrediticia.cuenta_con_aval) {
+  const errorAval = validarArchivoPrestamo(
+    archivoIdentificacionAval
+  );
+
+  if (errorAval) {
+    erroresArchivos.identificacionAval = errorAval;
+  }
+}
+
+if (evaluacionCrediticia.tiene_propiedades === 'SI') {
+  const errorPropiedad = validarArchivoPrestamo(
+    archivoDocumentoPropiedad
+  );
+
+  if (errorPropiedad) {
+    erroresArchivos.documentoPropiedad = errorPropiedad;
+  }
+}
+
+if (evaluacionCrediticia.tiene_automovil === 'SI') {
+  const errorVehiculo = validarArchivoPrestamo(
+    archivoDocumentoVehiculo
+  );
+
+  if (errorVehiculo) {
+    erroresArchivos.documentoVehiculo = errorVehiculo;
+  }
+}
+
+if (Object.keys(erroresArchivos).length > 0) {
+  setErroresFormulario((prev) => ({
+    ...prev,
+    ...erroresArchivos,
+  }));
+
+  alert(
+    'Hay documentos pendientes o incorrectos. Revise los campos marcados en rojo.'
+  );
+
+  return;
+}
+
     const fechaSolicitudISO = toISODate(newPrestamo.fecha_solicitud);
     const nPlazos = Number(newPrestamo.numero_plazos);
     const pagoRequerido = Number(pagoPeriodo.toFixed(2));
     const fechaVencimientoISO = addPeriod(fechaSolicitudISO, newPrestamo.tipo_plazo, nPlazos);
 
+let idPrestamoCreado = null;
+    
     setSubmitting(true);
     try {
       // 1) Insert préstamo (incluye fecha_vencimiento si tu tabla la usa)
@@ -1724,6 +1819,8 @@ if (garantiasPrestamo.tiene_otro_activo === 'SI') {
       const prestInsert = await rPrest.json();
       const prestamo = prestInsert[0];
       const id_prestamo = prestamo?.id_prestamo;
+      
+      idPrestamoCreado = id_prestamo;
 
 if (!id_prestamo) {
   throw new Error(
@@ -2257,8 +2354,70 @@ if (garantiasParaGuardar.length > 0) {
       fetchGlobalPrestamoStats();
       if (!idSocio) fetchAllSociosConPrestamoActivo();
       else fetchPrestamosForUser(idSocio);
-    } catch (e) {
-      alert(e.message || 'Error al crear el préstamo.');
+  } catch (e) {
+
+  console.error('ERROR CREANDO PRÉSTAMO:', e);
+
+  if (idPrestamoCreado) {
+    try {
+      const headersDelete = {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      };
+
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${idPrestamoCreado}`,
+        {
+          method: 'DELETE',
+          headers: headersDelete,
+        }
+      );
+
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/garantias_prestamos?id_prestamo=eq.${idPrestamoCreado}`,
+        {
+          method: 'DELETE',
+          headers: headersDelete,
+        }
+      );
+
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/avales_prestamos?id_prestamo=eq.${idPrestamoCreado}`,
+        {
+          method: 'DELETE',
+          headers: headersDelete,
+        }
+      );
+
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/evaluaciones_crediticias?id_prestamo=eq.${idPrestamoCreado}`,
+        {
+          method: 'DELETE',
+          headers: headersDelete,
+        }
+      );
+
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/prestamos?id_prestamo=eq.${idPrestamoCreado}`,
+        {
+          method: 'DELETE',
+          headers: headersDelete,
+        }
+      );
+
+    } catch (rollbackError) {
+      console.error(
+        'ERROR REVERTIENDO PRÉSTAMO INCOMPLETO:',
+        rollbackError
+      );
+    }
+  }
+
+  alert(
+    e.message ||
+      'No se pudo guardar el préstamo. Los datos capturados permanecen para que pueda corregirlos.'
+  );
+}
     } finally {
       setSubmitting(false);
       setTimeout(() => setToastMessage(''), 3000);
@@ -2554,7 +2713,7 @@ if (garantiasParaGuardar.length > 0) {
                   <div>
                     <p className="font-medium text-slate-900">
                       Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
-                      {convertirFechaHoraLocal(prestamo.fecha_solicitud).fecha}
+                      {formatFechaSolo(prestamo.fecha_solicitud)}
                     </p>
                     {prestamo.isPaid && (
                       <span className="inline-block mt-2 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
@@ -2624,7 +2783,7 @@ if (garantiasParaGuardar.length > 0) {
                   <div>
                     <p className="font-medium text-slate-900">
                       Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
-                      {convertirFechaHoraLocal(prestamo.fecha_solicitud).fecha}
+                      {formatFechaSolo(prestamo.fecha_solicitud)}
                     </p>
                     {!prestamo.canDelete && (
                       <p className="text-xs text-slate-500 mt-1">No se puede eliminar (tiene pagos o supera 1 día).</p>
@@ -2758,11 +2917,7 @@ if (garantiasParaGuardar.length > 0) {
                 Fecha de solicitud
               </p>
               <p className="font-semibold">
-                {expedientePrestamo.fecha_solicitud
-                  ? convertirFechaHoraLocal(
-                      expedientePrestamo.fecha_solicitud
-                    ).fecha
-                  : '—'}
+             {formatFechaSolo(expedientePrestamo.fecha_solicitud)}
               </p>
             </div>
 
@@ -5195,7 +5350,13 @@ if (garantiasParaGuardar.length > 0) {
 
     </div>
     {/* ================= IDENTIFICACIÓN DEL AVAL ================= */}
-    <div className="border border-slate-200 rounded-xl p-4 bg-white">
+    <div
+  className={`border rounded-xl p-4 ${
+    erroresFormulario.identificacionAval
+      ? 'border-red-500 bg-red-50'
+      : 'border-slate-200 bg-white'
+  }`}
+>
 
       <label className="block text-sm font-semibold text-slate-800 mb-2">
         Copia de identificación del Aval *
@@ -5205,6 +5366,12 @@ if (garantiasParaGuardar.length > 0) {
         Adjunte INE, pasaporte u otra identificación oficial.
         PDF, JPG o PNG. Máximo 10 MB.
       </p>
+
+  {erroresFormulario.identificacionAval && (
+  <p className="mb-3 text-sm font-semibold text-red-600">
+    ⚠ {erroresFormulario.identificacionAval}
+  </p>
+)}
 
       <label
         className="
@@ -5240,9 +5407,29 @@ if (garantiasParaGuardar.length > 0) {
           type="file"
           accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
           onChange={(e) => {
-            const file = e.target.files?.[0] || null;
-            setArchivoIdentificacionAval(file);
-          }}
+  const file = e.target.files?.[0] || null;
+
+  const errorArchivo = validarArchivoPrestamo(file);
+
+  if (errorArchivo) {
+    setArchivoIdentificacionAval(null);
+
+    setErroresFormulario((prev) => ({
+      ...prev,
+      identificacionAval: errorArchivo,
+    }));
+
+    e.target.value = '';
+    return;
+  }
+
+  setArchivoIdentificacionAval(file);
+
+  setErroresFormulario((prev) => ({
+    ...prev,
+    identificacionAval: '',
+  }));
+}}
           className="hidden"
         />
       </label>
@@ -5783,8 +5970,13 @@ if (garantiasParaGuardar.length > 0) {
           />
         </div>
         {/* ================= DOCUMENTO DE LA PROPIEDAD ================= */}
-        <div className="border border-slate-200 rounded-xl p-4 bg-white">
-
+       <div
+  className={`border rounded-xl p-4 ${
+    erroresFormulario.documentoPropiedad
+      ? 'border-red-500 bg-red-50'
+      : 'border-slate-200 bg-white'
+  }`}
+>
           <label className="block text-sm font-semibold text-slate-800 mb-2">
             Documento que acredita la propiedad *
           </label>
@@ -5793,7 +5985,11 @@ if (garantiasParaGuardar.length > 0) {
             Adjunte escritura, título de propiedad u otro documento
             que acredite legalmente la propiedad.
             PDF, JPG o PNG. Máximo 10 MB.
-          </p>
+              {erroresFormulario.documentoPropiedad && (
+  <p className="mb-3 text-sm font-semibold text-red-600">
+    ⚠ {erroresFormulario.documentoPropiedad}
+  </p>
+)}
 
           <label
             className="
@@ -5828,10 +6024,30 @@ if (garantiasParaGuardar.length > 0) {
             <input
               type="file"
               accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-              onChange={(e) => {
-                const file = e.target.files?.[0] || null;
-                setArchivoDocumentoPropiedad(file);
-              }}
+             onChange={(e) => {
+  const file = e.target.files?.[0] || null;
+
+  const errorArchivo = validarArchivoPrestamo(file);
+
+  if (errorArchivo) {
+    setArchivoDocumentoPropiedad(null);
+
+    setErroresFormulario((prev) => ({
+      ...prev,
+      documentoPropiedad: errorArchivo,
+    }));
+
+    e.target.value = '';
+    return;
+  }
+
+  setArchivoDocumentoPropiedad(file);
+
+  setErroresFormulario((prev) => ({
+    ...prev,
+    documentoPropiedad: '',
+  }));
+}}
               className="hidden"
             />
           </label>
@@ -6032,7 +6248,13 @@ if (garantiasParaGuardar.length > 0) {
         </div>
 
 {/* ================= DOCUMENTO DEL VEHÍCULO ================= */}
-<div className="border border-slate-200 rounded-xl p-4 bg-white">
+<div
+  className={`border rounded-xl p-4 ${
+    erroresFormulario.documentoVehiculo
+      ? 'border-red-500 bg-red-50'
+      : 'border-slate-200 bg-white'
+  }`}
+>
 
   <label className="block text-sm font-semibold text-slate-800 mb-2">
     Documento que acredita la propiedad del vehículo *
@@ -6041,7 +6263,12 @@ if (garantiasParaGuardar.length > 0) {
   <p className="text-xs text-slate-500 mb-3">
     Adjunte factura, título del vehículo, carta factura u otro documento
     que acredite la propiedad. PDF, JPG o PNG. Máximo 10 MB.
+      {erroresFormulario.documentoVehiculo && (
+  <p className="mb-3 text-sm font-semibold text-red-600">
+    ⚠ {erroresFormulario.documentoVehiculo}
   </p>
+)}
+
 
   <label
     className="
@@ -6076,10 +6303,30 @@ if (garantiasParaGuardar.length > 0) {
     <input
       type="file"
       accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-      onChange={(e) => {
-        const file = e.target.files?.[0] || null;
-        setArchivoDocumentoVehiculo(file);
-      }}
+     onChange={(e) => {
+  const file = e.target.files?.[0] || null;
+
+  const errorArchivo = validarArchivoPrestamo(file);
+
+  if (errorArchivo) {
+    setArchivoDocumentoVehiculo(null);
+
+    setErroresFormulario((prev) => ({
+      ...prev,
+      documentoVehiculo: errorArchivo,
+    }));
+
+    e.target.value = '';
+    return;
+  }
+
+  setArchivoDocumentoVehiculo(file);
+
+  setErroresFormulario((prev) => ({
+    ...prev,
+    documentoVehiculo: '',
+  }));
+}}
       className="hidden"
     />
   </label>
