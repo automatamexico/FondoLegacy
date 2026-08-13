@@ -4273,6 +4273,612 @@ if (garantiasParaGuardar.length > 0) {
   </div>
 )}
 
+{/* ===================================================== */}
+{/* ===================== GARANTÍAS ====================== */}
+{/* ===================================================== */}
+
+<div className="border-t-2 border-indigo-500 pt-5 mt-5 space-y-5">
+
+  <div>
+    <h4 className="text-lg font-bold text-slate-900">
+      Garantías
+    </h4>
+    <p className="text-sm text-slate-500">
+      Información sobre activos que pueden respaldar el préstamo.
+    </p>
+  </div>
+
+  {/* ================= PROPIEDAD ================= */}
+
+  <div className="border border-slate-200 rounded-xl p-4 space-y-4 bg-slate-50">
+
+    <div>
+      <label className="block text-sm font-semibold text-slate-800 mb-2">
+        ¿Tiene propiedades?
+      </label>
+
+      <select
+        value={evaluacionCrediticia.tiene_propiedades}
+        onChange={(e) =>
+          setEvaluacionCrediticia((p) => ({
+            ...p,
+            tiene_propiedades: e.target.value,
+          }))
+        }
+        className="w-full px-3 py-2 border rounded-lg bg-white"
+      >
+        <option value="">Seleccione</option>
+        <option value="SI">Sí</option>
+        <option value="NO">No</option>
+      </select>
+    </div>
+
+    {evaluacionCrediticia.tiene_propiedades === 'SI' && (
+      <div className="space-y-4">
+
+        <h5 className="font-bold text-slate-900">
+          Datos de la propiedad
+        </h5>
+
+        <div>
+          <label className="block text-sm text-slate-700 mb-1">
+            ¿A quién pertenece la propiedad?
+          </label>
+
+          <select
+            value={garantiasPrestamo.propiedad_pertenece_a}
+            onChange={(e) =>
+              setGarantiasPrestamo((p) => ({
+                ...p,
+                propiedad_pertenece_a: e.target.value,
+              }))
+            }
+            className="w-full px-3 py-2 border rounded-lg bg-white"
+          >
+            <option value="SOLICITANTE">Solicitante</option>
+            <option value="AVAL">Aval</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm text-slate-700 mb-1">
+            Tipo de propiedad
+          </label>
+
+          <select
+            value={garantiasPrestamo.propiedad_tipo}
+            onChange={(e) =>
+              setGarantiasPrestamo((p) => ({
+                ...p,
+                propiedad_tipo: e.target.value,
+              }))
+            }
+            className="w-full px-3 py-2 border rounded-lg bg-white"
+          >
+            <option value="">Seleccione</option>
+            <option value="CASA">Casa</option>
+            <option value="DEPARTAMENTO">Departamento</option>
+            <option value="TERRENO">Terreno</option>
+            <option value="LOCAL">Local comercial</option>
+            <option value="BODEGA">Bodega</option>
+            <option value="OTRO">Otro</option>
+          </select>
+        </div>
+
+        <div>
+          <h6 className="font-semibold text-slate-800 mb-2">
+            Dirección de la propiedad
+          </h6>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+            <input
+              type="text"
+              placeholder="Calle"
+              value={garantiasPrestamo.propiedad_calle}
+              onChange={(e) =>
+                setGarantiasPrestamo((p) => ({
+                  ...p,
+                  propiedad_calle: e.target.value,
+                }))
+              }
+              className="px-3 py-2 border rounded-lg"
+            />
+
+            <input
+              type="text"
+              placeholder="Número"
+              value={garantiasPrestamo.propiedad_numero}
+              onChange={(e) =>
+                setGarantiasPrestamo((p) => ({
+                  ...p,
+                  propiedad_numero: e.target.value,
+                }))
+              }
+              className="px-3 py-2 border rounded-lg"
+            />
+
+            <input
+              type="text"
+              placeholder="Edificio"
+              value={garantiasPrestamo.propiedad_edificio}
+              onChange={(e) =>
+                setGarantiasPrestamo((p) => ({
+                  ...p,
+                  propiedad_edificio: e.target.value,
+                }))
+              }
+              className="px-3 py-2 border rounded-lg"
+            />
+
+            <input
+              type="text"
+              placeholder="Colonia"
+              value={garantiasPrestamo.propiedad_colonia}
+              onChange={(e) =>
+                setGarantiasPrestamo((p) => ({
+                  ...p,
+                  propiedad_colonia: e.target.value,
+                }))
+              }
+              className="px-3 py-2 border rounded-lg"
+            />
+
+            <select
+              value={garantiasPrestamo.propiedad_estado}
+              onChange={(e) =>
+                setGarantiasPrestamo((p) => ({
+                  ...p,
+                  propiedad_estado: e.target.value,
+                  propiedad_pais:
+                    e.target.value === 'EXTRANJERO'
+                      ? p.propiedad_pais
+                      : '',
+                }))
+              }
+              className="px-3 py-2 border rounded-lg bg-white"
+            >
+              <option value="">Estado</option>
+
+              {ESTADOS_MEXICO.map((estado) => (
+                <option key={estado} value={estado}>
+                  {estado}
+                </option>
+              ))}
+
+              <option value="EXTRANJERO">Extranjero</option>
+            </select>
+
+            {garantiasPrestamo.propiedad_estado === 'EXTRANJERO' && (
+              <input
+                type="text"
+                placeholder="País"
+                value={garantiasPrestamo.propiedad_pais}
+                onChange={(e) =>
+                  setGarantiasPrestamo((p) => ({
+                    ...p,
+                    propiedad_pais: e.target.value,
+                  }))
+                }
+                className="px-3 py-2 border rounded-lg"
+              />
+            )}
+
+            <input
+              type="text"
+              placeholder="Alcaldía / Municipio"
+              value={garantiasPrestamo.propiedad_municipio}
+              onChange={(e) =>
+                setGarantiasPrestamo((p) => ({
+                  ...p,
+                  propiedad_municipio: e.target.value,
+                }))
+              }
+              className="px-3 py-2 border rounded-lg"
+            />
+
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="Código Postal"
+              value={garantiasPrestamo.propiedad_cp}
+              onChange={(e) =>
+                setGarantiasPrestamo((p) => ({
+                  ...p,
+                  propiedad_cp: e.target.value
+                    .replace(/\D/g, '')
+                    .slice(0, 5),
+                }))
+              }
+              className="px-3 py-2 border rounded-lg"
+            />
+
+            <input
+              type="text"
+              placeholder="Entre calles"
+              value={garantiasPrestamo.propiedad_entre_calles}
+              onChange={(e) =>
+                setGarantiasPrestamo((p) => ({
+                  ...p,
+                  propiedad_entre_calles: e.target.value,
+                }))
+              }
+              className="px-3 py-2 border rounded-lg"
+            />
+
+            <input
+              type="text"
+              placeholder="Referencias"
+              value={garantiasPrestamo.propiedad_referencias}
+              onChange={(e) =>
+                setGarantiasPrestamo((p) => ({
+                  ...p,
+                  propiedad_referencias: e.target.value,
+                }))
+              }
+              className="px-3 py-2 border rounded-lg"
+            />
+
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm text-slate-700 mb-1">
+            Valor estimado de la propiedad
+          </label>
+
+          <div className="relative">
+            <span className="absolute left-3 top-2 text-slate-500">
+              $
+            </span>
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={garantiasPrestamo.propiedad_valor_estimado}
+              onChange={(e) =>
+                setGarantiasPrestamo((p) => ({
+                  ...p,
+                  propiedad_valor_estimado: e.target.value,
+                }))
+              }
+              className="w-full pl-7 pr-3 py-2 border rounded-lg"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm text-slate-700 mb-1">
+            Escritura o título de propiedad
+          </label>
+
+          <textarea
+            rows="2"
+            placeholder="Indique la documentación que acredita la propiedad"
+            value={garantiasPrestamo.propiedad_documentacion}
+            onChange={(e) =>
+              setGarantiasPrestamo((p) => ({
+                ...p,
+                propiedad_documentacion: e.target.value,
+              }))
+            }
+            className="w-full px-3 py-2 border rounded-lg"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm text-slate-700 mb-1">
+            Hipotecas o gravámenes existentes
+          </label>
+
+          <textarea
+            rows="2"
+            placeholder="Indique montos y entidades si aplica"
+            value={garantiasPrestamo.propiedad_gravamenes}
+            onChange={(e) =>
+              setGarantiasPrestamo((p) => ({
+                ...p,
+                propiedad_gravamenes: e.target.value,
+              }))
+            }
+            className="w-full px-3 py-2 border rounded-lg"
+          />
+        </div>
+
+      </div>
+    )}
+
+  </div>
+
+
+  {/* ================= VEHÍCULO ================= */}
+
+  <div className="border border-slate-200 rounded-xl p-4 space-y-4 bg-slate-50">
+
+    <div>
+      <label className="block text-sm font-semibold text-slate-800 mb-2">
+        ¿Tiene automóvil?
+      </label>
+
+      <select
+        value={evaluacionCrediticia.tiene_automovil}
+        onChange={(e) =>
+          setEvaluacionCrediticia((p) => ({
+            ...p,
+            tiene_automovil: e.target.value,
+          }))
+        }
+        className="w-full px-3 py-2 border rounded-lg bg-white"
+      >
+        <option value="">Seleccione</option>
+        <option value="SI">Sí</option>
+        <option value="NO">No</option>
+      </select>
+    </div>
+
+    {evaluacionCrediticia.tiene_automovil === 'SI' && (
+      <div className="space-y-4">
+
+        <h5 className="font-bold text-slate-900">
+          Datos del vehículo
+        </h5>
+
+        <div>
+          <label className="block text-sm text-slate-700 mb-1">
+            ¿A quién pertenece el vehículo?
+          </label>
+
+          <select
+            value={garantiasPrestamo.vehiculo_pertenece_a}
+            onChange={(e) =>
+              setGarantiasPrestamo((p) => ({
+                ...p,
+                vehiculo_pertenece_a: e.target.value,
+              }))
+            }
+            className="w-full px-3 py-2 border rounded-lg bg-white"
+          >
+            <option value="SOLICITANTE">Solicitante</option>
+            <option value="AVAL">Aval</option>
+          </select>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+          <input
+            type="text"
+            placeholder="Marca"
+            value={garantiasPrestamo.vehiculo_marca}
+            onChange={(e) =>
+              setGarantiasPrestamo((p) => ({
+                ...p,
+                vehiculo_marca: e.target.value,
+              }))
+            }
+            className="px-3 py-2 border rounded-lg"
+          />
+
+          <input
+            type="text"
+            placeholder="Modelo"
+            value={garantiasPrestamo.vehiculo_modelo}
+            onChange={(e) =>
+              setGarantiasPrestamo((p) => ({
+                ...p,
+                vehiculo_modelo: e.target.value,
+              }))
+            }
+            className="px-3 py-2 border rounded-lg"
+          />
+
+          <input
+            type="number"
+            min="1900"
+            max="2100"
+            placeholder="Año de fabricación"
+            value={garantiasPrestamo.vehiculo_anio}
+            onChange={(e) =>
+              setGarantiasPrestamo((p) => ({
+                ...p,
+                vehiculo_anio: e.target.value,
+              }))
+            }
+            className="px-3 py-2 border rounded-lg"
+          />
+
+          <div className="relative">
+            <span className="absolute left-3 top-2 text-slate-500">
+              $
+            </span>
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Valor estimado"
+              value={garantiasPrestamo.vehiculo_valor_estimado}
+              onChange={(e) =>
+                setGarantiasPrestamo((p) => ({
+                  ...p,
+                  vehiculo_valor_estimado: e.target.value,
+                }))
+              }
+              className="w-full pl-7 pr-3 py-2 border rounded-lg"
+            />
+          </div>
+
+        </div>
+
+        <div>
+          <label className="block text-sm text-slate-700 mb-1">
+            Documentación de propiedad
+          </label>
+
+          <textarea
+            rows="2"
+            placeholder="Título, factura, tarjeta de circulación, etc."
+            value={garantiasPrestamo.vehiculo_documentacion}
+            onChange={(e) =>
+              setGarantiasPrestamo((p) => ({
+                ...p,
+                vehiculo_documentacion: e.target.value,
+              }))
+            }
+            className="w-full px-3 py-2 border rounded-lg"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm text-slate-700 mb-1">
+            Gravámenes o préstamos pendientes
+          </label>
+
+          <textarea
+            rows="2"
+            placeholder="Indique si existe algún financiamiento o gravamen"
+            value={garantiasPrestamo.vehiculo_gravamenes}
+            onChange={(e) =>
+              setGarantiasPrestamo((p) => ({
+                ...p,
+                vehiculo_gravamenes: e.target.value,
+              }))
+            }
+            className="w-full px-3 py-2 border rounded-lg"
+          />
+        </div>
+
+      </div>
+    )}
+
+  </div>
+
+
+  {/* ================= OTROS ACTIVOS ================= */}
+
+  <div className="border border-slate-200 rounded-xl p-4 space-y-4 bg-slate-50">
+
+    <div>
+      <label className="block text-sm font-semibold text-slate-800 mb-2">
+        ¿Cuenta con otro activo que pueda dejar como garantía?
+      </label>
+
+      <select
+        value={garantiasPrestamo.tiene_otro_activo}
+        onChange={(e) =>
+          setGarantiasPrestamo((p) => ({
+            ...p,
+            tiene_otro_activo: e.target.value,
+          }))
+        }
+        className="w-full px-3 py-2 border rounded-lg bg-white"
+      >
+        <option value="">Seleccione</option>
+        <option value="SI">Sí</option>
+        <option value="NO">No</option>
+      </select>
+    </div>
+
+    {garantiasPrestamo.tiene_otro_activo === 'SI' && (
+      <div className="space-y-4">
+
+        <h5 className="font-bold text-slate-900">
+          Otro activo
+        </h5>
+
+        <div>
+          <label className="block text-sm text-slate-700 mb-1">
+            ¿A quién pertenece?
+          </label>
+
+          <select
+            value={garantiasPrestamo.otro_pertenece_a}
+            onChange={(e) =>
+              setGarantiasPrestamo((p) => ({
+                ...p,
+                otro_pertenece_a: e.target.value,
+              }))
+            }
+            className="w-full px-3 py-2 border rounded-lg bg-white"
+          >
+            <option value="SOLICITANTE">Solicitante</option>
+            <option value="AVAL">Aval</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm text-slate-700 mb-1">
+            Tipo de activo
+          </label>
+
+          <input
+            type="text"
+            placeholder="Ej. joyas, maquinaria, equipo, objetos de valor..."
+            value={garantiasPrestamo.otro_tipo}
+            onChange={(e) =>
+              setGarantiasPrestamo((p) => ({
+                ...p,
+                otro_tipo: e.target.value,
+              }))
+            }
+            className="w-full px-3 py-2 border rounded-lg"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm text-slate-700 mb-1">
+            Descripción del activo
+          </label>
+
+          <textarea
+            rows="3"
+            placeholder="Describa detalladamente el activo"
+            value={garantiasPrestamo.otro_descripcion}
+            onChange={(e) =>
+              setGarantiasPrestamo((p) => ({
+                ...p,
+                otro_descripcion: e.target.value,
+              }))
+            }
+            className="w-full px-3 py-2 border rounded-lg"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm text-slate-700 mb-1">
+            Valor estimado
+          </label>
+
+          <div className="relative">
+            <span className="absolute left-3 top-2 text-slate-500">
+              $
+            </span>
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={garantiasPrestamo.otro_valor_estimado}
+              onChange={(e) =>
+                setGarantiasPrestamo((p) => ({
+                  ...p,
+                  otro_valor_estimado: e.target.value,
+                }))
+              }
+              className="w-full pl-7 pr-3 py-2 border rounded-lg"
+            />
+          </div>
+        </div>
+
+      </div>
+    )}
+
+  </div>
+
+</div>
+
               {/* Monto / Plazos */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
