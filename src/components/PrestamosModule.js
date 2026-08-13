@@ -2651,6 +2651,777 @@ if (garantiasParaGuardar.length > 0) {
         </div>
       )}
 
+{/* ====================================================== */}
+{/* ============== MODAL EXPEDIENTE PRÉSTAMO ============ */}
+{/* ====================================================== */}
+
+{showExpedientePrestamo && expedientePrestamo && (
+  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-2 sm:p-4">
+
+    <div className="bg-white w-full max-w-6xl max-h-[96vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+
+      {/* ENCABEZADO */}
+      <div className="flex items-start justify-between gap-3 p-4 md:p-6 border-b border-slate-200">
+
+        <div>
+          <h2 className="text-xl md:text-2xl font-bold text-slate-900">
+            Expediente del Préstamo #{expedientePrestamo.id_prestamo}
+          </h2>
+
+          <p className="text-sm text-slate-500 mt-1">
+            Información capturada al momento de la solicitud.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setShowExpedientePrestamo(false);
+            setExpedientePrestamo(null);
+            setEvaluacionExpediente(null);
+            setAvalExpediente(null);
+            setGarantiasExpediente([]);
+          }}
+          className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xl"
+        >
+          ×
+        </button>
+
+      </div>
+
+
+      {/* CONTENIDO */}
+      <div className="overflow-y-auto p-4 md:p-6 space-y-6">
+
+
+        {/* ====================================================== */}
+        {/* ================= RESUMEN PRÉSTAMO =================== */}
+        {/* ====================================================== */}
+
+        <section className="border border-slate-200 rounded-xl overflow-hidden">
+
+          <div className="bg-slate-100 px-4 py-3">
+            <h3 className="font-bold text-slate-900">
+              Resumen del Préstamo
+            </h3>
+          </div>
+
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+            <div>
+              <p className="text-xs text-slate-500">
+                ID Préstamo
+              </p>
+              <p className="font-semibold">
+                {expedientePrestamo.id_prestamo || '—'}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">
+                Monto solicitado
+              </p>
+              <p className="font-semibold">
+                {formatCurrency(expedientePrestamo.monto_solicitado)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">
+                Número de plazos
+              </p>
+              <p className="font-semibold">
+                {expedientePrestamo.numero_plazos || '—'}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">
+                Periodicidad
+              </p>
+              <p className="font-semibold uppercase">
+                {expedientePrestamo.tipo_plazo || '—'}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">
+                Interés por periodo
+              </p>
+              <p className="font-semibold">
+                {expedientePrestamo.interes ?? '—'}%
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">
+                Fecha de solicitud
+              </p>
+              <p className="font-semibold">
+                {expedientePrestamo.fecha_solicitud
+                  ? convertirFechaHoraLocal(
+                      expedientePrestamo.fecha_solicitud
+                    ).fecha
+                  : '—'}
+              </p>
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* ====================================================== */}
+        {/* ================= PERFIL ECONÓMICO ==================== */}
+        {/* ====================================================== */}
+
+        <section className="border border-slate-200 rounded-xl overflow-hidden">
+
+          <div className="bg-slate-100 px-4 py-3">
+            <h3 className="font-bold text-slate-900">
+              Perfil Económico
+            </h3>
+          </div>
+
+          <div className="p-4 space-y-4">
+
+            <div>
+              <p className="text-xs text-slate-500">
+                Fuente de ingresos
+              </p>
+
+              <p className="font-semibold">
+                {expedientePrestamo.tipo_fuente_ingreso === 'EMPLEADO'
+                  ? 'Empleado'
+                  : expedientePrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO'
+                  ? 'Negocio propio'
+                  : '—'}
+              </p>
+            </div>
+
+
+            {/* EMPLEADO */}
+            {expedientePrestamo.tipo_fuente_ingreso === 'EMPLEADO' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Empresa
+                  </p>
+                  <p className="font-medium">
+                    {expedientePrestamo.empleado_nombre_empresa || '—'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Ocupación
+                  </p>
+                  <p className="font-medium">
+                    {expedientePrestamo.empleado_ocupacion || '—'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Tiempo trabajando
+                  </p>
+                  <p className="font-medium">
+                    {expedientePrestamo.empleado_tiempo_anios || 0} años{' '}
+                    {expedientePrestamo.empleado_tiempo_meses || 0} meses
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Tipo de contrato
+                  </p>
+                  <p className="font-medium">
+                    {expedientePrestamo.empleado_tipo_contrato || '—'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Ingreso mensual neto
+                  </p>
+                  <p className="font-medium">
+                    {formatCurrency(
+                      expedientePrestamo.empleado_ingreso_mensual_neto
+                    )}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    ¿Comprueba ingresos?
+                  </p>
+                  <p className="font-medium">
+                    {expedientePrestamo.empleado_comprueba_ingresos || '—'}
+                  </p>
+                </div>
+
+                {expedientePrestamo.empleado_tipo_comprobante && (
+                  <div>
+                    <p className="text-xs text-slate-500">
+                      Tipo de comprobante
+                    </p>
+                    <p className="font-medium">
+                      {expedientePrestamo.empleado_tipo_comprobante}
+                    </p>
+                  </div>
+                )}
+
+              </div>
+            )}
+
+
+            {/* NEGOCIO PROPIO */}
+            {expedientePrestamo.tipo_fuente_ingreso === 'NEGOCIO_PROPIO' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Tipo de negocio
+                  </p>
+                  <p className="font-medium">
+                    {expedientePrestamo.negocio_tipo || '—'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Antigüedad
+                  </p>
+                  <p className="font-medium">
+                    {expedientePrestamo.negocio_tiempo_anios || 0} años{' '}
+                    {expedientePrestamo.negocio_tiempo_meses || 0} meses
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    ¿Es formal?
+                  </p>
+                  <p className="font-medium">
+                    {expedientePrestamo.negocio_formal || '—'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Número de empleados
+                  </p>
+                  <p className="font-medium">
+                    {expedientePrestamo.negocio_num_empleados || '—'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Gastos mensuales
+                  </p>
+                  <p className="font-medium">
+                    {expedientePrestamo.negocio_gastos_mensuales || '—'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Utilidad aproximada
+                  </p>
+                  <p className="font-medium">
+                    {formatCurrency(
+                      expedientePrestamo.negocio_utilidad_aproximada
+                    )}
+                  </p>
+                </div>
+
+              </div>
+            )}
+
+          </div>
+
+        </section>
+
+
+        {/* ====================================================== */}
+        {/* =============== EVALUACIÓN CREDITICIA ================= */}
+        {/* ====================================================== */}
+
+        <section className="border border-slate-200 rounded-xl overflow-hidden">
+
+          <div className="bg-indigo-50 px-4 py-3">
+            <h3 className="font-bold text-indigo-900">
+              Evaluación Crediticia
+            </h3>
+          </div>
+
+
+          {!evaluacionExpediente ? (
+            <div className="p-4 text-sm text-slate-500">
+              Este préstamo no tiene evaluación crediticia registrada.
+            </div>
+          ) : (
+            <div className="p-4 space-y-4">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Pago máximo sin atrasarse
+                  </p>
+
+                  <p className="font-semibold">
+                    {formatCurrency(
+                      evaluacionExpediente.capacidad_pago_monto
+                    )}{' '}
+                    /{' '}
+                    {evaluacionExpediente.capacidad_pago_periodicidad || '—'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    ¿El uso generará ingresos?
+                  </p>
+
+                  <p className="font-semibold">
+                    {evaluacionExpediente.uso_generara_ingresos
+                      ? 'Sí'
+                      : 'No'}
+                  </p>
+                </div>
+
+              </div>
+
+
+              <div>
+                <p className="text-xs text-slate-500">
+                  ¿Para qué necesita el dinero?
+                </p>
+
+                <p className="font-medium whitespace-pre-wrap">
+                  {evaluacionExpediente.destino_dinero || '—'}
+                </p>
+              </div>
+
+
+              {evaluacionExpediente.tiempo_recuperacion && (
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Tiempo para recuperar la inversión
+                  </p>
+
+                  <p className="font-medium">
+                    {evaluacionExpediente.tiempo_recuperacion}
+                  </p>
+                </div>
+              )}
+
+
+              <div>
+                <p className="text-xs text-slate-500">
+                  ¿Qué pasaría si el negocio, plan o proyecto no funciona?
+                </p>
+
+                <p className="font-medium whitespace-pre-wrap">
+                  {evaluacionExpediente.riesgo_si_no_funciona || '—'}
+                </p>
+              </div>
+
+
+              <div>
+                <p className="text-xs text-slate-500">
+                  Otros ingresos
+                </p>
+
+                <p className="font-medium whitespace-pre-wrap">
+                  {evaluacionExpediente.otros_ingresos || '—'}
+                </p>
+              </div>
+
+
+              <div>
+                <p className="text-xs text-slate-500">
+                  ¿Qué haría si no puede pagar una mensualidad?
+                </p>
+
+                <p className="font-medium whitespace-pre-wrap">
+                  {evaluacionExpediente.accion_si_no_puede_pagar || '—'}
+                </p>
+              </div>
+
+
+              <div>
+                <p className="text-xs text-slate-500">
+                  ¿Qué pasaría si deja de recibir dinero un mes?
+                </p>
+
+                <p className="font-medium whitespace-pre-wrap">
+                  {evaluacionExpediente.accion_si_sin_ingresos_mes || '—'}
+                </p>
+              </div>
+
+
+              <div>
+                <p className="text-xs text-slate-500">
+                  Si hoy tuviera una emergencia fuerte, ¿cómo la resolvería?
+                </p>
+
+                <p className="font-medium whitespace-pre-wrap">
+                  {evaluacionExpediente.accion_emergencia_fuerte || '—'}
+                </p>
+              </div>
+
+
+              <div className="border-2 border-amber-300 bg-amber-50 rounded-xl p-4">
+
+                <p className="text-xs font-bold uppercase text-amber-700">
+                  Fuente principal de pago
+                </p>
+
+                <p className="text-sm font-bold text-slate-900 mt-1">
+                  Explíqueme exactamente de dónde saldrá el dinero para pagar este préstamo
+                </p>
+
+                <p className="mt-2 whitespace-pre-wrap text-slate-800">
+                  {evaluacionExpediente.fuente_pago_prestamo || '—'}
+                </p>
+
+              </div>
+
+            </div>
+          )}
+
+        </section>
+
+
+        {/* ====================================================== */}
+        {/* ======================= AVAL ========================== */}
+        {/* ====================================================== */}
+
+        <section className="border border-slate-200 rounded-xl overflow-hidden">
+
+          <div className="bg-slate-100 px-4 py-3">
+            <h3 className="font-bold text-slate-900">
+              Aval
+            </h3>
+          </div>
+
+
+          {!avalExpediente ? (
+            <div className="p-4 text-sm text-slate-500">
+              Este préstamo no tiene Aval registrado.
+            </div>
+          ) : (
+            <div className="p-4 space-y-4">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+                <div>
+                  <p className="text-xs text-slate-500">Nombre</p>
+                  <p className="font-semibold">
+                    {avalExpediente.nombre || '—'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">Edad</p>
+                  <p className="font-semibold">
+                    {avalExpediente.edad || '—'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">Celular</p>
+                  <p className="font-semibold">
+                    {avalExpediente.celular || '—'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Ocupación
+                  </p>
+                  <p className="font-semibold">
+                    {avalExpediente.ocupacion || '—'}
+                  </p>
+                </div>
+
+              </div>
+
+
+              <div>
+                <p className="text-xs text-slate-500">
+                  Domicilio
+                </p>
+
+                <p className="font-medium">
+                  {[
+                    avalExpediente.domicilio_calle,
+                    avalExpediente.domicilio_numero,
+                    avalExpediente.domicilio_edificio,
+                    avalExpediente.domicilio_colonia,
+                    avalExpediente.domicilio_municipio,
+                    avalExpediente.domicilio_estado,
+                    avalExpediente.domicilio_cp,
+                    avalExpediente.domicilio_pais,
+                  ]
+                    .filter(Boolean)
+                    .join(', ') || '—'}
+                </p>
+              </div>
+
+            </div>
+          )}
+
+        </section>
+
+
+        {/* ====================================================== */}
+        {/* ===================== GARANTÍAS ======================= */}
+        {/* ====================================================== */}
+
+        <section className="border border-slate-200 rounded-xl overflow-hidden">
+
+          <div className="bg-slate-100 px-4 py-3">
+            <h3 className="font-bold text-slate-900">
+              Garantías
+            </h3>
+          </div>
+
+
+          {garantiasExpediente.length === 0 ? (
+            <div className="p-4 text-sm text-slate-500">
+              Este préstamo no tiene garantías registradas.
+            </div>
+          ) : (
+            <div className="p-4 space-y-4">
+
+              {garantiasExpediente.map((garantia) => (
+
+                <div
+                  key={garantia.id_garantia}
+                  className="border border-slate-200 rounded-xl p-4"
+                >
+
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+
+                    <div>
+                      <p className="text-xs text-slate-500">
+                        Tipo de garantía
+                      </p>
+
+                      <h4 className="font-bold text-slate-900">
+                        {garantia.tipo_garantia || '—'}
+                      </h4>
+                    </div>
+
+                    <span className="inline-flex self-start px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                      {garantia.pertenece_a || '—'}
+                    </span>
+
+                  </div>
+
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                    <div>
+                      <p className="text-xs text-slate-500">
+                        Descripción
+                      </p>
+
+                      <p className="font-medium">
+                        {garantia.descripcion || '—'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-500">
+                        Valor estimado
+                      </p>
+
+                      <p className="font-semibold">
+                        {formatCurrency(garantia.valor_estimado)}
+                      </p>
+                    </div>
+
+                  </div>
+
+
+                  {/* PROPIEDAD */}
+                  {garantia.tipo_garantia === 'PROPIEDAD' && (
+                    <div className="mt-4 space-y-3">
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Tipo de propiedad
+                        </p>
+
+                        <p className="font-medium">
+                          {garantia.propiedad_tipo || '—'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Dirección
+                        </p>
+
+                        <p className="font-medium">
+                          {[
+                            garantia.propiedad_calle,
+                            garantia.propiedad_numero,
+                            garantia.propiedad_edificio,
+                            garantia.propiedad_colonia,
+                            garantia.propiedad_municipio,
+                            garantia.propiedad_estado,
+                            garantia.propiedad_cp,
+                            garantia.propiedad_pais,
+                          ]
+                            .filter(Boolean)
+                            .join(', ') || '—'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Documentación
+                        </p>
+
+                        <p className="font-medium">
+                          {garantia.propiedad_documentacion || '—'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Gravámenes
+                        </p>
+
+                        <p className="font-medium">
+                          {garantia.propiedad_gravamenes || '—'}
+                        </p>
+                      </div>
+
+                    </div>
+                  )}
+
+
+                  {/* VEHÍCULO */}
+                  {garantia.tipo_garantia === 'VEHICULO' && (
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Marca
+                        </p>
+                        <p className="font-medium">
+                          {garantia.vehiculo_marca || '—'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Modelo
+                        </p>
+                        <p className="font-medium">
+                          {garantia.vehiculo_modelo || '—'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Año
+                        </p>
+                        <p className="font-medium">
+                          {garantia.vehiculo_anio || '—'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          Documentación
+                        </p>
+                        <p className="font-medium">
+                          {garantia.vehiculo_documentacion || '—'}
+                        </p>
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <p className="text-xs text-slate-500">
+                          Gravámenes / préstamos pendientes
+                        </p>
+                        <p className="font-medium">
+                          {garantia.vehiculo_gravamenes || '—'}
+                        </p>
+                      </div>
+
+                    </div>
+                  )}
+
+
+                  {/* OTRO */}
+                  {garantia.tipo_garantia === 'OTRO' && (
+                    <div className="mt-4">
+
+                      <p className="text-xs text-slate-500">
+                        Tipo de activo
+                      </p>
+
+                      <p className="font-medium">
+                        {garantia.otro_tipo || '—'}
+                      </p>
+
+                      <p className="text-xs text-slate-500 mt-3">
+                        Descripción
+                      </p>
+
+                      <p className="font-medium whitespace-pre-wrap">
+                        {garantia.otro_descripcion || '—'}
+                      </p>
+
+                    </div>
+                  )}
+
+                </div>
+
+              ))}
+
+            </div>
+          )}
+
+        </section>
+
+
+      </div>
+
+
+      {/* PIE */}
+      <div className="border-t border-slate-200 p-4 flex justify-end">
+
+        <button
+          type="button"
+          onClick={() => {
+            setShowExpedientePrestamo(false);
+            setExpedientePrestamo(null);
+            setEvaluacionExpediente(null);
+            setAvalExpediente(null);
+            setGarantiasExpediente([]);
+          }}
+          className="w-full sm:w-auto px-5 py-2.5 bg-slate-800 text-white rounded-xl hover:bg-slate-900 font-medium"
+        >
+          Cerrar
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+)}
+
     {/* Modal de Detalles */}
 {showDetailsModal && selectedPrestamo && (
   <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-3 md:p-4 z-50">
