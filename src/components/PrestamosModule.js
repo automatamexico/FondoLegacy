@@ -5984,11 +5984,13 @@ if (garantiasParaGuardar.length > 0) {
             Documento que acredita la propiedad *
           </label>
 
-          <p className="text-xs text-slate-500 mb-3">
-            Adjunte escritura, título de propiedad u otro documento
-            que acredite legalmente la propiedad.
-            PDF, JPG o PNG. Máximo 10 MB.
-              {erroresFormulario.documentoPropiedad && (
+         <p className="text-xs text-slate-500 mb-3">
+  Adjunte escritura, título de propiedad u otro documento
+  que acredite legalmente la propiedad.
+  PDF, JPG o PNG. Máximo 10 MB.
+</p>
+
+{erroresFormulario.documentoPropiedad && (
   <p className="mb-3 text-sm font-semibold text-red-600">
     ⚠ {erroresFormulario.documentoPropiedad}
   </p>
