@@ -2416,13 +2416,19 @@ if (garantiasParaGuardar.length > 0) {
   alert(
     e.message ||
       'No se pudo guardar el préstamo. Los datos capturados permanecen para que pueda corregirlos.'
+   alert(
+    e.message ||
+      'No se pudo guardar el préstamo. Los datos capturados permanecen para que pueda corregirlos.'
   );
+
+} finally {
+
+  setSubmitting(false);
+  setTimeout(() => setToastMessage(''), 3000);
+
 }
-    } finally {
-      setSubmitting(false);
-      setTimeout(() => setToastMessage(''), 3000);
-    }
-  };
+
+};
 
   // ============================
   // Render
