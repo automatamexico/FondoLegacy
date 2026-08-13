@@ -2414,12 +2414,9 @@ if (garantiasParaGuardar.length > 0) {
   }
 
   alert(
-    e.message ||
-      'No se pudo guardar el préstamo. Los datos capturados permanecen para que pueda corregirlos.'
-   alert(
-    e.message ||
-      'No se pudo guardar el préstamo. Los datos capturados permanecen para que pueda corregirlos.'
-  );
+  e.message ||
+    'No se pudo guardar el préstamo. Los datos capturados permanecen para que pueda corregirlos.'
+);
 
 } finally {
 
