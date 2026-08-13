@@ -2544,11 +2544,13 @@ if (garantiasParaGuardar.length > 0) {
           {!loading && !error && socioPrestamos.length === 0 && (
             <p className="text-center text-slate-600">Este socio no tiene préstamos registrados.</p>
           )}
-          {!loading && !error && socioPrestamos.length > 0 && (
-           <div
-  key={prestamo.id_prestamo}
-  className="p-4 border border-slate-200 rounded-lg flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3"
->
+         {!loading && !error && socioPrestamos.length > 0 && (
+  <div className="space-y-4">
+    {socioPrestamos.map((prestamo) => (
+      <div
+        key={prestamo.id_prestamo}
+        className="p-4 border border-slate-200 rounded-lg flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3"
+      >
                   <div>
                     <p className="font-medium text-slate-900">
                       Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
