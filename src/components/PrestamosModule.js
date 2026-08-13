@@ -61,6 +61,25 @@ const PrestamosModule = ({ idSocio }) => {
   const [selectedPrestamo, setSelectedPrestamo] = useState(null);
   const [historialPagosPrestamo, setHistorialPagosPrestamo] = useState([]);
 
+// ================= EXPEDIENTE DEL PRÉSTAMO =================
+const [showExpedientePrestamo, setShowExpedientePrestamo] =
+  useState(false);
+
+const [expedientePrestamo, setExpedientePrestamo] =
+  useState(null);
+
+const [evaluacionExpediente, setEvaluacionExpediente] =
+  useState(null);
+
+const [avalExpediente, setAvalExpediente] =
+  useState(null);
+
+const [garantiasExpediente, setGarantiasExpediente] =
+  useState([]);
+
+const [loadingExpediente, setLoadingExpediente] =
+  useState(false);
+  
   const [showPrestamoHistorial, setShowPrestamoHistorial] = useState(false);
   const [selectedSocioForHistorial, setSelectedSocioForHistorial] = useState(null);
   const [socioPrestamos, setSocioPrestamos] = useState([]);
@@ -580,6 +599,160 @@ const localPlainDateTime = () => {
       setLoading(false);
     }
   };
+
+  // ======================================================
+// ============== VER EXPEDIENTE PRÉSTAMO ==============
+// ======================================================
+
+const handleVerExpedientePrestamo = async (prestamo) => {
+  if (!prestamo?.id_prestamo) {
+    alert('No se encontró el ID del préstamo.');
+    return;
+  }
+
+  setLoadingExpediente(true);
+
+  setExpedientePrestamo(null);
+  setEvaluacionExpediente(null);
+  setAvalExpediente(null);
+  setGarantiasExpediente([]);
+
+  try {
+    const idPrestamo = prestamo.id_prestamo;
+
+    // ================= PRÉSTAMO COMPLETO =================
+    const prestamoResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/prestamos?id_prestamo=eq.${idPrestamo}&select=*`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    if (!prestamoResp.ok) {
+      const detalle = await prestamoResp.text();
+
+      throw new Error(
+        `No se pudo cargar el préstamo. Detalle: ${detalle}`
+      );
+    }
+
+    const prestamoData = await prestamoResp.json();
+
+
+    // ================= EVALUACIÓN CREDITICIA =================
+    const evaluacionResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/evaluaciones_crediticias?id_prestamo=eq.${idPrestamo}&select=*`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    if (!evaluacionResp.ok) {
+      const detalle = await evaluacionResp.text();
+
+      throw new Error(
+        `No se pudo cargar la evaluación crediticia. Detalle: ${detalle}`
+      );
+    }
+
+    const evaluacionData =
+      await evaluacionResp.json();
+
+
+    // ================= AVAL =================
+    const avalResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/avales_prestamos?id_prestamo=eq.${idPrestamo}&select=*`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    if (!avalResp.ok) {
+      const detalle = await avalResp.text();
+
+      throw new Error(
+        `No se pudo cargar el aval. Detalle: ${detalle}`
+      );
+    }
+
+    const avalData =
+      await avalResp.json();
+
+
+    // ================= GARANTÍAS =================
+    const garantiasResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/garantias_prestamos?id_prestamo=eq.${idPrestamo}&order=id_garantia.asc&select=*`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    if (!garantiasResp.ok) {
+      const detalle = await garantiasResp.text();
+
+      throw new Error(
+        `No se pudieron cargar las garantías. Detalle: ${detalle}`
+      );
+    }
+
+    const garantiasData =
+      await garantiasResp.json();
+
+
+    // ================= GUARDAR EN ESTADOS =================
+
+    setExpedientePrestamo(
+      prestamoData?.[0] || prestamo
+    );
+
+    setEvaluacionExpediente(
+      evaluacionData?.[0] || null
+    );
+
+    setAvalExpediente(
+      avalData?.[0] || null
+    );
+
+    setGarantiasExpediente(
+      garantiasData || []
+    );
+
+    setShowExpedientePrestamo(true);
+
+  } catch (err) {
+
+    console.error(
+      'ERROR CARGANDO EXPEDIENTE DEL PRÉSTAMO:',
+      err
+    );
+
+    alert(
+      err.message ||
+        'No se pudo cargar el expediente del préstamo.'
+    );
+
+  } finally {
+
+    setLoadingExpediente(false);
+
+  }
+};
 
 const abrirPagoDesdePrestamo = (pago) => {
   if (
