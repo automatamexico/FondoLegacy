@@ -210,6 +210,40 @@ const [avalPrestamo, setAvalPrestamo] = useState({
   tiene_redes_sociales: '',
   redes_sociales_detalle: '',
 });
+
+// ================= GARANTÍAS DEL PRÉSTAMO =================
+const [garantiasPrestamo, setGarantiasPrestamo] = useState({
+  propiedad_pertenece_a: 'SOLICITANTE',
+  vehiculo_pertenece_a: 'SOLICITANTE',
+  otro_pertenece_a: 'SOLICITANTE',
+
+  propiedad_calle: '',
+  propiedad_numero: '',
+  propiedad_edificio: '',
+  propiedad_colonia: '',
+  propiedad_estado: '',
+  propiedad_pais: '',
+  propiedad_municipio: '',
+  propiedad_cp: '',
+  propiedad_entre_calles: '',
+  propiedad_referencias: '',
+  propiedad_tipo: '',
+  propiedad_valor_estimado: '',
+  propiedad_documentacion: '',
+  propiedad_gravamenes: '',
+
+  vehiculo_marca: '',
+  vehiculo_modelo: '',
+  vehiculo_anio: '',
+  vehiculo_valor_estimado: '',
+  vehiculo_documentacion: '',
+  vehiculo_gravamenes: '',
+
+  tiene_otro_activo: '',
+  otro_tipo: '',
+  otro_descripcion: '',
+  otro_valor_estimado: '',
+});
   
   const [pagoPeriodo, setPagoPeriodo] = useState(0);
   const [abonoCapitalPeriodo, setAbonoCapitalPeriodo] = useState(0);
@@ -910,6 +944,39 @@ setAvalPrestamo({
   tiene_redes_sociales: '',
   redes_sociales_detalle: '',
 });
+
+setGarantiasPrestamo({
+  propiedad_pertenece_a: 'SOLICITANTE',
+  vehiculo_pertenece_a: 'SOLICITANTE',
+  otro_pertenece_a: 'SOLICITANTE',
+
+  propiedad_calle: '',
+  propiedad_numero: '',
+  propiedad_edificio: '',
+  propiedad_colonia: '',
+  propiedad_estado: '',
+  propiedad_pais: '',
+  propiedad_municipio: '',
+  propiedad_cp: '',
+  propiedad_entre_calles: '',
+  propiedad_referencias: '',
+  propiedad_tipo: '',
+  propiedad_valor_estimado: '',
+  propiedad_documentacion: '',
+  propiedad_gravamenes: '',
+
+  vehiculo_marca: '',
+  vehiculo_modelo: '',
+  vehiculo_anio: '',
+  vehiculo_valor_estimado: '',
+  vehiculo_documentacion: '',
+  vehiculo_gravamenes: '',
+
+  tiene_otro_activo: '',
+  otro_tipo: '',
+  otro_descripcion: '',
+  otro_valor_estimado: '',
+});
     
     setPagoPeriodo(0);
     setInteresPeriodoEstimado(0);
@@ -1040,6 +1107,91 @@ if (evaluacionCrediticia.cuenta_con_aval) {
 
   if (!avalPrestamo.ocupacion.trim()) {
     return alert('Indique a qué se dedica el aval.');
+  }
+}
+
+// ================= VALIDACIÓN GARANTÍAS =================
+
+// PROPIEDAD
+if (evaluacionCrediticia.tiene_propiedades === 'SI') {
+
+  if (!garantiasPrestamo.propiedad_tipo) {
+    return alert(
+      'Seleccione el tipo de propiedad.'
+    );
+  }
+
+  if (!garantiasPrestamo.propiedad_calle.trim()) {
+    return alert(
+      'Indique la dirección de la propiedad.'
+    );
+  }
+
+  if (
+    !garantiasPrestamo.propiedad_valor_estimado ||
+    Number(garantiasPrestamo.propiedad_valor_estimado) <= 0
+  ) {
+    return alert(
+      'Indique el valor estimado de la propiedad.'
+    );
+  }
+}
+
+
+// VEHÍCULO
+if (evaluacionCrediticia.tiene_automovil === 'SI') {
+
+  if (!garantiasPrestamo.vehiculo_marca.trim()) {
+    return alert(
+      'Indique la marca del vehículo.'
+    );
+  }
+
+  if (!garantiasPrestamo.vehiculo_modelo.trim()) {
+    return alert(
+      'Indique el modelo del vehículo.'
+    );
+  }
+
+  if (!garantiasPrestamo.vehiculo_anio) {
+    return alert(
+      'Indique el año del vehículo.'
+    );
+  }
+
+  if (
+    !garantiasPrestamo.vehiculo_valor_estimado ||
+    Number(garantiasPrestamo.vehiculo_valor_estimado) <= 0
+  ) {
+    return alert(
+      'Indique el valor estimado del vehículo.'
+    );
+  }
+}
+
+
+// OTRO ACTIVO
+if (garantiasPrestamo.tiene_otro_activo === 'SI') {
+
+  if (!garantiasPrestamo.otro_tipo.trim()) {
+    return alert(
+      'Indique qué tipo de activo dejará en garantía.'
+    );
+  }
+
+  if (!garantiasPrestamo.otro_descripcion.trim()) {
+    return alert(
+      'Describa el activo que dejará en garantía.'
+    );
+  }
+
+  if (
+    !garantiasPrestamo.otro_valor_estimado ||
+    Number(garantiasPrestamo.otro_valor_estimado) <= 0
+  ) {
+    return alert(
+      'Indique el valor estimado del activo.'
+    );
   }
 }
     
@@ -1540,6 +1692,197 @@ if (evaluacionCrediticia.cuenta_con_aval) {
 
     throw new Error(
       `El préstamo se creó, pero no se pudo guardar el aval. Detalle: ${detalle}`
+    );
+  }
+}
+
+// ======================================================
+// =============== GUARDAR GARANTÍAS ===================
+// ======================================================
+
+const garantiasParaGuardar = [];
+
+// PROPIEDAD
+if (evaluacionCrediticia.tiene_propiedades === 'SI') {
+  garantiasParaGuardar.push({
+    id_prestamo,
+    id_socio: Number(newPrestamo.id_socio),
+
+    pertenece_a: garantiasPrestamo.propiedad_pertenece_a,
+    tipo_garantia: 'PROPIEDAD',
+
+    descripcion:
+      `PROPIEDAD ${garantiasPrestamo.propiedad_tipo}`,
+
+    valor_estimado:
+      Number(garantiasPrestamo.propiedad_valor_estimado),
+
+    propiedad_calle:
+      garantiasPrestamo.propiedad_calle.trim().toUpperCase(),
+
+    propiedad_numero:
+      garantiasPrestamo.propiedad_numero.trim().toUpperCase(),
+
+    propiedad_edificio:
+      garantiasPrestamo.propiedad_edificio.trim().toUpperCase() || null,
+
+    propiedad_colonia:
+      garantiasPrestamo.propiedad_colonia.trim().toUpperCase(),
+
+    propiedad_estado:
+      garantiasPrestamo.propiedad_estado || null,
+
+    propiedad_pais:
+      garantiasPrestamo.propiedad_estado === 'EXTRANJERO'
+        ? garantiasPrestamo.propiedad_pais.trim().toUpperCase()
+        : 'MÉXICO',
+
+    propiedad_municipio:
+      garantiasPrestamo.propiedad_municipio.trim().toUpperCase(),
+
+    propiedad_cp:
+      garantiasPrestamo.propiedad_cp.trim(),
+
+    propiedad_entre_calles:
+      garantiasPrestamo.propiedad_entre_calles.trim().toUpperCase() || null,
+
+    propiedad_referencias:
+      garantiasPrestamo.propiedad_referencias.trim().toUpperCase() || null,
+
+    propiedad_tipo:
+      garantiasPrestamo.propiedad_tipo,
+
+    propiedad_documentacion:
+      garantiasPrestamo.propiedad_documentacion.trim().toUpperCase() || null,
+
+    propiedad_gravamenes:
+      garantiasPrestamo.propiedad_gravamenes.trim().toUpperCase() || null,
+
+    vehiculo_marca: null,
+    vehiculo_modelo: null,
+    vehiculo_anio: null,
+    vehiculo_documentacion: null,
+    vehiculo_gravamenes: null,
+
+    otro_tipo: null,
+    otro_descripcion: null,
+  });
+}
+
+// VEHÍCULO
+if (evaluacionCrediticia.tiene_automovil === 'SI') {
+  garantiasParaGuardar.push({
+    id_prestamo,
+    id_socio: Number(newPrestamo.id_socio),
+
+    pertenece_a: garantiasPrestamo.vehiculo_pertenece_a,
+    tipo_garantia: 'VEHICULO',
+
+    descripcion:
+      `${garantiasPrestamo.vehiculo_marca} ${garantiasPrestamo.vehiculo_modelo}`
+        .trim()
+        .toUpperCase(),
+
+    valor_estimado:
+      Number(garantiasPrestamo.vehiculo_valor_estimado),
+
+    propiedad_calle: null,
+    propiedad_numero: null,
+    propiedad_edificio: null,
+    propiedad_colonia: null,
+    propiedad_estado: null,
+    propiedad_pais: null,
+    propiedad_municipio: null,
+    propiedad_cp: null,
+    propiedad_entre_calles: null,
+    propiedad_referencias: null,
+    propiedad_tipo: null,
+    propiedad_documentacion: null,
+    propiedad_gravamenes: null,
+
+    vehiculo_marca:
+      garantiasPrestamo.vehiculo_marca.trim().toUpperCase(),
+
+    vehiculo_modelo:
+      garantiasPrestamo.vehiculo_modelo.trim().toUpperCase(),
+
+    vehiculo_anio:
+      Number(garantiasPrestamo.vehiculo_anio),
+
+    vehiculo_documentacion:
+      garantiasPrestamo.vehiculo_documentacion.trim().toUpperCase() || null,
+
+    vehiculo_gravamenes:
+      garantiasPrestamo.vehiculo_gravamenes.trim().toUpperCase() || null,
+
+    otro_tipo: null,
+    otro_descripcion: null,
+  });
+}
+
+// OTRO ACTIVO
+if (garantiasPrestamo.tiene_otro_activo === 'SI') {
+  garantiasParaGuardar.push({
+    id_prestamo,
+    id_socio: Number(newPrestamo.id_socio),
+
+    pertenece_a: garantiasPrestamo.otro_pertenece_a,
+    tipo_garantia: 'OTRO',
+
+    descripcion:
+      garantiasPrestamo.otro_descripcion.trim().toUpperCase(),
+
+    valor_estimado:
+      Number(garantiasPrestamo.otro_valor_estimado),
+
+    propiedad_calle: null,
+    propiedad_numero: null,
+    propiedad_edificio: null,
+    propiedad_colonia: null,
+    propiedad_estado: null,
+    propiedad_pais: null,
+    propiedad_municipio: null,
+    propiedad_cp: null,
+    propiedad_entre_calles: null,
+    propiedad_referencias: null,
+    propiedad_tipo: null,
+    propiedad_documentacion: null,
+    propiedad_gravamenes: null,
+
+    vehiculo_marca: null,
+    vehiculo_modelo: null,
+    vehiculo_anio: null,
+    vehiculo_documentacion: null,
+    vehiculo_gravamenes: null,
+
+    otro_tipo:
+      garantiasPrestamo.otro_tipo.trim().toUpperCase(),
+
+    otro_descripcion:
+      garantiasPrestamo.otro_descripcion.trim().toUpperCase(),
+  });
+}
+
+if (garantiasParaGuardar.length > 0) {
+  const rGarantias = await fetch(
+    `${SUPABASE_URL}/rest/v1/garantias_prestamos`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify(garantiasParaGuardar),
+    }
+  );
+
+  if (!rGarantias.ok) {
+    const detalle = await rGarantias.text();
+
+    throw new Error(
+      `El préstamo se creó, pero no se pudieron guardar las garantías. Detalle: ${detalle}`
     );
   }
 }
