@@ -77,6 +77,9 @@ const [avalExpediente, setAvalExpediente] =
 const [garantiasExpediente, setGarantiasExpediente] =
   useState([]);
 
+const [abriendoDocumento, setAbriendoDocumento] =
+  useState('');
+  
 const [loadingExpediente, setLoadingExpediente] =
   useState(false);
   
@@ -331,6 +334,54 @@ const [erroresFormulario, setErroresFormulario] = useState({});
   return `${dia}/${mes}/${anio}`;
 };
 
+const formatFechaHoraSolicitud = (fechaHora, fechaFallback = null) => {
+  if (!fechaHora) {
+    return fechaFallback
+      ? formatFechaSolo(fechaFallback)
+      : '—';
+  }
+
+  const fecha = new Date(fechaHora);
+
+  if (Number.isNaN(fecha.getTime())) {
+    return fechaFallback
+      ? formatFechaSolo(fechaFallback)
+      : '—';
+  }
+
+  const partesFecha = new Intl.DateTimeFormat('es-MX', {
+    timeZone: 'America/Mexico_City',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).formatToParts(fecha);
+
+  const obtener = (tipo) =>
+    partesFecha.find((p) => p.type === tipo)?.value || '';
+
+  const diaSemana = obtener('weekday');
+  const dia = obtener('day');
+  const mes = obtener('month');
+  const anio = obtener('year');
+
+  const hora = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Mexico_City',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  })
+    .format(fecha)
+    .toLowerCase();
+
+  const diaSemanaCapitalizado =
+    diaSemana.charAt(0).toUpperCase() +
+    diaSemana.slice(1);
+
+  return `${diaSemanaCapitalizado} ${dia} de ${mes} del ${anio} a las ${hora}`;
+};
+  
   const calcularPagoRequerido = (monto, tasaPctPorPeriodo, nPlazos) => {
     const P = Number(monto) || 0;
     const i = (Number(tasaPctPorPeriodo) || 0) / 100;
@@ -796,6 +847,86 @@ const handleVerExpedientePrestamo = async (prestamo) => {
   }
 };
 
+// ======================================================
+// ============== VER DOCUMENTO PRIVADO =================
+// ======================================================
+
+const handleVerDocumentoPrestamo = async (path) => {
+  if (!path) {
+    alert('No hay ningún documento adjunto.');
+    return;
+  }
+
+  setAbriendoDocumento(path);
+
+  // Intentamos abrir la ventana inmediatamente.
+  // Esto ayuda en navegadores y WebView móvil.
+  const nuevaVentana = window.open('', '_blank');
+
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/sign/documentos-prestamos/${path}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          expiresIn: 300,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const detalle = await response.text();
+
+      throw new Error(
+        `No se pudo abrir el documento. Detalle: ${detalle}`
+      );
+    }
+
+    const data = await response.json();
+
+    if (!data?.signedURL) {
+      throw new Error(
+        'Supabase no devolvió una URL válida para el documento.'
+      );
+    }
+
+    const urlFirmada = data.signedURL.startsWith('http')
+      ? data.signedURL
+      : `${SUPABASE_URL}/storage/v1${data.signedURL}`;
+
+    if (nuevaVentana) {
+      nuevaVentana.location.href = urlFirmada;
+    } else {
+      // Fallback especialmente útil en algunos WebView Android
+      window.location.href = urlFirmada;
+    }
+
+  } catch (errorDocumento) {
+
+    if (nuevaVentana) {
+      nuevaVentana.close();
+    }
+
+    console.error(
+      'ERROR ABRIENDO DOCUMENTO:',
+      errorDocumento
+    );
+
+    alert(
+      errorDocumento.message ||
+        'No se pudo abrir el documento.'
+    );
+
+  } finally {
+    setAbriendoDocumento('');
+  }
+};
+  
 const abrirPagoDesdePrestamo = (pago) => {
   if (
     String(pago?.estatus || '').toLowerCase() ===
@@ -1789,6 +1920,9 @@ let idPrestamoCreado = null;
 
   fecha_solicitud:
     fechaSolicitudISO,
+
+       fecha_hora_solicitud:
+  new Date().toISOString(),
 
   fecha_vencimiento:
     fechaVencimientoISO,
@@ -2920,7 +3054,10 @@ if (garantiasParaGuardar.length > 0) {
                 Fecha de solicitud
               </p>
               <p className="font-semibold">
-             {formatFechaSolo(expedientePrestamo.fecha_solicitud)}
+             {formatFechaHoraSolicitud(
+  expedientePrestamo.fecha_hora_solicitud,
+  expedientePrestamo.fecha_solicitud
+)}
               </p>
             </div>
 
@@ -3330,7 +3467,41 @@ if (garantiasParaGuardar.length > 0) {
                     .join(', ') || '—'}
                 </p>
               </div>
-
+{avalExpediente.identificacion_path && (
+  <div className="pt-2">
+    <button
+      type="button"
+      onClick={() =>
+        handleVerDocumentoPrestamo(
+          avalExpediente.identificacion_path
+        )
+      }
+      disabled={
+        abriendoDocumento ===
+        avalExpediente.identificacion_path
+      }
+      className="
+        w-full
+        sm:w-auto
+        px-4
+        py-3
+        sm:py-2
+        bg-indigo-600
+        text-white
+        rounded-xl
+        hover:bg-indigo-700
+        disabled:opacity-50
+        disabled:cursor-not-allowed
+        font-medium
+        text-sm
+      "
+    >
+      {abriendoDocumento === avalExpediente.identificacion_path
+        ? 'Abriendo...'
+        : '📄 Ver documento'}
+    </button>
+  </div>
+)}
             </div>
           )}
 
@@ -3463,6 +3634,41 @@ if (garantiasParaGuardar.length > 0) {
                         </p>
                       </div>
 
+{garantia.documento_path && (
+  <div className="pt-2">
+    <button
+      type="button"
+      onClick={() =>
+        handleVerDocumentoPrestamo(
+          garantia.documento_path
+        )
+      }
+      disabled={
+        abriendoDocumento === garantia.documento_path
+      }
+      className="
+        w-full
+        sm:w-auto
+        px-4
+        py-3
+        sm:py-2
+        bg-indigo-600
+        text-white
+        rounded-xl
+        hover:bg-indigo-700
+        disabled:opacity-50
+        disabled:cursor-not-allowed
+        font-medium
+        text-sm
+      "
+    >
+      {abriendoDocumento === garantia.documento_path
+        ? 'Abriendo...'
+        : '📄 Ver documento'}
+    </button>
+  </div>
+)}
+                          
                     </div>
                   )}
 
@@ -3515,7 +3721,40 @@ if (garantiasParaGuardar.length > 0) {
                           {garantia.vehiculo_gravamenes || '—'}
                         </p>
                       </div>
-
+{garantia.documento_path && (
+  <div className="sm:col-span-2 pt-2">
+    <button
+      type="button"
+      onClick={() =>
+        handleVerDocumentoPrestamo(
+          garantia.documento_path
+        )
+      }
+      disabled={
+        abriendoDocumento === garantia.documento_path
+      }
+      className="
+        w-full
+        sm:w-auto
+        px-4
+        py-3
+        sm:py-2
+        bg-indigo-600
+        text-white
+        rounded-xl
+        hover:bg-indigo-700
+        disabled:opacity-50
+        disabled:cursor-not-allowed
+        font-medium
+        text-sm
+      "
+    >
+      {abriendoDocumento === garantia.documento_path
+        ? 'Abriendo...'
+        : '📄 Ver documento'}
+    </button>
+  </div>
+)}
                     </div>
                   )}
 
