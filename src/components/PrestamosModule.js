@@ -244,6 +244,13 @@ const [garantiasPrestamo, setGarantiasPrestamo] = useState({
   otro_descripcion: '',
   otro_valor_estimado: '',
 });
+
+// ================= ARCHIVOS AVAL / GARANTÍAS =================
+const [archivoIdentificacionAval, setArchivoIdentificacionAval] =
+  useState(null);
+
+const [archivoDocumentoPropiedad, setArchivoDocumentoPropiedad] =
+  useState(null);
   
   const [pagoPeriodo, setPagoPeriodo] = useState(0);
   const [abonoCapitalPeriodo, setAbonoCapitalPeriodo] = useState(0);
@@ -843,6 +850,76 @@ const confirmarPagoDesdePrestamo = async () => {
     }
   }, [idSocio, sociosList]);
 
+// ======================================================
+// =============== SUBIR DOCUMENTO ======================
+// ======================================================
+
+const subirDocumentoPrestamo = async ({
+  file,
+  idPrestamo,
+  carpeta,
+  prefijo,
+}) => {
+  if (!file) return null;
+
+  const tiposPermitidos = [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+  ];
+
+  if (!tiposPermitidos.includes(file.type)) {
+    throw new Error(
+      'Solo se permiten archivos PDF, JPG o PNG.'
+    );
+  }
+
+  const maxSize = 10 * 1024 * 1024;
+
+  if (file.size > maxSize) {
+    throw new Error(
+      'El archivo no puede superar los 10 MB.'
+    );
+  }
+
+  const extension =
+    file.name.split('.').pop()?.toLowerCase() || 'bin';
+
+  const nombreArchivo =
+    `${prefijo}_${Date.now()}.${extension}`;
+
+  const path =
+    `prestamo_${idPrestamo}/${carpeta}/${nombreArchivo}`;
+
+  const response = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/documentos-prestamos/${path}`,
+    {
+      method: 'POST',
+
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type':
+          file.type || 'application/octet-stream',
+
+        'x-upsert': 'false',
+      },
+
+      body: file,
+    }
+  );
+
+  if (!response.ok) {
+    const detalle = await response.text();
+
+    throw new Error(
+      `No se pudo subir el documento. Detalle: ${detalle}`
+    );
+  }
+
+  return path;
+};
+  
   const resetNuevoPrestamo = () => {
  setNewPrestamo({
   id_socio: idSocio || '',
@@ -977,6 +1054,9 @@ setGarantiasPrestamo({
   otro_descripcion: '',
   otro_valor_estimado: '',
 });
+
+setArchivoIdentificacionAval(null);
+setArchivoDocumentoPropiedad(null);
     
     setPagoPeriodo(0);
     setInteresPeriodoEstimado(0);
@@ -1108,7 +1188,12 @@ if (evaluacionCrediticia.cuenta_con_aval) {
   if (!avalPrestamo.ocupacion.trim()) {
     return alert('Indique a qué se dedica el aval.');
   }
+if (!archivoIdentificacionAval) {
+  return alert(
+    'Debe adjuntar una copia de la identificación del aval.'
+  );
 }
+}  
 
 // ================= VALIDACIÓN GARANTÍAS =================
 
@@ -1135,6 +1220,11 @@ if (evaluacionCrediticia.tiene_propiedades === 'SI') {
       'Indique el valor estimado de la propiedad.'
     );
   }
+  if (!archivoDocumentoPropiedad) {
+  return alert(
+    'Debe adjuntar el documento que acredita la propiedad.'
+  );
+}
 }
 
 
@@ -1458,7 +1548,41 @@ if (!id_prestamo) {
   );
 }
 
+// ======================================================
+// ============== SUBIR ARCHIVOS ========================
+// ======================================================
 
+let identificacionAvalPath = null;
+let documentoPropiedadPath = null;
+
+// Identificación del aval
+if (
+  evaluacionCrediticia.cuenta_con_aval &&
+  archivoIdentificacionAval
+) {
+  identificacionAvalPath =
+    await subirDocumentoPrestamo({
+      file: archivoIdentificacionAval,
+      idPrestamo: id_prestamo,
+      carpeta: 'aval',
+      prefijo: 'identificacion_aval',
+    });
+}
+
+// Documento de propiedad
+if (
+  evaluacionCrediticia.tiene_propiedades === 'SI' &&
+  archivoDocumentoPropiedad
+) {
+  documentoPropiedadPath =
+    await subirDocumentoPrestamo({
+      file: archivoDocumentoPropiedad,
+      idPrestamo: id_prestamo,
+      carpeta: 'propiedad',
+      prefijo: 'documento_propiedad',
+    });
+}
+      
 // ======================================================
 // ============ GUARDAR EVALUACIÓN CREDITICIA ==========
 // ======================================================
@@ -1591,6 +1715,8 @@ if (evaluacionCrediticia.cuenta_con_aval) {
   const avalBody = {
     id_prestamo,
     id_socio: Number(newPrestamo.id_socio),
+    identificacion_path:
+  identificacionAvalPath,
 
     nombre:
       avalPrestamo.nombre
@@ -1711,6 +1837,9 @@ if (evaluacionCrediticia.tiene_propiedades === 'SI') {
     pertenece_a: garantiasPrestamo.propiedad_pertenece_a,
     tipo_garantia: 'PROPIEDAD',
 
+    documento_path:
+  documentoPropiedadPath,
+
     descripcion:
       `PROPIEDAD ${garantiasPrestamo.propiedad_tipo}`,
 
@@ -1777,6 +1906,7 @@ if (evaluacionCrediticia.tiene_automovil === 'SI') {
 
     pertenece_a: garantiasPrestamo.vehiculo_pertenece_a,
     tipo_garantia: 'VEHICULO',
+    documento_path: null,
 
     descripcion:
       `${garantiasPrestamo.vehiculo_marca} ${garantiasPrestamo.vehiculo_modelo}`
@@ -1828,6 +1958,7 @@ if (garantiasPrestamo.tiene_otro_activo === 'SI') {
 
     pertenece_a: garantiasPrestamo.otro_pertenece_a,
     tipo_garantia: 'OTRO',
+    documento_path: null,
 
     descripcion:
       garantiasPrestamo.otro_descripcion.trim().toUpperCase(),
