@@ -4195,7 +4195,92 @@ if (garantiasParaGuardar.length > 0) {
       />
 
     </div>
+    {/* ================= IDENTIFICACIÓN DEL AVAL ================= */}
+    <div className="border border-slate-200 rounded-xl p-4 bg-white">
 
+      <label className="block text-sm font-semibold text-slate-800 mb-2">
+        Copia de identificación del Aval *
+      </label>
+
+      <p className="text-xs text-slate-500 mb-3">
+        Adjunte INE, pasaporte u otra identificación oficial.
+        PDF, JPG o PNG. Máximo 10 MB.
+      </p>
+
+      <label
+        className="
+          flex
+          items-center
+          justify-center
+          gap-2
+          w-full
+          sm:w-auto
+          sm:inline-flex
+          px-4
+          py-3
+          sm:py-2
+          bg-indigo-600
+          text-white
+          rounded-xl
+          cursor-pointer
+          hover:bg-indigo-700
+          transition-colors
+          font-medium
+          text-sm
+        "
+      >
+        <span>📎</span>
+
+        <span>
+          {archivoIdentificacionAval
+            ? 'Cambiar archivo'
+            : 'Adjuntar identificación'}
+        </span>
+
+        <input
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+          onChange={(e) => {
+            const file = e.target.files?.[0] || null;
+            setArchivoIdentificacionAval(file);
+          }}
+          className="hidden"
+        />
+      </label>
+
+      {archivoIdentificacionAval && (
+        <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+
+          <div className="flex items-start justify-between gap-3">
+
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-emerald-800">
+                Archivo seleccionado
+              </p>
+
+              <p className="text-xs text-emerald-700 break-all mt-1">
+                {archivoIdentificacionAval.name}
+              </p>
+
+              <p className="text-xs text-slate-500 mt-1">
+                {(archivoIdentificacionAval.size / 1024 / 1024).toFixed(2)} MB
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setArchivoIdentificacionAval(null)}
+              className="shrink-0 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+            >
+              Quitar
+            </button>
+
+          </div>
+
+        </div>
+      )}
+
+    </div>
 
     <h5 className="font-semibold text-slate-800">
       Domicilio del Aval
@@ -4698,7 +4783,93 @@ if (garantiasParaGuardar.length > 0) {
             className="w-full px-3 py-2 border rounded-lg"
           />
         </div>
+        {/* ================= DOCUMENTO DE LA PROPIEDAD ================= */}
+        <div className="border border-slate-200 rounded-xl p-4 bg-white">
 
+          <label className="block text-sm font-semibold text-slate-800 mb-2">
+            Documento que acredita la propiedad *
+          </label>
+
+          <p className="text-xs text-slate-500 mb-3">
+            Adjunte escritura, título de propiedad u otro documento
+            que acredite legalmente la propiedad.
+            PDF, JPG o PNG. Máximo 10 MB.
+          </p>
+
+          <label
+            className="
+              flex
+              items-center
+              justify-center
+              gap-2
+              w-full
+              sm:w-auto
+              sm:inline-flex
+              px-4
+              py-3
+              sm:py-2
+              bg-indigo-600
+              text-white
+              rounded-xl
+              cursor-pointer
+              hover:bg-indigo-700
+              transition-colors
+              font-medium
+              text-sm
+            "
+          >
+            <span>📎</span>
+
+            <span>
+              {archivoDocumentoPropiedad
+                ? 'Cambiar documento'
+                : 'Adjuntar documento'}
+            </span>
+
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                setArchivoDocumentoPropiedad(file);
+              }}
+              className="hidden"
+            />
+          </label>
+
+          {archivoDocumentoPropiedad && (
+            <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+
+              <div className="flex items-start justify-between gap-3">
+
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-emerald-800">
+                    Documento seleccionado
+                  </p>
+
+                  <p className="text-xs text-emerald-700 break-all mt-1">
+                    {archivoDocumentoPropiedad.name}
+                  </p>
+
+                  <p className="text-xs text-slate-500 mt-1">
+                    {(archivoDocumentoPropiedad.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setArchivoDocumentoPropiedad(null)}
+                  className="shrink-0 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+                >
+                  Quitar
+                </button>
+
+              </div>
+
+            </div>
+          )}
+
+        </div>
         <div>
           <label className="block text-sm text-slate-700 mb-1">
             Hipotecas o gravámenes existentes
