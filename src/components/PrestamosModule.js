@@ -2545,9 +2545,10 @@ if (garantiasParaGuardar.length > 0) {
             <p className="text-center text-slate-600">Este socio no tiene préstamos registrados.</p>
           )}
           {!loading && !error && socioPrestamos.length > 0 && (
-            <div className="space-y-4">
-              {socioPrestamos.map((prestamo) => (
-                <div key={prestamo.id_prestamo} className="p-4 border border-slate-200 rounded-lg flex justify-between items-center">
+           <div
+  key={prestamo.id_prestamo}
+  className="p-4 border border-slate-200 rounded-lg flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3"
+>
                   <div>
                     <p className="font-medium text-slate-900">
                       Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
@@ -2559,12 +2560,38 @@ if (garantiasParaGuardar.length > 0) {
                       </span>
                     )}
                   </div>
-                  <button
-                    onClick={() => handleVerDetallesPrestamo(prestamo)}
-                    className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
-                  >
-                    Ver detalles
-                  </button>
+                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+
+  <button
+    onClick={() => handleVerDetallesPrestamo(prestamo)}
+    className="w-full sm:w-auto px-3 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
+  >
+    Ver detalles
+  </button>
+
+  <button
+    onClick={() => handleVerExpedientePrestamo(prestamo)}
+    disabled={loadingExpediente}
+    className="
+      w-full
+      sm:w-auto
+      px-3
+      py-2
+      bg-indigo-600
+      text-white
+      rounded-lg
+      text-sm
+      hover:bg-indigo-700
+      disabled:opacity-50
+      disabled:cursor-not-allowed
+    "
+  >
+    {loadingExpediente
+      ? 'Cargando...'
+      : 'Ver expediente'}
+  </button>
+
+</div>
                 </div>
               ))}
               <div className="flex justify-center mt-6">
