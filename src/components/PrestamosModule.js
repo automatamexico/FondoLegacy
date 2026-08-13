@@ -859,13 +859,21 @@ const handleVerDocumentoPrestamo = async (path) => {
 
   setAbriendoDocumento(path);
 
-  // Intentamos abrir la ventana inmediatamente.
-  // Esto ayuda en navegadores y WebView móvil.
-  const nuevaVentana = window.open('', '_blank');
+// ======================================================
+// ===== PROTEGER RUTA CONTRA CARACTERES ESPECIALES =====
+// ======================================================
+const pathSeguro = String(path)
+  .split('/')
+  .map((segmento) => encodeURIComponent(segmento))
+  .join('/');
 
-  try {
-    const response = await fetch(
-      `${SUPABASE_URL}/storage/v1/object/sign/documentos-prestamos/${path}`,
+// Intentamos abrir la ventana inmediatamente.
+// Esto ayuda en navegadores y WebView móvil.
+const nuevaVentana = window.open('', '_blank');
+
+try {
+  const response = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/sign/documentos-prestamos/${pathSeguro}`,
       {
         method: 'POST',
         headers: {
