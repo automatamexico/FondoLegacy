@@ -598,7 +598,7 @@ const localPlainDateTime = () => {
     setError(null);
     try {
       const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,numero_plazos,tipo_plazo,interes`,
+       `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,fecha_hora_solicitud,numero_plazos,tipo_plazo,interes`,
         { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!response.ok) throw new Error('Error al cargar préstamos del socio');
@@ -640,7 +640,7 @@ const localPlainDateTime = () => {
     setError(null);
     try {
       const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,numero_plazos`,
+        `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,fecha_hora_solicitud,numero_plazos`,
         { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!response.ok) throw new Error('Error al cargar préstamos para edición');
@@ -2856,10 +2856,13 @@ if (garantiasParaGuardar.length > 0) {
         className="p-4 border border-slate-200 rounded-lg flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3"
       >
                   <div>
-                    <p className="font-medium text-slate-900">
-                      Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
-                      {formatFechaSolo(prestamo.fecha_solicitud)}
-                    </p>
+                 <p className="font-medium text-slate-900">
+  Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
+  {formatFechaHoraSolicitud(
+    prestamo.fecha_hora_solicitud,
+    prestamo.fecha_solicitud
+  )}
+</p>
                     {prestamo.isPaid && (
                       <span className="inline-block mt-2 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
                         Pagos completados
@@ -2927,9 +2930,12 @@ if (garantiasParaGuardar.length > 0) {
                 <div key={prestamo.id_prestamo} className="p-4 border border-slate-200 rounded-lg flex justify-between items-center">
                   <div>
                     <p className="font-medium text-slate-900">
-                      Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
-                      {formatFechaSolo(prestamo.fecha_solicitud)}
-                    </p>
+  Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
+  {formatFechaHoraSolicitud(
+    prestamo.fecha_hora_solicitud,
+    prestamo.fecha_solicitud
+  )}
+</p>
                     {!prestamo.canDelete && (
                       <p className="text-xs text-slate-500 mt-1">No se puede eliminar (tiene pagos o supera 1 día).</p>
                     )}
