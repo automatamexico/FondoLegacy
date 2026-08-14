@@ -28,6 +28,7 @@ const DashboardSidebar = ({
     { id: 'multas-renovaciones', name: 'Multas', icon: '📅' },
     { id: 'ahorros', name: 'Ahorros', icon: '💰' },
     { id: 'prestamos', name: 'Préstamos', icon: '💳' },
+    { id: 'auditoria-prestamos', name: 'Auditoría Préstamos', icon: '🛡️' },
     { id: 'pagos', name: 'Pagos', icon: '🏦' },
     { id: 'retiros', name: 'Retiros', icon: '📤' },
     { id: 'digital', name: 'Digital', icon: '💻' },
