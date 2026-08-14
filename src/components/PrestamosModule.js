@@ -113,6 +113,34 @@ const [cancelandoPrestamo, setCancelandoPrestamo] =
 
 const [errorCancelarPrestamo, setErrorCancelarPrestamo] =
   useState('');
+
+  // ================= MODIFICACIÓN SEGURA DE CORRIDA =================
+
+const [showModificarCorridaModal, setShowModificarCorridaModal] =
+  useState(false);
+
+const [prestamoModificarTarget, setPrestamoModificarTarget] =
+  useState(null);
+
+const [corridaEditada, setCorridaEditada] =
+  useState({
+    monto_solicitado: '',
+    numero_plazos: '',
+    tipo_plazo: 'mensual',
+    interes: '',
+  });
+
+const [pinModificarCorrida, setPinModificarCorrida] =
+  useState('');
+
+const [motivoModificarCorrida, setMotivoModificarCorrida] =
+  useState('');
+
+const [modificandoCorrida, setModificandoCorrida] =
+  useState(false);
+
+const [errorModificarCorrida, setErrorModificarCorrida] =
+  useState('');
   
 // Pago desde el historial del préstamo
 const [showPagoPrestamoModal, setShowPagoPrestamoModal] =
@@ -1469,6 +1497,325 @@ const confirmarCancelarPrestamo = async () => {
   }
 };
 
+// ======================================================
+// ================ ABRIR MODIFICAR CORRIDA =============
+// ======================================================
+
+const abrirModificarCorrida = (prestamo) => {
+
+  if (!prestamo?.canEdit) {
+
+    alert(
+      'Este préstamo no puede modificarse porque ya tiene pagos registrados o supera el periodo permitido de 7 días.'
+    );
+
+    return;
+  }
+
+
+  setPrestamoModificarTarget(prestamo);
+
+
+  setCorridaEditada({
+
+    monto_solicitado:
+      prestamo.monto_solicitado ?? '',
+
+    numero_plazos:
+      prestamo.numero_plazos ?? '',
+
+    tipo_plazo:
+      prestamo.tipo_plazo || 'mensual',
+
+    interes:
+      prestamo.interes ?? '',
+
+  });
+
+
+  setPinModificarCorrida('');
+
+  setMotivoModificarCorrida('');
+
+  setErrorModificarCorrida('');
+
+  setShowModificarCorridaModal(true);
+};
+
+
+// ======================================================
+// =============== GUARDAR NUEVA CORRIDA ================
+// ======================================================
+
+const confirmarModificarCorrida = async () => {
+
+  if (!prestamoModificarTarget?.id_prestamo) {
+
+    setErrorModificarCorrida(
+      'No se encontró el préstamo que desea modificar.'
+    );
+
+    return;
+  }
+
+
+  const monto =
+    Number(corridaEditada.monto_solicitado);
+
+
+  const plazos =
+    Number(corridaEditada.numero_plazos);
+
+
+  const interes =
+    Number(corridaEditada.interes);
+
+
+  const tipoPlazo =
+    String(
+      corridaEditada.tipo_plazo || ''
+    ).toLowerCase();
+
+
+  if (!(monto > 0)) {
+
+    setErrorModificarCorrida(
+      'Ingrese un monto solicitado válido.'
+    );
+
+    return;
+  }
+
+
+  if (
+    !Number.isInteger(plazos) ||
+    plazos <= 0
+  ) {
+
+    setErrorModificarCorrida(
+      'Ingrese un número de plazos válido.'
+    );
+
+    return;
+  }
+
+
+  if (
+    Number.isNaN(interes) ||
+    interes < 0
+  ) {
+
+    setErrorModificarCorrida(
+      'Ingrese un interés válido.'
+    );
+
+    return;
+  }
+
+
+  if (
+    ![
+      'semanal',
+      'quincenal',
+      'mensual'
+    ].includes(tipoPlazo)
+  ) {
+
+    setErrorModificarCorrida(
+      'Seleccione un tipo de plazo válido.'
+    );
+
+    return;
+  }
+
+
+  const pinLimpio =
+    String(
+      pinModificarCorrida || ''
+    ).trim();
+
+
+  if (!/^\d{6}$/.test(pinLimpio)) {
+
+    setErrorModificarCorrida(
+      'Ingrese un PIN de administrador válido de 6 dígitos.'
+    );
+
+    return;
+  }
+
+
+  const motivoLimpio =
+    String(
+      motivoModificarCorrida || ''
+    ).trim();
+
+
+  if (motivoLimpio.length < 5) {
+
+    setErrorModificarCorrida(
+      'Indique el motivo de la modificación.'
+    );
+
+    return;
+  }
+
+
+  if (!currentUserId) {
+
+    setErrorModificarCorrida(
+      'No se pudo identificar al usuario que inició sesión.'
+    );
+
+    return;
+  }
+
+
+  setModificandoCorrida(true);
+
+  setErrorModificarCorrida('');
+
+
+  try {
+
+    const response = await fetch(
+
+      `${SUPABASE_URL}/rest/v1/rpc/modificar_corrida_prestamo_seguro`,
+
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization:
+            `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+
+        body: JSON.stringify({
+
+          p_id_prestamo:
+            prestamoModificarTarget.id_prestamo,
+
+          p_usuario_ref:
+            String(currentUserId),
+
+          p_pin:
+            pinLimpio,
+
+          p_motivo:
+            motivoLimpio,
+
+          p_monto_solicitado:
+            monto,
+
+          p_numero_plazos:
+            plazos,
+
+          p_tipo_plazo:
+            tipoPlazo,
+
+          p_interes:
+            interes,
+
+        }),
+      }
+    );
+
+
+    if (!response.ok) {
+
+      const detalle =
+        await response.text();
+
+
+      let mensaje =
+        'No se pudo modificar la corrida.';
+
+
+      try {
+
+        const detalleJson =
+          JSON.parse(detalle);
+
+        mensaje =
+          detalleJson?.message ||
+          mensaje;
+
+      } catch {
+        // dejamos mensaje general
+      }
+
+
+      throw new Error(mensaje);
+    }
+
+
+    setShowModificarCorridaModal(false);
+
+    setPrestamoModificarTarget(null);
+
+    setPinModificarCorrida('');
+
+    setMotivoModificarCorrida('');
+
+
+    setToastMessage(
+      'Corrida modificada correctamente. El movimiento quedó registrado en auditoría.'
+    );
+
+
+    if (selectedSocioForHistorial) {
+
+      await handleEditarPrestamosSocio(
+        selectedSocioForHistorial
+      );
+
+    }
+
+
+    await fetchGlobalPrestamoStats();
+
+
+    if (!idSocio) {
+
+      await fetchAllSociosConPrestamoActivo();
+
+    } else {
+
+      await fetchPrestamosForUser(idSocio);
+
+    }
+
+
+    setTimeout(
+      () => setToastMessage(''),
+      4000
+    );
+
+
+  } catch (errorModificacion) {
+
+    console.error(
+      'ERROR MODIFICANDO CORRIDA:',
+      errorModificacion
+    );
+
+
+    setErrorModificarCorrida(
+      errorModificacion.message ||
+      'No se pudo modificar la corrida.'
+    );
+
+
+  } finally {
+
+    setModificandoCorrida(false);
+
+  }
+
+};
+  
   // --- Modal: reacciones/calculadora ---
   useEffect(() => {
     const pago = calcularPagoRequerido(
@@ -3862,20 +4209,39 @@ if (garantiasParaGuardar.length > 0) {
                       <p className="text-xs text-slate-500 mt-1">No se puede modificar ni cancelar: tiene pagos registrados o supera 7 días.</p>
                     )}
                   </div>
-                 <button
-  type="button"
-  onClick={() =>
-    abrirCancelarPrestamo(prestamo)
-  }
-  className={`px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium transition-colors ${
-    prestamo.canDelete
-      ? 'hover:bg-red-700'
-      : 'opacity-50 cursor-not-allowed'
-  }`}
-  disabled={!prestamo.canDelete}
->
-  Cancelar préstamo
-</button>
+               <div className="flex flex-col sm:flex-row gap-2 mt-3 sm:mt-0">
+
+  <button
+    type="button"
+    onClick={() =>
+      abrirModificarCorrida(prestamo)
+    }
+    className={`px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium transition-colors ${
+      prestamo.canEdit
+        ? 'hover:bg-amber-600'
+        : 'opacity-50 cursor-not-allowed'
+    }`}
+    disabled={!prestamo.canEdit}
+  >
+    Modificar corrida
+  </button>
+
+  <button
+    type="button"
+    onClick={() =>
+      abrirCancelarPrestamo(prestamo)
+    }
+    className={`px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium transition-colors ${
+      prestamo.canDelete
+        ? 'hover:bg-red-700'
+        : 'opacity-50 cursor-not-allowed'
+    }`}
+    disabled={!prestamo.canDelete}
+  >
+    Cancelar préstamo
+  </button>
+
+</div>
                 </div>
               ))}
               <div className="flex justify-center mt-6">
@@ -8130,6 +8496,350 @@ const fechaShow =
     </div>
 
   </div>
+)}
+
+{/* ====================================================== */}
+{/* ============ MODIFICAR CORRIDA PRÉSTAMO ============== */}
+{/* ====================================================== */}
+
+{showModificarCorridaModal && prestamoModificarTarget && (
+
+  <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-3 sm:p-4">
+
+    <div className="bg-white w-full max-w-2xl max-h-[95vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+
+      {/* ENCABEZADO */}
+      <div className="p-5 border-b border-slate-200">
+
+        <h3 className="text-xl font-bold text-slate-900">
+          Modificar corrida del Préstamo No.{' '}
+          {prestamoModificarTarget.numero_prestamo_socio}
+        </h3>
+
+        <p className="text-sm text-slate-500 mt-1">
+          Esta operación requiere autorización de administrador.
+        </p>
+
+      </div>
+
+
+      <div className="p-5 space-y-5 overflow-y-auto">
+
+        <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl">
+
+          <p className="font-semibold text-amber-900">
+            ⚠ Modificación de corrida
+          </p>
+
+          <p className="text-sm text-amber-800 mt-2">
+            Al confirmar, la corrida actual será sustituida
+            automáticamente por una nueva. Las fechas de pago
+            no pueden modificarse manualmente.
+          </p>
+
+        </div>
+
+
+        {/* FECHA ORIGINAL */}
+        <div>
+
+          <label className="block text-sm font-semibold text-slate-700 mb-1">
+            Fecha original de solicitud
+          </label>
+
+          <input
+            type="text"
+            readOnly
+            value={formatFechaSolo(
+              prestamoModificarTarget.fecha_solicitud
+            )}
+            className="
+              w-full
+              border
+              border-slate-200
+              bg-slate-100
+              rounded-xl
+              px-4
+              py-3
+              text-slate-600
+              cursor-not-allowed
+            "
+          />
+
+          <p className="text-xs text-slate-500 mt-1">
+            Esta fecha no puede modificarse.
+          </p>
+
+        </div>
+
+
+        {/* CAMPOS EDITABLES */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+          <div>
+
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              Monto solicitado *
+            </label>
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={corridaEditada.monto_solicitado}
+              onChange={(e) =>
+                setCorridaEditada((prev) => ({
+                  ...prev,
+                  monto_solicitado: e.target.value,
+                }))
+              }
+              className="w-full border border-slate-300 rounded-xl px-4 py-3"
+            />
+
+          </div>
+
+
+          <div>
+
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              Número de plazos *
+            </label>
+
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={corridaEditada.numero_plazos}
+              onChange={(e) =>
+                setCorridaEditada((prev) => ({
+                  ...prev,
+                  numero_plazos: e.target.value,
+                }))
+              }
+              className="w-full border border-slate-300 rounded-xl px-4 py-3"
+            />
+
+          </div>
+
+
+          <div>
+
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              Tipo de plazo *
+            </label>
+
+            <select
+              value={corridaEditada.tipo_plazo}
+              onChange={(e) =>
+                setCorridaEditada((prev) => ({
+                  ...prev,
+                  tipo_plazo: e.target.value,
+                }))
+              }
+              className="w-full border border-slate-300 rounded-xl px-4 py-3"
+            >
+              <option value="semanal">Semanal</option>
+              <option value="quincenal">Quincenal</option>
+              <option value="mensual">Mensual</option>
+            </select>
+
+          </div>
+
+
+          <div>
+
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              Interés por periodo (%) *
+            </label>
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={corridaEditada.interes}
+              onChange={(e) =>
+                setCorridaEditada((prev) => ({
+                  ...prev,
+                  interes: e.target.value,
+                }))
+              }
+              className="w-full border border-slate-300 rounded-xl px-4 py-3"
+            />
+
+          </div>
+
+        </div>
+
+
+        {/* ADMINISTRADOR */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+
+          <p className="text-xs text-slate-500">
+            Administrador que autoriza
+          </p>
+
+          <p className="font-semibold text-slate-900 break-all">
+            {currentUserName}
+          </p>
+
+        </div>
+
+
+        {/* PIN */}
+        <div>
+
+          <label className="block text-sm font-semibold text-slate-700 mb-1">
+            PIN de administrador *
+          </label>
+
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            autoComplete="off"
+            value={pinModificarCorrida}
+            onChange={(e) => {
+
+              const valor =
+                e.target.value.replace(/\D/g, '');
+
+              setPinModificarCorrida(
+                valor.slice(0, 6)
+              );
+
+              setErrorModificarCorrida('');
+
+            }}
+            placeholder="••••••"
+            className="
+              w-full
+              border
+              border-slate-300
+              rounded-xl
+              px-4
+              py-3
+              text-center
+              text-xl
+              tracking-[0.4em]
+            "
+          />
+
+        </div>
+
+
+        {/* MOTIVO */}
+        <div>
+
+          <label className="block text-sm font-semibold text-slate-700 mb-1">
+            Motivo de la modificación *
+          </label>
+
+          <textarea
+            rows={3}
+            value={motivoModificarCorrida}
+            onChange={(e) => {
+
+              setMotivoModificarCorrida(
+                e.target.value
+              );
+
+              setErrorModificarCorrida('');
+
+            }}
+            placeholder="Ejemplo: Se corrigió el número de plazos acordado con el socio."
+            className="w-full border border-slate-300 rounded-xl px-4 py-3 resize-none"
+          />
+
+        </div>
+
+
+        {/* ERROR */}
+        {errorModificarCorrida && (
+
+          <div className="p-3 bg-red-50 border border-red-300 rounded-xl text-red-700 text-sm font-medium">
+
+            ⚠ {errorModificarCorrida}
+
+          </div>
+
+        )}
+
+
+        {/* CONFIRMACIÓN */}
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+
+          <p className="font-semibold text-red-800">
+            ¿Está seguro de realizar esta modificación?
+          </p>
+
+          <p className="text-sm text-red-700 mt-1">
+            La corrida anterior quedará conservada en la auditoría
+            y será reemplazada por la nueva corrida.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      {/* BOTONES */}
+      <div className="p-4 border-t border-slate-200 flex flex-col sm:flex-row gap-3">
+
+        <button
+          type="button"
+          disabled={modificandoCorrida}
+          onClick={() => {
+
+            setShowModificarCorridaModal(false);
+            setPrestamoModificarTarget(null);
+            setPinModificarCorrida('');
+            setMotivoModificarCorrida('');
+            setErrorModificarCorrida('');
+
+          }}
+          className="
+            w-full
+            px-4
+            py-3
+            bg-slate-100
+            text-slate-700
+            rounded-xl
+            font-medium
+            hover:bg-slate-200
+            disabled:opacity-50
+          "
+        >
+          No, regresar
+        </button>
+
+
+        <button
+          type="button"
+          disabled={modificandoCorrida}
+          onClick={confirmarModificarCorrida}
+          className="
+            w-full
+            px-4
+            py-3
+            bg-amber-500
+            text-white
+            rounded-xl
+            font-semibold
+            hover:bg-amber-600
+            disabled:opacity-50
+          "
+        >
+          {modificandoCorrida
+            ? 'Modificando...'
+            : 'Sí, modificar corrida'}
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
 )}
 
 {/* ====================================================== */}
