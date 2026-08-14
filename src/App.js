@@ -228,6 +228,8 @@ function App() {
         return <AhorrosModule />;
       case 'prestamos':
         return <PrestamosModule />;
+case 'auditoria-prestamos':
+  return <AuditoriaPrestamosModule />;
       case 'digital':
         return <CentroDigitalModule />;
       case 'usuarios':
