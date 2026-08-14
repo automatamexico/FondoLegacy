@@ -46,8 +46,8 @@ const AuditoriaPrestamosModule = () => {
   const [autorizado, setAutorizado] =
     useState(false);
 
-  const [idSocioBuscar, setIdSocioBuscar] =
-    useState('');
+  const [terminoBuscar, setTerminoBuscar] =
+  useState('');
 
   const [movimientos, setMovimientos] =
     useState([]);
@@ -67,6 +67,26 @@ const AuditoriaPrestamosModule = () => {
   const [filtroAccion, setFiltroAccion] =
     useState('TODOS');
 
+
+  // ================= RESTAURAR PRÉSTAMO =================
+
+const [showRestaurarModal, setShowRestaurarModal] =
+  useState(false);
+
+const [prestamoRestaurar, setPrestamoRestaurar] =
+  useState(null);
+
+const [pinRestaurar, setPinRestaurar] =
+  useState('');
+
+const [motivoRestaurar, setMotivoRestaurar] =
+  useState('');
+
+const [restaurando, setRestaurando] =
+  useState(false);
+
+const [errorRestaurar, setErrorRestaurar] =
+  useState('');
 
   // ======================================================
   // ===================== HELPERS =========================
@@ -402,7 +422,223 @@ const AuditoriaPrestamosModule = () => {
 
   };
 
+// ======================================================
+// ===== SABER SI EL PRÉSTAMO SIGUE CANCELADO ===========
+// ======================================================
 
+const prestamoSigueCancelado = (mov) => {
+
+  if (
+    String(mov?.accion || '').toUpperCase() !==
+    'CANCELADO'
+  ) {
+    return false;
+  }
+
+  // Los movimientos vienen ordenados
+  // del más reciente al más antiguo.
+  const ultimoMovimientoPrestamo =
+    movimientos.find(
+      (item) =>
+        Number(item.id_prestamo) ===
+        Number(mov.id_prestamo)
+    );
+
+  return (
+    String(
+      ultimoMovimientoPrestamo?.accion || ''
+    ).toUpperCase() ===
+    'CANCELADO'
+  );
+
+};
+
+// ======================================================
+// ============ ABRIR RESTAURAR PRÉSTAMO ================
+// ======================================================
+
+const abrirRestaurarPrestamo = (mov) => {
+
+  if (!prestamoSigueCancelado(mov)) {
+
+    alert(
+      'Este préstamo ya no se encuentra cancelado.'
+    );
+
+    return;
+  }
+
+  setPrestamoRestaurar(mov);
+
+  setPinRestaurar('');
+
+  setMotivoRestaurar('');
+
+  setErrorRestaurar('');
+
+  setShowRestaurarModal(true);
+
+};
+
+// ======================================================
+// =========== CONFIRMAR RESTAURACIÓN ===================
+// ======================================================
+
+const confirmarRestaurarPrestamo = async () => {
+
+  if (!prestamoRestaurar?.id_prestamo) {
+
+    setErrorRestaurar(
+      'No se encontró el préstamo a restaurar.'
+    );
+
+    return;
+  }
+
+
+  const pinLimpio =
+    String(pinRestaurar || '').trim();
+
+
+  if (!/^\d{6}$/.test(pinLimpio)) {
+
+    setErrorRestaurar(
+      'Ingrese un PIN administrativo válido de 6 dígitos.'
+    );
+
+    return;
+  }
+
+
+  const motivoLimpio =
+    String(motivoRestaurar || '').trim();
+
+
+  if (motivoLimpio.length < 5) {
+
+    setErrorRestaurar(
+      'Debe indicar el motivo de la restauración.'
+    );
+
+    return;
+  }
+
+
+  setRestaurando(true);
+
+  setErrorRestaurar('');
+
+
+  try {
+
+    const response =
+      await fetch(
+
+        `${SUPABASE_URL}/rest/v1/rpc/restaurar_prestamo_seguro`,
+
+        {
+
+          method: 'POST',
+
+          headers: {
+
+            'Content-Type':
+              'application/json',
+
+            apikey:
+              SUPABASE_ANON_KEY,
+
+            Authorization:
+              `Bearer ${SUPABASE_ANON_KEY}`,
+
+          },
+
+          body:
+            JSON.stringify({
+
+              p_id_prestamo:
+                prestamoRestaurar.id_prestamo,
+
+              p_usuario_ref:
+                String(currentUserId),
+
+              p_pin:
+                pinLimpio,
+
+              p_motivo:
+                motivoLimpio,
+
+            }),
+
+        }
+
+      );
+
+
+    if (!response.ok) {
+
+      const texto =
+        await response.text();
+
+
+      let mensaje =
+        'No se pudo restaurar el préstamo.';
+
+
+      try {
+
+        const obj =
+          JSON.parse(texto);
+
+        mensaje =
+          obj?.message ||
+          mensaje;
+
+      } catch {
+        // mensaje general
+      }
+
+
+      throw new Error(
+        mensaje
+      );
+
+    }
+
+
+    setShowRestaurarModal(false);
+
+    setPrestamoRestaurar(null);
+
+    setPinRestaurar('');
+
+    setMotivoRestaurar('');
+
+    setErrorRestaurar('');
+
+
+    // Recargar toda la auditoría.
+    await consultarAuditoria(
+      null,
+      pin
+    );
+
+
+  } catch (err) {
+
+    setErrorRestaurar(
+      err.message ||
+      'No se pudo restaurar el préstamo.'
+    );
+
+  } finally {
+
+    setRestaurando(false);
+
+  }
+
+};
+  
   // ======================================================
   // ================= CONSULTAR RPC =======================
   // ======================================================
@@ -588,15 +824,13 @@ const AuditoriaPrestamosModule = () => {
 
       if (ok) {
 
-        // No mostramos todos los movimientos
-        // al entrar. Solo validamos acceso.
-        setMovimientos([]);
+  // consultarAuditoria(null, pin)
+  // ya devolvió todos los movimientos.
+  setBusquedaRealizada(true);
 
-        setBusquedaRealizada(
-          false
-        );
+  setFiltroAccion('TODOS');
 
-      }
+}
 
     };
 
@@ -605,49 +839,16 @@ const AuditoriaPrestamosModule = () => {
   // ====================== BUSCAR =========================
   // ======================================================
 
-  const buscarSocio =
-    async () => {
-
-      const id =
-        String(
-          idSocioBuscar || ''
-        ).trim();
-
-
-      if (
-        !/^\d+$/.test(id)
-      ) {
-
-        setError(
-          'Ingrese un ID de socio válido.'
-        );
-
-        return;
-
-      }
-
-
-      await consultarAuditoria(
-        Number(id),
-        pin
-      );
-
-    };
-
 
   const limpiarBusqueda = () => {
 
-    setIdSocioBuscar('');
+  setTerminoBuscar('');
 
-    setMovimientos([]);
+  setFiltroAccion('TODOS');
 
-    setBusquedaRealizada(false);
+  setError('');
 
-    setFiltroAccion('TODOS');
-
-    setError('');
-
-  };
+};
 
 
   // ======================================================
@@ -655,23 +856,54 @@ const AuditoriaPrestamosModule = () => {
   // ======================================================
 
   const movimientosFiltrados =
-    movimientos.filter((mov) => {
+  movimientos.filter((mov) => {
 
-      if (
-        filtroAccion === 'TODOS'
-      ) {
-        return true;
-      }
+    // ================= FILTRO ACCIÓN =================
+
+    const coincideAccion =
+      filtroAccion === 'TODOS' ||
+      String(mov.accion || '').toUpperCase() ===
+        filtroAccion;
 
 
-      return (
-        String(
-          mov.accion || ''
-        ).toUpperCase() ===
-        filtroAccion
-      );
+    // ================= FILTRO BÚSQUEDA =================
 
-    });
+    const termino =
+      String(terminoBuscar || '')
+        .trim()
+        .toLowerCase();
+
+
+    if (!termino) {
+      return coincideAccion;
+    }
+
+
+    const textoSocio = [
+      mov.id_socio,
+      mov.socio_nombre,
+      mov.socio_apellido_paterno,
+      mov.socio_apellido_materno,
+    ]
+      .filter(
+        (valor) =>
+          valor !== null &&
+          valor !== undefined
+      )
+      .join(' ')
+      .toLowerCase();
+
+
+    const coincideBusqueda =
+      textoSocio.includes(termino);
+
+
+    return (
+      coincideAccion &&
+      coincideBusqueda
+    );
+
+  });
 
 
   // ======================================================
@@ -809,88 +1041,70 @@ const AuditoriaPrestamosModule = () => {
       </div>
 
 
-      {/* BUSCADOR */}
+     {/* BUSCADOR */}
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 md:p-6">
+<div className="bg-white border border-slate-200 rounded-2xl p-4 md:p-6">
 
-        <label className="block text-sm font-semibold text-slate-700 mb-2">
+  <label className="block text-sm font-semibold text-slate-700 mb-2">
 
-          Buscar por ID de socio
+    Buscar socio
 
-        </label>
+  </label>
 
+  <p className="text-xs text-slate-500 mb-3">
 
-        <div className="flex flex-col md:flex-row gap-3">
+    Puede buscar por ID de socio, nombre o apellidos.
 
-          <input
-            type="text"
-            inputMode="numeric"
-            value={idSocioBuscar}
-            onChange={(e) => {
-
-              setIdSocioBuscar(
-                e.target.value
-                  .replace(/\D/g, '')
-              );
-
-              setError('');
-
-            }}
-            onKeyDown={(e) => {
-
-              if (
-                e.key === 'Enter'
-              ) {
-
-                buscarSocio();
-
-              }
-
-            }}
-            placeholder="Ejemplo: 35"
-            className="flex-1 border border-slate-300 rounded-xl px-4 py-3"
-          />
+  </p>
 
 
-          <button
-            type="button"
-            onClick={buscarSocio}
-            disabled={loading}
-            className="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50"
-          >
+  <div className="flex flex-col md:flex-row gap-3">
 
-            {loading
-              ? 'Buscando...'
-              : 'Buscar'}
+    <input
+      type="text"
+      value={terminoBuscar}
+      onChange={(e) => {
 
-          </button>
+        setTerminoBuscar(
+          e.target.value
+        );
 
+        setError('');
 
-          <button
-            type="button"
-            onClick={limpiarBusqueda}
-            className="px-6 py-3 bg-slate-100 text-slate-700 rounded-xl font-medium hover:bg-slate-200"
-          >
-
-            Limpiar
-
-          </button>
-
-        </div>
+      }}
+      placeholder="Ejemplo: 35, Enrique, Peña Nieto..."
+      className="flex-1 border border-slate-300 rounded-xl px-4 py-3"
+    />
 
 
-        {error && (
+    <button
+      type="button"
+      onClick={limpiarBusqueda}
+      className="px-6 py-3 bg-slate-100 text-slate-700 rounded-xl font-medium hover:bg-slate-200"
+    >
 
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+      Limpiar
 
-            ⚠ {error}
+    </button>
 
-          </div>
+  </div>
 
-        )}
 
-      </div>
+  <div className="mt-3 text-xs text-slate-500">
 
+    Mostrando{' '}
+    <strong>
+      {movimientosFiltrados.length}
+    </strong>{' '}
+    de{' '}
+    <strong>
+      {movimientos.length}
+    </strong>{' '}
+    movimientos.
+
+  </div>
+
+</div>
 
       {/* FILTROS */}
 
@@ -1067,17 +1281,38 @@ const AuditoriaPrestamosModule = () => {
                   </div>
 
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMovimientoDetalle(mov)
-                    }
-                    className="w-full md:w-auto px-5 py-3 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800"
-                  >
+                 <div className="w-full md:w-auto flex flex-col sm:flex-row gap-2">
 
-                    Ver detalles
+  <button
+    type="button"
+    onClick={() =>
+      setMovimientoDetalle(mov)
+    }
+    className="w-full md:w-auto px-5 py-3 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800"
+  >
 
-                  </button>
+    Ver detalles
+
+  </button>
+
+
+  {prestamoSigueCancelado(mov) && (
+
+    <button
+      type="button"
+      onClick={() =>
+        abrirRestaurarPrestamo(mov)
+      }
+      className="w-full md:w-auto px-5 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700"
+    >
+
+      Restaurar préstamo
+
+    </button>
+
+  )}
+
+</div>
 
                 </div>
 
@@ -1091,6 +1326,185 @@ const AuditoriaPrestamosModule = () => {
 
       )}
 
+{/* ====================================================== */}
+{/* ============== RESTAURAR PRÉSTAMO ==================== */}
+{/* ====================================================== */}
+
+{showRestaurarModal && prestamoRestaurar && (
+
+  <div className="fixed inset-0 bg-black/60 z-[10000] flex items-center justify-center p-3">
+
+    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
+
+
+      {/* ENCABEZADO */}
+      <div className="p-5 border-b border-slate-200">
+
+        <h3 className="text-xl font-bold text-slate-900">
+
+          Restaurar Préstamo No.{' '}
+          {prestamoRestaurar.numero_prestamo_socio}
+
+        </h3>
+
+
+        <p className="text-sm text-slate-500 mt-1">
+
+          {nombreSocio(
+            prestamoRestaurar
+          )}
+
+        </p>
+
+      </div>
+
+
+      {/* CUERPO */}
+      <div className="p-5 space-y-5">
+
+
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+
+          <p className="font-semibold text-emerald-800">
+
+            ¿Está seguro de restaurar este préstamo?
+
+          </p>
+
+
+          <p className="text-sm text-emerald-700 mt-2">
+
+            El préstamo volverá a formar parte de la operación normal
+            y este movimiento quedará registrado en Auditoría.
+
+          </p>
+
+        </div>
+
+
+        {/* PIN */}
+        <div>
+
+          <label className="block text-sm font-semibold text-slate-700 mb-1">
+
+            PIN de administrador *
+
+          </label>
+
+
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            value={pinRestaurar}
+            onChange={(e) => {
+
+              setPinRestaurar(
+                e.target.value
+                  .replace(/\D/g, '')
+                  .slice(0, 6)
+              );
+
+              setErrorRestaurar('');
+
+            }}
+            placeholder="••••••"
+            className="w-full border border-slate-300 rounded-xl px-4 py-3 text-center text-xl tracking-[0.4em]"
+          />
+
+        </div>
+
+
+        {/* MOTIVO */}
+        <div>
+
+          <label className="block text-sm font-semibold text-slate-700 mb-1">
+
+            Motivo de la restauración *
+
+          </label>
+
+
+          <textarea
+            rows={4}
+            value={motivoRestaurar}
+            onChange={(e) => {
+
+              setMotivoRestaurar(
+                e.target.value
+              );
+
+              setErrorRestaurar('');
+
+            }}
+            placeholder="Ejemplo: El socio aceptó finalmente las condiciones del préstamo."
+            className="w-full border border-slate-300 rounded-xl px-4 py-3 resize-none"
+          />
+
+        </div>
+
+
+        {/* ERROR */}
+        {errorRestaurar && (
+
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+
+            ⚠ {errorRestaurar}
+
+          </div>
+
+        )}
+
+      </div>
+
+
+      {/* BOTONES */}
+      <div className="p-4 border-t border-slate-200 flex flex-col sm:flex-row gap-3">
+
+        <button
+          type="button"
+          disabled={restaurando}
+          onClick={() => {
+
+            setShowRestaurarModal(false);
+
+            setPrestamoRestaurar(null);
+
+            setPinRestaurar('');
+
+            setMotivoRestaurar('');
+
+            setErrorRestaurar('');
+
+          }}
+          className="w-full px-4 py-3 bg-slate-100 text-slate-700 rounded-xl font-medium hover:bg-slate-200 disabled:opacity-50"
+        >
+
+          No, regresar
+
+        </button>
+
+
+        <button
+          type="button"
+          disabled={restaurando}
+          onClick={confirmarRestaurarPrestamo}
+          className="w-full px-4 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-50"
+        >
+
+          {restaurando
+            ? 'Restaurando...'
+            : 'Sí, restaurar préstamo'}
+
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+)}
 
       {/* ================================================= */}
       {/* =============== MODAL DETALLES ================== */}
