@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const SUPABASE_URL = 'https://ubfkhtkmlvutwdivmoff.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViZmtodGttbHZ1dHdkaXZtb2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MTc5NTUsImV4cCI6MjA2NjM5Mzk1NX0.c0iRma-dnlL29OR3ffq34nmZuj_ViApBTMG-6PEX_B4';
@@ -65,6 +65,8 @@ const [errorPin, setErrorPin] =
 
 const [pinesConfigurados, setPinesConfigurados] =
   useState({});
+
+  const formularioUsuarioRef = useRef(null);
 
   useEffect(() => {
     fetchUsers();
@@ -139,10 +141,17 @@ const currentUserId =
     setError(null);
   };
 
-  const openNewForm = () => {
-    resetForm();
-    setShowForm(true);
-  };
+ const openNewForm = () => {
+  resetForm();
+  setShowForm(true);
+
+  setTimeout(() => {
+    formularioUsuarioRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  }, 100);
+};
 
   const openEditForm = (user) => {
     setEditingUser(user);
@@ -169,8 +178,16 @@ const currentUserId =
     });
 
     setSelectedPerms(loaded);
-    setShowForm(true);
-  };
+setShowForm(true);
+
+setTimeout(() => {
+  formularioUsuarioRef.current?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start',
+  });
+}, 100);
+
+};
 
   const togglePerm = (modulo, permiso) => {
     setSelectedPerms((prev) => ({
@@ -536,8 +553,11 @@ const guardarPinAdministrador = async () => {
         </button>
       </div>
 
-      {showForm && (
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 md:p-6 mb-6">
+     {showForm && (
+  <div
+    ref={formularioUsuarioRef}
+    className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 md:p-6 mb-6 scroll-mt-4"
+  >
           <h3 className="text-xl font-semibold text-slate-900 mb-4">
             {editingUser ? 'Editar Usuario' : 'Registrar Nuevo Usuario'}
           </h3>
@@ -658,6 +678,243 @@ const guardarPinAdministrador = async () => {
         </div>
       )}
 
+{/* ====================================================== */}
+{/* ============= PIN DE AUTENTICACIÓN =================== */}
+{/* ====================================================== */}
+
+{showPinModal && usuarioPinTarget && (
+
+  <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-3">
+
+    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
+
+      {/* ENCABEZADO */}
+      <div className="p-5 border-b border-slate-200">
+
+        <h3 className="text-xl font-bold text-slate-900">
+          PIN de Autenticación
+        </h3>
+
+        <p className="text-sm text-slate-500 mt-1">
+          {usuarioPinTarget.nombre ||
+            usuarioPinTarget.email}
+        </p>
+
+        <p className="text-xs text-slate-400 mt-1">
+          ID Usuario: {usuarioPinTarget.id_usuario}
+        </p>
+
+      </div>
+
+
+      {/* CUERPO */}
+      <div className="p-5 space-y-5">
+
+        <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl">
+
+          <p className="font-semibold text-purple-800">
+            Autorización administrativa
+          </p>
+
+          <p className="text-sm text-purple-700 mt-1">
+            Para asignar o cambiar el PIN de otro administrador,
+            primero debe ingresar su propio PIN administrativo.
+          </p>
+
+        </div>
+
+
+        {/* PIN DEL ADMIN QUE AUTORIZA */}
+        <div>
+
+          <label className="block text-sm font-semibold text-slate-700 mb-1">
+            Su PIN administrativo *
+          </label>
+
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            autoComplete="off"
+            value={pinAutorizador}
+            onChange={(e) => {
+
+              setPinAutorizador(
+                e.target.value
+                  .replace(/\D/g, '')
+                  .slice(0, 6)
+              );
+
+              setErrorPin('');
+
+            }}
+            placeholder="••••••"
+            className="
+              w-full
+              border border-slate-300
+              rounded-xl
+              px-4 py-3
+              text-center
+              text-xl
+              tracking-[0.4em]
+            "
+          />
+
+        </div>
+
+
+        {/* NUEVO PIN */}
+        <div>
+
+          <label className="block text-sm font-semibold text-slate-700 mb-1">
+            Nuevo PIN de 6 dígitos *
+          </label>
+
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            autoComplete="off"
+            value={nuevoPinAdmin}
+            onChange={(e) => {
+
+              setNuevoPinAdmin(
+                e.target.value
+                  .replace(/\D/g, '')
+                  .slice(0, 6)
+              );
+
+              setErrorPin('');
+
+            }}
+            placeholder="••••••"
+            className="
+              w-full
+              border border-slate-300
+              rounded-xl
+              px-4 py-3
+              text-center
+              text-xl
+              tracking-[0.4em]
+            "
+          />
+
+        </div>
+
+
+        {/* CONFIRMACIÓN */}
+        <div>
+
+          <label className="block text-sm font-semibold text-slate-700 mb-1">
+            Confirmar nuevo PIN *
+          </label>
+
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            autoComplete="off"
+            value={confirmarNuevoPinAdmin}
+            onChange={(e) => {
+
+              setConfirmarNuevoPinAdmin(
+                e.target.value
+                  .replace(/\D/g, '')
+                  .slice(0, 6)
+              );
+
+              setErrorPin('');
+
+            }}
+            placeholder="••••••"
+            className="
+              w-full
+              border border-slate-300
+              rounded-xl
+              px-4 py-3
+              text-center
+              text-xl
+              tracking-[0.4em]
+            "
+          />
+
+        </div>
+
+
+        {/* ERROR */}
+        {errorPin && (
+
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+
+            ⚠ {errorPin}
+
+          </div>
+
+        )}
+
+      </div>
+
+
+      {/* BOTONES */}
+      <div className="p-4 border-t border-slate-200 flex flex-col sm:flex-row gap-3">
+
+        <button
+          type="button"
+          disabled={guardandoPin}
+          onClick={() => {
+
+            setShowPinModal(false);
+            setUsuarioPinTarget(null);
+            setPinAutorizador('');
+            setNuevoPinAdmin('');
+            setConfirmarNuevoPinAdmin('');
+            setErrorPin('');
+
+          }}
+          className="
+            w-full
+            px-4 py-3
+            bg-slate-100
+            text-slate-700
+            rounded-xl
+            font-medium
+            hover:bg-slate-200
+          "
+        >
+          Cancelar
+        </button>
+
+
+        <button
+          type="button"
+          disabled={guardandoPin}
+          onClick={guardarPinAdministrador}
+          className="
+            w-full
+            px-4 py-3
+            bg-purple-600
+            text-white
+            rounded-xl
+            font-semibold
+            hover:bg-purple-700
+            disabled:opacity-50
+          "
+        >
+
+          {guardandoPin
+            ? 'Guardando...'
+            : 'Guardar nuevo PIN'}
+
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+)}
+        
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 md:p-6">
         <div className="mb-6">
           <input
