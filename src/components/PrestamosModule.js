@@ -93,6 +93,26 @@ const [loadingExpediente, setLoadingExpediente] =
   const [selectedSocioForHistorial, setSelectedSocioForHistorial] = useState(null);
   const [socioPrestamos, setSocioPrestamos] = useState([]);
   const [showEditPrestamosModal, setShowEditPrestamosModal] = useState(false);
+
+  // ================= CANCELACIÓN SEGURA DE PRÉSTAMO =================
+
+const [showCancelarPrestamoModal, setShowCancelarPrestamoModal] =
+  useState(false);
+
+const [prestamoCancelarTarget, setPrestamoCancelarTarget] =
+  useState(null);
+
+const [pinCancelarPrestamo, setPinCancelarPrestamo] =
+  useState('');
+
+const [motivoCancelarPrestamo, setMotivoCancelarPrestamo] =
+  useState('');
+
+const [cancelandoPrestamo, setCancelandoPrestamo] =
+  useState(false);
+
+const [errorCancelarPrestamo, setErrorCancelarPrestamo] =
+  useState('');
   
 // Pago desde el historial del préstamo
 const [showPagoPrestamoModal, setShowPagoPrestamoModal] =
@@ -705,8 +725,17 @@ const localPlainDateTime = () => {
           const diffTime = Math.abs(now.getTime() - fechaSolicitud.getTime());
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-          const canDelete = pagosRealizadosCount === 0 && diffDays <= 1;
-          return { ...prestamo, canDelete };
+         const puedeModificar =
+  pagosRealizadosCount === 0 &&
+  diffDays <= 7;
+
+return {
+  ...prestamo,
+  canDelete: puedeModificar,
+  canEdit: puedeModificar,
+  pagosRealizadosCount,
+  diffDays,
+};
         })
       );
       setSocioPrestamos(prestamosConEstadoYHabilitacion);
@@ -1270,39 +1299,175 @@ const confirmarPagoDesdePrestamo = async () => {
     setError(null);
   };
 
-  const handleDeletePrestamo = async (prestamoId) => {
-    if (!window.confirm('¿Eliminar este préstamo? Esta acción no se puede deshacer.')) return;
-    setLoading(true);
-    setError(null);
-    setToastMessage('');
-    try {
-      const deletePagosResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/pagos_prestamos?id_prestamo=eq.${prestamoId}`,
-        { method: 'DELETE', headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
-      );
-      if (!deletePagosResponse.ok) throw new Error('Error al eliminar pagos relacionados');
+ // ======================================================
+// ============= ABRIR CANCELACIÓN PRÉSTAMO =============
+// ======================================================
 
-      const deletePrestamoResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/prestamos?id_prestamo=eq.${prestamoId}`,
-        { method: 'DELETE', headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
-      );
-      if (!deletePrestamoResponse.ok) throw new Error('Error al eliminar el préstamo');
+const abrirCancelarPrestamo = (prestamo) => {
 
-      setToastMessage('Préstamo eliminado exitosamente.');
-      if (selectedSocioForHistorial) {
-        if (showEditPrestamosModal) await handleEditarPrestamosSocio(selectedSocioForHistorial);
-        if (showPrestamoHistorial) await handleVerHistorialPrestamosSocio(selectedSocioForHistorial);
+  if (!prestamo?.canDelete) {
+    alert(
+      'Este préstamo no puede cancelarse porque ya tiene pagos registrados o supera el periodo permitido de 7 días.'
+    );
+    return;
+  }
+
+  setPrestamoCancelarTarget(prestamo);
+  setPinCancelarPrestamo('');
+  setMotivoCancelarPrestamo('');
+  setErrorCancelarPrestamo('');
+  setShowCancelarPrestamoModal(true);
+};
+
+
+// ======================================================
+// ============= CONFIRMAR CANCELACIÓN ==================
+// ======================================================
+
+const confirmarCancelarPrestamo = async () => {
+
+  if (!prestamoCancelarTarget?.id_prestamo) {
+    setErrorCancelarPrestamo(
+      'No se encontró el préstamo que desea cancelar.'
+    );
+    return;
+  }
+
+  const pinLimpio =
+    String(pinCancelarPrestamo || '').trim();
+
+  if (!/^\d{6}$/.test(pinLimpio)) {
+    setErrorCancelarPrestamo(
+      'Ingrese un PIN de administrador válido de 6 dígitos.'
+    );
+    return;
+  }
+
+  const motivoLimpio =
+    String(motivoCancelarPrestamo || '').trim();
+
+  if (motivoLimpio.length < 5) {
+    setErrorCancelarPrestamo(
+      'Indique el motivo de la cancelación.'
+    );
+    return;
+  }
+
+  if (!currentUserId) {
+    setErrorCancelarPrestamo(
+      'No se pudo identificar al usuario que inició sesión.'
+    );
+    return;
+  }
+
+  setCancelandoPrestamo(true);
+  setErrorCancelarPrestamo('');
+
+  try {
+
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/rpc/cancelar_prestamo_seguro`,
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+
+        body: JSON.stringify({
+          p_id_prestamo:
+            prestamoCancelarTarget.id_prestamo,
+
+          p_usuario_ref:
+            String(currentUserId),
+
+          p_pin:
+            pinLimpio,
+
+          p_motivo:
+            motivoLimpio,
+        }),
       }
-      fetchGlobalPrestamoStats();
-      if (!idSocio) fetchAllSociosConPrestamoActivo();
-      else fetchPrestamosForUser(idSocio);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-      setTimeout(() => setToastMessage(''), 3000);
+    );
+
+    if (!response.ok) {
+
+      const detalle = await response.text();
+
+      let mensaje =
+        'No se pudo cancelar el préstamo.';
+
+      try {
+        const detalleJson = JSON.parse(detalle);
+
+        mensaje =
+          detalleJson?.message ||
+          mensaje;
+
+      } catch {
+        // dejamos el mensaje general
+      }
+
+      throw new Error(mensaje);
     }
-  };
+
+    setShowCancelarPrestamoModal(false);
+    setPrestamoCancelarTarget(null);
+    setPinCancelarPrestamo('');
+    setMotivoCancelarPrestamo('');
+
+    setToastMessage(
+      'Préstamo cancelado correctamente. La información permanece disponible para restauración.'
+    );
+
+    if (selectedSocioForHistorial) {
+
+      if (showEditPrestamosModal) {
+        await handleEditarPrestamosSocio(
+          selectedSocioForHistorial
+        );
+      }
+
+      if (showPrestamoHistorial) {
+        await handleVerHistorialPrestamosSocio(
+          selectedSocioForHistorial
+        );
+      }
+    }
+
+    await fetchGlobalPrestamoStats();
+
+    if (!idSocio) {
+      await fetchAllSociosConPrestamoActivo();
+    } else {
+      await fetchPrestamosForUser(idSocio);
+    }
+
+    setTimeout(
+      () => setToastMessage(''),
+      4000
+    );
+
+  } catch (errorCancelacion) {
+
+    console.error(
+      'ERROR CANCELANDO PRÉSTAMO:',
+      errorCancelacion
+    );
+
+    setErrorCancelarPrestamo(
+      errorCancelacion.message ||
+      'No se pudo cancelar el préstamo.'
+    );
+
+  } finally {
+
+    setCancelandoPrestamo(false);
+
+  }
+};
 
   // --- Modal: reacciones/calculadora ---
   useEffect(() => {
@@ -3694,18 +3859,23 @@ if (garantiasParaGuardar.length > 0) {
   )}
 </p>
                     {!prestamo.canDelete && (
-                      <p className="text-xs text-slate-500 mt-1">No se puede eliminar (tiene pagos o supera 1 día).</p>
+                      <p className="text-xs text-slate-500 mt-1">No se puede modificar ni cancelar: tiene pagos registrados o supera 7 días.</p>
                     )}
                   </div>
-                  <button
-                    onClick={() => handleDeletePrestamo(prestamo.id_prestamo)}
-                    className={`px-3 py-1 bg-red-500 text-white rounded-lg text-sm transition-colors ${
-                      prestamo.canDelete ? 'hover:bg-red-600' : 'opacity-50 cursor-not-allowed'
-                    }`}
-                    disabled={!prestamo.canDelete}
-                  >
-                    Eliminar
-                  </button>
+                 <button
+  type="button"
+  onClick={() =>
+    abrirCancelarPrestamo(prestamo)
+  }
+  className={`px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium transition-colors ${
+    prestamo.canDelete
+      ? 'hover:bg-red-700'
+      : 'opacity-50 cursor-not-allowed'
+  }`}
+  disabled={!prestamo.canDelete}
+>
+  Cancelar préstamo
+</button>
                 </div>
               ))}
               <div className="flex justify-center mt-6">
