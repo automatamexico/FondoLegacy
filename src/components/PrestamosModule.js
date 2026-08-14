@@ -79,6 +79,12 @@ const [garantiasExpediente, setGarantiasExpediente] =
 
 const [abriendoDocumento, setAbriendoDocumento] =
   useState('');
+
+const [previewDocumentoPrestamo, setPreviewDocumentoPrestamo] =
+  useState(null);
+
+const [isMobilePrestamos, setIsMobilePrestamos] =
+  useState(window.innerWidth < 768);
   
 const [loadingExpediente, setLoadingExpediente] =
   useState(false);
@@ -314,6 +320,18 @@ const [erroresFormulario, setErroresFormulario] = useState({});
     if (!idSocio) fetchAllSociosConPrestamoActivo();
     else fetchPrestamosForUser(idSocio);
   }, [idSocio]);
+
+  useEffect(() => {
+  const handleResize = () => {
+    setIsMobilePrestamos(window.innerWidth < 768);
+  };
+
+  window.addEventListener('resize', handleResize);
+
+  return () => {
+    window.removeEventListener('resize', handleResize);
+  };
+}, []);
 
   // --- Utils ---
   const formatCurrency = (value) =>
@@ -946,28 +964,45 @@ const handleVerDocumentoPrestamo = async (path) => {
     // ================= ABRIR DOCUMENTO =====================
     // ======================================================
 
-    if (esAndroid || esWebView) {
+   // ======================================================
+// =========== ABRIR SIN SALIR DEL EXPEDIENTE ===========
+// ======================================================
 
-      // En la app usamos la misma ventana.
-      // Es más compatible con Android WebView.
-      window.location.href = urlFirmada;
+const extension = String(path)
+  .split('.')
+  .pop()
+  ?.toLowerCase();
 
-    } else {
+const tipoDocumento =
+  extension === 'pdf'
+    ? 'pdf'
+    : 'image';
 
-      // En navegador web abrimos pestaña nueva.
-      const nuevaVentana = window.open(
-        urlFirmada,
-        '_blank',
-        'noopener,noreferrer'
-      );
+if (isMobilePrestamos) {
 
-      // Si el navegador bloquea popups,
-      // usamos la misma ventana.
-      if (!nuevaVentana) {
-        window.location.href = urlFirmada;
-      }
+  // En móvil NO navegamos fuera de la aplicación.
+  // Mostramos el documento encima del expediente.
+  setPreviewDocumentoPrestamo({
+    type: tipoDocumento,
+    url: urlFirmada,
+  });
 
-    }
+} else {
+
+  // En escritorio conserva pestaña nueva.
+  const nuevaVentana = window.open(
+    urlFirmada,
+    '_blank',
+    'noopener,noreferrer'
+  );
+
+  if (!nuevaVentana) {
+    alert(
+      'El navegador bloqueó la apertura del documento. Habilite ventanas emergentes.'
+    );
+  }
+
+}
 
 
   } catch (errorDocumento) {
@@ -3878,6 +3913,136 @@ if (garantiasParaGuardar.length > 0) {
           className="w-full sm:w-auto px-5 py-2.5 bg-slate-800 text-white rounded-xl hover:bg-slate-900 font-medium"
         >
           Cerrar
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+)}
+
+{/* ====================================================== */}
+{/* ===== VISOR DOCUMENTOS PRÉSTAMO - MÓVIL ============= */}
+{/* ====================================================== */}
+
+{previewDocumentoPrestamo && (
+  <div
+    className="
+      fixed
+      inset-0
+      bg-black/80
+      z-[9999]
+      flex
+      items-center
+      justify-center
+      p-2
+      sm:p-4
+    "
+  >
+
+    <div
+      className="
+        bg-white
+        rounded-2xl
+        shadow-2xl
+        w-full
+        h-[94vh]
+        max-w-5xl
+        relative
+        overflow-hidden
+        flex
+        flex-col
+      "
+    >
+
+      {/* ENCABEZADO */}
+      <div className="flex items-center justify-between p-3 border-b border-slate-200">
+
+        <div>
+          <p className="font-bold text-slate-900">
+            Documento
+          </p>
+
+          <p className="text-xs text-slate-500">
+            Expediente del préstamo
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            setPreviewDocumentoPrestamo(null)
+          }
+          className="
+            w-10
+            h-10
+            rounded-full
+            bg-red-600
+            text-white
+            font-bold
+            text-lg
+            flex
+            items-center
+            justify-center
+          "
+        >
+          ✕
+        </button>
+
+      </div>
+
+
+      {/* CONTENIDO */}
+      <div className="flex-1 overflow-hidden">
+
+        {previewDocumentoPrestamo.type === 'image' && (
+          <div className="w-full h-full flex items-center justify-center bg-slate-100 p-3">
+
+            <img
+              src={previewDocumentoPrestamo.url}
+              alt="Documento"
+              className="
+                max-w-full
+                max-h-full
+                object-contain
+              "
+            />
+
+          </div>
+        )}
+
+
+        {previewDocumentoPrestamo.type === 'pdf' && (
+          <iframe
+            src={previewDocumentoPrestamo.url}
+            title="Documento del préstamo"
+            className="w-full h-full border-0"
+          />
+        )}
+
+      </div>
+
+
+      {/* PIE MÓVIL */}
+      <div className="p-3 border-t border-slate-200">
+
+        <button
+          type="button"
+          onClick={() =>
+            setPreviewDocumentoPrestamo(null)
+          }
+          className="
+            w-full
+            px-4
+            py-3
+            bg-slate-900
+            text-white
+            rounded-xl
+            font-medium
+          "
+        >
+          Regresar al expediente
         </button>
 
       </div>
