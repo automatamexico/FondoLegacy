@@ -859,66 +859,118 @@ const handleVerDocumentoPrestamo = async (path) => {
 
   setAbriendoDocumento(path);
 
-// ======================================================
-// ===== PROTEGER RUTA CONTRA CARACTERES ESPECIALES =====
-// ======================================================
-const pathSeguro = String(path)
-  .split('/')
-  .map((segmento) => encodeURIComponent(segmento))
-  .join('/');
+  try {
 
-// Intentamos abrir la ventana inmediatamente.
-// Esto ayuda en navegadores y WebView móvil.
-const nuevaVentana = window.open('', '_blank');
+    // ======================================================
+    // ===== PROTEGER RUTA CONTRA CARACTERES ESPECIALES =====
+    // ======================================================
 
-try {
-  const response = await fetch(
-    `${SUPABASE_URL}/storage/v1/object/sign/documentos-prestamos/${pathSeguro}`,
+    const pathSeguro = String(path)
+      .split('/')
+      .map((segmento) => encodeURIComponent(segmento))
+      .join('/');
+
+
+    // ======================================================
+    // ============ GENERAR URL FIRMADA PRIVADA =============
+    // ======================================================
+
+    const response = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/sign/documentos-prestamos/${pathSeguro}`,
       {
         method: 'POST',
+
         headers: {
           'Content-Type': 'application/json',
           apikey: SUPABASE_ANON_KEY,
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         },
+
         body: JSON.stringify({
           expiresIn: 300,
         }),
+
+        cache: 'no-store',
       }
     );
 
+
     if (!response.ok) {
+
       const detalle = await response.text();
 
       throw new Error(
         `No se pudo abrir el documento. Detalle: ${detalle}`
       );
+
     }
+
 
     const data = await response.json();
 
+
     if (!data?.signedURL) {
+
       throw new Error(
         'Supabase no devolvió una URL válida para el documento.'
       );
+
     }
+
 
     const urlFirmada = data.signedURL.startsWith('http')
       ? data.signedURL
       : `${SUPABASE_URL}/storage/v1${data.signedURL}`;
 
-    if (nuevaVentana) {
-      nuevaVentana.location.href = urlFirmada;
-    } else {
-      // Fallback especialmente útil en algunos WebView Android
+
+    // ======================================================
+    // =========== DETECTAR APP / WEBVIEW ANDROID ===========
+    // ======================================================
+
+    const userAgent =
+      navigator.userAgent ||
+      navigator.vendor ||
+      '';
+
+    const esAndroid =
+      /Android/i.test(userAgent);
+
+    const esWebView =
+      /wv/i.test(userAgent) ||
+      /Version\/[\d.]+.*Chrome\/[\d.]+.*Mobile/i.test(
+        userAgent
+      );
+
+
+    // ======================================================
+    // ================= ABRIR DOCUMENTO =====================
+    // ======================================================
+
+    if (esAndroid || esWebView) {
+
+      // En la app usamos la misma ventana.
+      // Es más compatible con Android WebView.
       window.location.href = urlFirmada;
+
+    } else {
+
+      // En navegador web abrimos pestaña nueva.
+      const nuevaVentana = window.open(
+        urlFirmada,
+        '_blank',
+        'noopener,noreferrer'
+      );
+
+      // Si el navegador bloquea popups,
+      // usamos la misma ventana.
+      if (!nuevaVentana) {
+        window.location.href = urlFirmada;
+      }
+
     }
+
 
   } catch (errorDocumento) {
-
-    if (nuevaVentana) {
-      nuevaVentana.close();
-    }
 
     console.error(
       'ERROR ABRIENDO DOCUMENTO:',
@@ -931,7 +983,9 @@ try {
     );
 
   } finally {
+
     setAbriendoDocumento('');
+
   }
 };
   
