@@ -523,7 +523,7 @@ const localPlainDateTime = () => {
   const fetchGlobalPrestamoStats = async () => {
     try {
       const sociosConPrestamoResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/prestamos?select=id_socio`,
+        `${SUPABASE_URL}/rest/v1/prestamos?select=id_socio&eliminado=eq.false`
         { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       const sociosConPrestamoData = await sociosConPrestamoResponse.json();
@@ -558,7 +558,7 @@ const localPlainDateTime = () => {
     setError(null);
     try {
       const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioId}&select=*`,
+       `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socioId}&eliminado=eq.false&select=*`,
         { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!response.ok) throw new Error('Error al cargar préstamos del socio');
@@ -591,7 +591,7 @@ const localPlainDateTime = () => {
     setError(null);
     try {
       const prestamosActivosResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/prestamos?select=id_socio&estatus=eq.activo`,
+        `${SUPABASE_URL}/rest/v1/prestamos?select=id_socio&estatus=eq.activo&eliminado=eq.false`,
         { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!prestamosActivosResponse.ok) throw new Error('Error al cargar préstamos activos');
@@ -627,7 +627,7 @@ const localPlainDateTime = () => {
     setError(null);
     try {
       const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,numero_prestamo_socio,monto_solicitado,fecha_solicitud,fecha_hora_solicitud,numero_plazos,tipo_plazo,interes`,
+      `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&eliminado=eq.false&order=fecha_solicitud.desc&select=id_prestamo,numero_prestamo_socio,monto_solicitado,fecha_solicitud,fecha_hora_solicitud,numero_plazos,tipo_plazo,interes`,
         { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!response.ok) throw new Error('Error al cargar préstamos del socio');
@@ -669,7 +669,7 @@ const localPlainDateTime = () => {
     setError(null);
     try {
       const response = await fetch(
-       `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,numero_prestamo_socio,monto_solicitado,fecha_solicitud,fecha_hora_solicitud,numero_plazos`,
+      `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&eliminado=eq.false&order=fecha_solicitud.desc&select=id_prestamo,numero_prestamo_socio,monto_solicitado,fecha_solicitud,fecha_hora_solicitud,numero_plazos,tipo_plazo,interes,estatus`,
         { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!response.ok) throw new Error('Error al cargar préstamos para edición');
@@ -1548,7 +1548,7 @@ const cargarDatosPrestamoAnterior = async (idSocioSeleccionado) => {
     // ======================================================
 
     const prestamoResp = await fetch(
-      `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${idSocioSeleccionado}&estatus=eq.activo&order=numero_prestamo_socio.desc&limit=1&select=*`,
+      `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${idSocioSeleccionado}&estatus=eq.activo&eliminado=eq.false&order=numero_prestamo_socio.desc&limit=1&select=*`,
       {
         headers: {
           'Content-Type': 'application/json',
