@@ -523,9 +523,15 @@ const localPlainDateTime = () => {
   const fetchGlobalPrestamoStats = async () => {
     try {
       const sociosConPrestamoResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/prestamos?select=id_socio&eliminado=eq.false`
-        { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
-      );
+  `${SUPABASE_URL}/rest/v1/prestamos?select=id_socio&eliminado=eq.false`,
+  {
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  }
+);
       const sociosConPrestamoData = await sociosConPrestamoResponse.json();
       const uniqueSociosIds = new Set(sociosConPrestamoData.map((item) => item.id_socio));
       setTotalSociosConPrestamo(uniqueSociosIds.size);
