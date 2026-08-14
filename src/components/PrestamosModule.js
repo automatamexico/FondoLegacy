@@ -616,7 +616,7 @@ const localPlainDateTime = () => {
     setError(null);
     try {
       const response = await fetch(
-       `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,fecha_hora_solicitud,numero_plazos,tipo_plazo,interes`,
+      `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,numero_prestamo_socio,monto_solicitado,fecha_solicitud,fecha_hora_solicitud,numero_plazos,tipo_plazo,interes`,
         { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!response.ok) throw new Error('Error al cargar préstamos del socio');
@@ -658,7 +658,7 @@ const localPlainDateTime = () => {
     setError(null);
     try {
       const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,monto_solicitado,fecha_solicitud,fecha_hora_solicitud,numero_plazos`,
+       `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${socio.id_socio}&order=fecha_solicitud.desc&select=id_prestamo,numero_prestamo_socio,monto_solicitado,fecha_solicitud,fecha_hora_solicitud,numero_plazos`,
         { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       if (!response.ok) throw new Error('Error al cargar préstamos para edición');
@@ -2946,7 +2946,8 @@ if (garantiasParaGuardar.length > 0) {
       >
                   <div>
                  <p className="font-medium text-slate-900">
-  Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
+  Préstamo No. {prestamo.numero_prestamo_socio} de{' '}
+  {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
   {formatFechaHoraSolicitud(
     prestamo.fecha_hora_solicitud,
     prestamo.fecha_solicitud
@@ -3018,8 +3019,9 @@ if (garantiasParaGuardar.length > 0) {
               {socioPrestamos.map((prestamo) => (
                 <div key={prestamo.id_prestamo} className="p-4 border border-slate-200 rounded-lg flex justify-between items-center">
                   <div>
-                    <p className="font-medium text-slate-900">
-  Préstamo de {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
+                  <p className="font-medium text-slate-900">
+  Préstamo No. {prestamo.numero_prestamo_socio} de{' '}
+  {formatCurrency(prestamo.monto_solicitado)} solicitado el{' '}
   {formatFechaHoraSolicitud(
     prestamo.fecha_hora_solicitud,
     prestamo.fecha_solicitud
@@ -3064,8 +3066,9 @@ if (garantiasParaGuardar.length > 0) {
 
         <div>
           <h2 className="text-xl md:text-2xl font-bold text-slate-900">
-            Expediente del Préstamo #{expedientePrestamo.id_prestamo}
-          </h2>
+  Expediente del Préstamo No.{' '}
+  {expedientePrestamo.numero_prestamo_socio}
+</h2>
 
           <p className="text-sm text-slate-500 mt-1">
             Información capturada al momento de la solicitud.
@@ -4059,10 +4062,10 @@ if (garantiasParaGuardar.length > 0) {
       {/* Encabezado */}
       <div className="flex items-start justify-between gap-3 p-4 md:p-6 border-b border-slate-200">
         <div>
-          <h3 className="text-lg md:text-xl font-bold text-slate-900">
-            Historial de Pagos del Préstamo{' '}
-            {selectedPrestamo.id_prestamo}
-          </h3>
+         <h3 className="text-lg md:text-xl font-bold text-slate-900">
+  Historial de Pagos del Préstamo No.{' '}
+  {selectedPrestamo.numero_prestamo_socio}
+</h3>
 
           <p className="text-sm text-slate-500 mt-1">
             Monto original:{' '}
