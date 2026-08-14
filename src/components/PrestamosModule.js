@@ -127,6 +127,17 @@ const [guardandoPagoPrestamo, setGuardandoPagoPrestamo] =
   
   const [submitting, setSubmitting] = useState(false);
 
+  // ================= DATOS HEREDADOS DE PRÉSTAMO ANTERIOR =================
+const [cargandoDatosPrevios, setCargandoDatosPrevios] = useState(false);
+
+const [prestamoBaseAnterior, setPrestamoBaseAnterior] = useState(null);
+
+const [documentosAnteriores, setDocumentosAnteriores] = useState({
+  aval: null,
+  propiedad: null,
+  vehiculo: null,
+});
+
   const currentUserRole = localStorage.getItem('currentUser')
     ? (JSON.parse(localStorage.getItem('currentUser')).role || 'admin')
     : 'admin';
@@ -1512,7 +1523,577 @@ setArchivoDocumentoPropiedad(null);
     setAbonoCapitalPeriodo(0);
   };
 
-  const handleCreatePrestamo = async () => {
+// ======================================================
+// ===== CARGAR DATOS DEL ÚLTIMO PRÉSTAMO VIGENTE =======
+// ======================================================
+
+const cargarDatosPrestamoAnterior = async (idSocioSeleccionado) => {
+  if (!idSocioSeleccionado) {
+    resetNuevoPrestamo();
+    setPrestamoBaseAnterior(null);
+    setDocumentosAnteriores({
+      aval: null,
+      propiedad: null,
+      vehiculo: null,
+    });
+    return;
+  }
+
+  setCargandoDatosPrevios(true);
+
+  try {
+
+    // ======================================================
+    // ============== BUSCAR PRÉSTAMO VIGENTE ===============
+    // ======================================================
+
+    const prestamoResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/prestamos?id_socio=eq.${idSocioSeleccionado}&estatus=eq.activo&order=numero_prestamo_socio.desc&limit=1&select=*`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    if (!prestamoResp.ok) {
+      throw new Error(
+        'No se pudo consultar el préstamo anterior.'
+      );
+    }
+
+    const prestamosData = await prestamoResp.json();
+    const prestamoAnterior = prestamosData?.[0] || null;
+
+
+    // ======================================================
+    // ========= SI NO TIENE PRÉSTAMO VIGENTE ===============
+    // ======================================================
+
+    if (!prestamoAnterior) {
+
+      resetNuevoPrestamo();
+
+      setNewPrestamo((prev) => ({
+        ...prev,
+        id_socio: String(idSocioSeleccionado),
+      }));
+
+      setPrestamoBaseAnterior(null);
+
+      setDocumentosAnteriores({
+        aval: null,
+        propiedad: null,
+        vehiculo: null,
+      });
+
+      return;
+    }
+
+
+    const idPrestamoAnterior =
+      prestamoAnterior.id_prestamo;
+
+
+    // ======================================================
+    // ================ CARGAR EVALUACIÓN ===================
+    // ======================================================
+
+    const evaluacionResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/evaluaciones_crediticias?id_prestamo=eq.${idPrestamoAnterior}&select=*`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    const evaluacionData =
+      evaluacionResp.ok
+        ? await evaluacionResp.json()
+        : [];
+
+    const evaluacionAnterior =
+      evaluacionData?.[0] || null;
+
+
+    // ======================================================
+    // ==================== CARGAR AVAL ======================
+    // ======================================================
+
+    const avalResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/avales_prestamos?id_prestamo=eq.${idPrestamoAnterior}&select=*`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    const avalData =
+      avalResp.ok
+        ? await avalResp.json()
+        : [];
+
+    const avalAnterior =
+      avalData?.[0] || null;
+
+
+    // ======================================================
+    // ================= CARGAR GARANTÍAS ===================
+    // ======================================================
+
+    const garantiasResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/garantias_prestamos?id_prestamo=eq.${idPrestamoAnterior}&select=*`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    const garantiasData =
+      garantiasResp.ok
+        ? await garantiasResp.json()
+        : [];
+
+    const propiedadAnterior =
+      garantiasData.find(
+        (g) => g.tipo_garantia === 'PROPIEDAD'
+      ) || null;
+
+    const vehiculoAnterior =
+      garantiasData.find(
+        (g) => g.tipo_garantia === 'VEHICULO'
+      ) || null;
+
+    const otroAnterior =
+      garantiasData.find(
+        (g) => g.tipo_garantia === 'OTRO'
+      ) || null;
+
+
+    // ======================================================
+    // =========== PRECARGAR INFORMACIÓN LABORAL ============
+    // ======================================================
+
+    setNewPrestamo((prev) => {
+
+      const nuevo = {
+        ...prev,
+        id_socio: String(idSocioSeleccionado),
+
+        // INFORMACIÓN LABORAL
+        tipo_fuente_ingreso:
+          prestamoAnterior.tipo_fuente_ingreso || '',
+
+        empleado_nombre_empresa:
+          prestamoAnterior.empleado_nombre_empresa || '',
+
+        empleado_empresa_calle:
+          prestamoAnterior.empleado_empresa_calle || '',
+
+        empleado_empresa_numero:
+          prestamoAnterior.empleado_empresa_numero || '',
+
+        empleado_empresa_edificio:
+          prestamoAnterior.empleado_empresa_edificio || '',
+
+        empleado_empresa_colonia:
+          prestamoAnterior.empleado_empresa_colonia || '',
+
+        empleado_empresa_estado:
+          prestamoAnterior.empleado_empresa_estado || '',
+
+        empleado_empresa_pais:
+          prestamoAnterior.empleado_empresa_pais || '',
+
+        empleado_empresa_municipio:
+          prestamoAnterior.empleado_empresa_municipio || '',
+
+        empleado_empresa_cp:
+          prestamoAnterior.empleado_empresa_cp || '',
+
+        empleado_empresa_entre_calles:
+          prestamoAnterior.empleado_empresa_entre_calles || '',
+
+        empleado_empresa_referencias:
+          prestamoAnterior.empleado_empresa_referencias || '',
+
+        empleado_ocupacion:
+          prestamoAnterior.empleado_ocupacion || '',
+
+        empleado_tiempo_anios:
+          prestamoAnterior.empleado_tiempo_anios ?? '',
+
+        empleado_tiempo_meses:
+          prestamoAnterior.empleado_tiempo_meses ?? '',
+
+        empleado_tipo_contrato:
+          prestamoAnterior.empleado_tipo_contrato || '',
+
+        empleado_ingreso_mensual_neto:
+          prestamoAnterior.empleado_ingreso_mensual_neto ?? '',
+
+        empleado_comprueba_ingresos:
+          prestamoAnterior.empleado_comprueba_ingresos || '',
+
+        empleado_tipo_comprobante:
+          prestamoAnterior.empleado_tipo_comprobante || '',
+
+
+        // NEGOCIO
+        negocio_tipo:
+          prestamoAnterior.negocio_tipo || '',
+
+        negocio_tiempo_anios:
+          prestamoAnterior.negocio_tiempo_anios ?? '',
+
+        negocio_tiempo_meses:
+          prestamoAnterior.negocio_tiempo_meses ?? '',
+
+        negocio_calle:
+          prestamoAnterior.negocio_calle || '',
+
+        negocio_numero:
+          prestamoAnterior.negocio_numero || '',
+
+        negocio_edificio:
+          prestamoAnterior.negocio_edificio || '',
+
+        negocio_colonia:
+          prestamoAnterior.negocio_colonia || '',
+
+        negocio_estado:
+          prestamoAnterior.negocio_estado || '',
+
+        negocio_pais:
+          prestamoAnterior.negocio_pais || '',
+
+        negocio_municipio:
+          prestamoAnterior.negocio_municipio || '',
+
+        negocio_cp:
+          prestamoAnterior.negocio_cp || '',
+
+        negocio_entre_calles:
+          prestamoAnterior.negocio_entre_calles || '',
+
+        negocio_referencias:
+          prestamoAnterior.negocio_referencias || '',
+
+        negocio_formal:
+          prestamoAnterior.negocio_formal || '',
+
+        negocio_num_empleados:
+          prestamoAnterior.negocio_num_empleados || '',
+
+        negocio_gastos_mensuales:
+          prestamoAnterior.negocio_gastos_mensuales || '',
+
+        negocio_utilidad_aproximada:
+          prestamoAnterior.negocio_utilidad_aproximada ?? '',
+
+
+        // ==========================================
+        // ESTOS SIEMPRE QUEDAN VACÍOS
+        // ==========================================
+        monto_solicitado: '',
+        numero_plazos: '',
+        tipo_plazo: 'mensual',
+        interes: '',
+        fecha_solicitud: '',
+      };
+
+      return nuevo;
+    });
+
+
+    // ======================================================
+    // ============= PRECARGAR EVALUACIÓN ===================
+    // ======================================================
+
+    if (evaluacionAnterior) {
+
+      setEvaluacionCrediticia({
+        capacidad_pago_periodicidad:
+          evaluacionAnterior.capacidad_pago_periodicidad || '',
+
+        capacidad_pago_monto:
+          evaluacionAnterior.capacidad_pago_monto ?? '',
+
+        destino_dinero:
+          evaluacionAnterior.destino_dinero || '',
+
+        uso_generara_ingresos:
+          evaluacionAnterior.uso_generara_ingresos === true
+            ? 'SI'
+            : evaluacionAnterior.uso_generara_ingresos === false
+            ? 'NO'
+            : '',
+
+        tiempo_recuperacion:
+          evaluacionAnterior.tiempo_recuperacion || '',
+
+        riesgo_si_no_funciona:
+          evaluacionAnterior.riesgo_si_no_funciona || '',
+
+        otros_ingresos:
+          evaluacionAnterior.otros_ingresos || '',
+
+        accion_si_no_puede_pagar:
+          evaluacionAnterior.accion_si_no_puede_pagar || '',
+
+        accion_si_sin_ingresos_mes:
+          evaluacionAnterior.accion_si_sin_ingresos_mes || '',
+
+        accion_emergencia_fuerte:
+          evaluacionAnterior.accion_emergencia_fuerte || '',
+
+        fuente_pago_prestamo:
+          evaluacionAnterior.fuente_pago_prestamo || '',
+
+        cuenta_con_aval:
+          !!evaluacionAnterior.cuenta_con_aval,
+
+        tiene_redes_sociales:
+          evaluacionAnterior.tiene_redes_sociales === true
+            ? 'SI'
+            : evaluacionAnterior.tiene_redes_sociales === false
+            ? 'NO'
+            : '',
+
+        redes_sociales_detalle:
+          evaluacionAnterior.redes_sociales_detalle || '',
+
+        tiene_automovil:
+          evaluacionAnterior.tiene_automovil === true
+            ? 'SI'
+            : evaluacionAnterior.tiene_automovil === false
+            ? 'NO'
+            : '',
+
+        tiene_propiedades:
+          evaluacionAnterior.tiene_propiedades === true
+            ? 'SI'
+            : evaluacionAnterior.tiene_propiedades === false
+            ? 'NO'
+            : '',
+
+        garantia_declarada:
+          evaluacionAnterior.garantia_declarada || '',
+      });
+
+    }
+
+
+    // ======================================================
+    // ================= PRECARGAR AVAL ======================
+    // ======================================================
+
+    if (avalAnterior) {
+
+      setAvalPrestamo({
+        nombre:
+          avalAnterior.nombre || '',
+
+        edad:
+          avalAnterior.edad ?? '',
+
+        celular:
+          avalAnterior.celular || '',
+
+        ocupacion:
+          avalAnterior.ocupacion || '',
+
+        domicilio_calle:
+          avalAnterior.domicilio_calle || '',
+
+        domicilio_numero:
+          avalAnterior.domicilio_numero || '',
+
+        domicilio_edificio:
+          avalAnterior.domicilio_edificio || '',
+
+        domicilio_colonia:
+          avalAnterior.domicilio_colonia || '',
+
+        domicilio_estado:
+          avalAnterior.domicilio_estado || '',
+
+        domicilio_pais:
+          avalAnterior.domicilio_pais || '',
+
+        domicilio_municipio:
+          avalAnterior.domicilio_municipio || '',
+
+        domicilio_cp:
+          avalAnterior.domicilio_cp || '',
+
+        domicilio_entre_calles:
+          avalAnterior.domicilio_entre_calles || '',
+
+        domicilio_referencias:
+          avalAnterior.domicilio_referencias || '',
+
+        tiene_redes_sociales:
+          avalAnterior.tiene_redes_sociales === true
+            ? 'SI'
+            : avalAnterior.tiene_redes_sociales === false
+            ? 'NO'
+            : '',
+
+        redes_sociales_detalle:
+          avalAnterior.redes_sociales_detalle || '',
+      });
+
+    }
+
+
+    // ======================================================
+    // =============== PRECARGAR GARANTÍAS ==================
+    // ======================================================
+
+    setGarantiasPrestamo((prev) => ({
+      ...prev,
+
+      propiedad_pertenece_a:
+        propiedadAnterior?.pertenece_a || 'SOLICITANTE',
+
+      propiedad_calle:
+        propiedadAnterior?.propiedad_calle || '',
+
+      propiedad_numero:
+        propiedadAnterior?.propiedad_numero || '',
+
+      propiedad_edificio:
+        propiedadAnterior?.propiedad_edificio || '',
+
+      propiedad_colonia:
+        propiedadAnterior?.propiedad_colonia || '',
+
+      propiedad_estado:
+        propiedadAnterior?.propiedad_estado || '',
+
+      propiedad_pais:
+        propiedadAnterior?.propiedad_pais || '',
+
+      propiedad_municipio:
+        propiedadAnterior?.propiedad_municipio || '',
+
+      propiedad_cp:
+        propiedadAnterior?.propiedad_cp || '',
+
+      propiedad_entre_calles:
+        propiedadAnterior?.propiedad_entre_calles || '',
+
+      propiedad_referencias:
+        propiedadAnterior?.propiedad_referencias || '',
+
+      propiedad_tipo:
+        propiedadAnterior?.propiedad_tipo || '',
+
+      propiedad_valor_estimado:
+        propiedadAnterior?.valor_estimado ?? '',
+
+      propiedad_documentacion:
+        propiedadAnterior?.propiedad_documentacion || '',
+
+      propiedad_gravamenes:
+        propiedadAnterior?.propiedad_gravamenes || '',
+
+
+      vehiculo_pertenece_a:
+        vehiculoAnterior?.pertenece_a || 'SOLICITANTE',
+
+      vehiculo_marca:
+        vehiculoAnterior?.vehiculo_marca || '',
+
+      vehiculo_modelo:
+        vehiculoAnterior?.vehiculo_modelo || '',
+
+      vehiculo_anio:
+        vehiculoAnterior?.vehiculo_anio ?? '',
+
+      vehiculo_valor_estimado:
+        vehiculoAnterior?.valor_estimado ?? '',
+
+      vehiculo_documentacion:
+        vehiculoAnterior?.vehiculo_documentacion || '',
+
+      vehiculo_gravamenes:
+        vehiculoAnterior?.vehiculo_gravamenes || '',
+
+
+      tiene_otro_activo:
+        otroAnterior ? 'SI' : 'NO',
+
+      otro_pertenece_a:
+        otroAnterior?.pertenece_a || 'SOLICITANTE',
+
+      otro_tipo:
+        otroAnterior?.otro_tipo || '',
+
+      otro_descripcion:
+        otroAnterior?.otro_descripcion || '',
+
+      otro_valor_estimado:
+        otroAnterior?.valor_estimado ?? '',
+    }));
+
+
+    // ======================================================
+    // ========= CONSERVAR DOCUMENTOS DEL ANTERIOR ==========
+    // ======================================================
+
+    setDocumentosAnteriores({
+      aval:
+        avalAnterior?.identificacion_path || null,
+
+      propiedad:
+        propiedadAnterior?.documento_path || null,
+
+      vehiculo:
+        vehiculoAnterior?.documento_path || null,
+    });
+
+
+    setPrestamoBaseAnterior({
+      id_prestamo:
+        prestamoAnterior.id_prestamo,
+
+      numero_prestamo_socio:
+        prestamoAnterior.numero_prestamo_socio,
+    });
+
+
+  } catch (errorAnterior) {
+
+    console.error(
+      'ERROR CARGANDO PRÉSTAMO ANTERIOR:',
+      errorAnterior
+    );
+
+    alert(
+      'No se pudieron cargar los datos del préstamo anterior.'
+    );
+
+  } finally {
+
+    setCargandoDatosPrevios(false);
+
+  }
+};
+  
+ const handleCreatePrestamo = async (confirmado = false) => {
     if (!newPrestamo.id_socio) return alert('Selecciona un socio.');
     if (!newPrestamo.tipo_fuente_ingreso) {
   return alert(
@@ -1637,7 +2218,10 @@ if (evaluacionCrediticia.cuenta_con_aval) {
   if (!avalPrestamo.ocupacion.trim()) {
     return alert('Indique a qué se dedica el aval.');
   }
-if (!archivoIdentificacionAval) {
+if (
+  !archivoIdentificacionAval &&
+  !documentosAnteriores.aval
+) {
   return alert(
     'Debe adjuntar una copia de la identificación del aval.'
   );
@@ -1669,7 +2253,10 @@ if (evaluacionCrediticia.tiene_propiedades === 'SI') {
       'Indique el valor estimado de la propiedad.'
     );
   }
-  if (!archivoDocumentoPropiedad) {
+  if (
+  !archivoDocumentoPropiedad &&
+  !documentosAnteriores.propiedad
+) {
   return alert(
     'Debe adjuntar el documento que acredita la propiedad.'
   );
@@ -1706,7 +2293,10 @@ if (evaluacionCrediticia.tiene_automovil === 'SI') {
       'Indique el valor estimado del vehículo.'
     );
   }
-if (!archivoDocumentoVehiculo) {
+if (
+  !archivoDocumentoVehiculo &&
+  !documentosAnteriores.vehiculo
+) {
   return alert(
     'Debe adjuntar el documento que acredita la propiedad del vehículo.'
   );
@@ -1744,13 +2334,24 @@ if (garantiasPrestamo.tiene_otro_activo === 'SI') {
     if (!newPrestamo.numero_plazos || Number(newPrestamo.numero_plazos) <= 0) return alert('Plazos inválidos.');
     if (newPrestamo.interes === '' || Number(newPrestamo.interes) < 0) return alert('Interés por periodo inválido.');
 
-    // ======================================================
+// ======================================================
 // ========= VALIDACIÓN FINAL DE DOCUMENTOS =============
 // ======================================================
 
 const erroresArchivos = {};
 
-if (evaluacionCrediticia.cuenta_con_aval) {
+
+// ======================================================
+// ===================== AVAL ============================
+// ======================================================
+// Si existe un documento heredado del préstamo anterior,
+// no obligamos a seleccionar nuevamente el archivo.
+// Si NO existe documento anterior, validamos el nuevo.
+
+if (
+  evaluacionCrediticia.cuenta_con_aval &&
+  !documentosAnteriores.aval
+) {
   const errorAval = validarArchivoPrestamo(
     archivoIdentificacionAval
   );
@@ -1760,7 +2361,17 @@ if (evaluacionCrediticia.cuenta_con_aval) {
   }
 }
 
-if (evaluacionCrediticia.tiene_propiedades === 'SI') {
+
+// ======================================================
+// ================= PROPIEDAD ===========================
+// ======================================================
+// Igual que con el aval: si el préstamo anterior ya tiene
+// documento de propiedad, puede reutilizarse.
+
+if (
+  evaluacionCrediticia.tiene_propiedades === 'SI' &&
+  !documentosAnteriores.propiedad
+) {
   const errorPropiedad = validarArchivoPrestamo(
     archivoDocumentoPropiedad
   );
@@ -1770,7 +2381,15 @@ if (evaluacionCrediticia.tiene_propiedades === 'SI') {
   }
 }
 
-if (evaluacionCrediticia.tiene_automovil === 'SI') {
+
+// ======================================================
+// ================== VEHÍCULO ===========================
+// ======================================================
+
+if (
+  evaluacionCrediticia.tiene_automovil === 'SI' &&
+  !documentosAnteriores.vehiculo
+) {
   const errorVehiculo = validarArchivoPrestamo(
     archivoDocumentoVehiculo
   );
@@ -1780,7 +2399,13 @@ if (evaluacionCrediticia.tiene_automovil === 'SI') {
   }
 }
 
+
+// ======================================================
+// ============== MOSTRAR ERRORES ========================
+// ======================================================
+
 if (Object.keys(erroresArchivos).length > 0) {
+
   setErroresFormulario((prev) => ({
     ...prev,
     ...erroresArchivos,
@@ -1792,7 +2417,17 @@ if (Object.keys(erroresArchivos).length > 0) {
 
   return;
 }
+// ======================================================
+// ============== CONFIRMACIÓN FINAL =====================
+// ======================================================
 
+if (!confirmado) {
+  setShowConfirmPrestamoModal(true);
+  return;
+}
+
+setShowConfirmPrestamoModal(false);
+   
     const fechaSolicitudISO = toISODate(newPrestamo.fecha_solicitud);
     const nPlazos = Number(newPrestamo.numero_plazos);
     const pagoRequerido = Number(pagoPeriodo.toFixed(2));
@@ -2063,9 +2698,14 @@ if (!id_prestamo) {
 // ============== SUBIR ARCHIVOS ========================
 // ======================================================
 
-let identificacionAvalPath = null;
-let documentoPropiedadPath = null;
-let documentoVehiculoPath = null;
+let identificacionAvalPath =
+  documentosAnteriores.aval || null;
+
+let documentoPropiedadPath =
+  documentosAnteriores.propiedad || null;
+
+let documentoVehiculoPath =
+  documentosAnteriores.vehiculo || null;
 
 // Identificación del aval
 if (
@@ -2084,29 +2724,33 @@ if (
 // Documento de propiedad
 if (
   evaluacionCrediticia.tiene_propiedades === 'SI' &&
-  archivoDocumentoPropiedad
+  !documentosAnteriores.propiedad
 ) {
-  documentoPropiedadPath =
-    await subirDocumentoPrestamo({
-      file: archivoDocumentoPropiedad,
-      idPrestamo: id_prestamo,
-      carpeta: 'propiedad',
-      prefijo: 'documento_propiedad',
-    });
+  const errorPropiedad =
+    validarArchivoPrestamo(
+      archivoDocumentoPropiedad
+    );
+
+  if (errorPropiedad) {
+    erroresArchivos.documentoPropiedad =
+      errorPropiedad;
+  }
 }
 
 // Documento del vehículo
 if (
   evaluacionCrediticia.tiene_automovil === 'SI' &&
-  archivoDocumentoVehiculo
+  !documentosAnteriores.vehiculo
 ) {
-  documentoVehiculoPath =
-    await subirDocumentoPrestamo({
-      file: archivoDocumentoVehiculo,
-      idPrestamo: id_prestamo,
-      carpeta: 'vehiculo',
-      prefijo: 'documento_vehiculo',
-    });
+  const errorVehiculo =
+    validarArchivoPrestamo(
+      archivoDocumentoVehiculo
+    );
+
+  if (errorVehiculo) {
+    erroresArchivos.documentoVehiculo =
+      errorVehiculo;
+  }
 }
       
 // ======================================================
@@ -4684,7 +5328,16 @@ const fechaShow =
                 <select
                   className="w-full px-3 py-2 border rounded-lg"
                   value={newPrestamo.id_socio}
-                  onChange={(e) => setNewPrestamo((p) => ({ ...p, id_socio: e.target.value }))}
+                 onChange={async (e) => {
+  const socioId = e.target.value;
+
+  setNewPrestamo((p) => ({
+    ...p,
+    id_socio: socioId,
+  }));
+
+  await cargarDatosPrestamoAnterior(socioId);
+}}
                   disabled={!!idSocio}
                 >
                   <option value="">Selecciona un socio…</option>
@@ -4695,6 +5348,27 @@ const fechaShow =
                   ))}
                 </select>
               </div>
+
+{cargandoDatosPrevios && (
+  <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-sm">
+    Cargando información del préstamo vigente...
+  </div>
+)}
+
+{!cargandoDatosPrevios && prestamoBaseAnterior && (
+  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-300">
+    <p className="font-semibold text-emerald-800">
+      Información precargada
+    </p>
+
+    <p className="text-sm text-emerald-700 mt-1">
+      Se cargaron los datos del Préstamo No.{' '}
+      {prestamoBaseAnterior.numero_prestamo_socio}.
+      Revise la entrevista con el socio y modifique únicamente
+      la información que haya cambiado.
+    </p>
+  </div>
+)}
 
 {/* ================= INFORMACIÓN LABORAL ================= */}
 <div className="border-t border-slate-200 pt-4">
@@ -7179,6 +7853,92 @@ const fechaShow =
           </div>
         </div>
       )}
+
+{/* ====================================================== */}
+{/* =========== CONFIRMAR NUEVO PRÉSTAMO ================= */}
+{/* ====================================================== */}
+
+{showConfirmPrestamoModal && (
+  <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
+
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+
+      <div className="p-6 text-center">
+
+        <div className="w-16 h-16 mx-auto rounded-full bg-amber-100 flex items-center justify-center mb-4">
+          <span className="text-3xl">
+            ⚠️
+          </span>
+        </div>
+
+        <h3 className="text-xl font-bold text-slate-900">
+          Confirmar registro
+        </h3>
+
+        <p className="text-slate-600 mt-3">
+          ¿Está seguro de guardar la información capturada?
+        </p>
+
+        <p className="text-sm text-slate-500 mt-2">
+          Revise que la entrevista, aval, garantías,
+          monto, plazos, interés y fecha sean correctos.
+        </p>
+
+      </div>
+
+
+      <div className="border-t border-slate-200 p-4 flex flex-col sm:flex-row gap-3">
+
+        <button
+          type="button"
+          onClick={() =>
+            setShowConfirmPrestamoModal(false)
+          }
+          disabled={submitting}
+          className="
+            w-full
+            px-4
+            py-3
+            bg-slate-100
+            text-slate-700
+            rounded-xl
+            font-medium
+            hover:bg-slate-200
+          "
+        >
+          No, revisar información
+        </button>
+
+
+        <button
+          type="button"
+          onClick={() =>
+            handleCreatePrestamo(true)
+          }
+          disabled={submitting}
+          className="
+            w-full
+            px-4
+            py-3
+            bg-emerald-600
+            text-white
+            rounded-xl
+            font-semibold
+            hover:bg-emerald-700
+            disabled:opacity-50
+          "
+        >
+          {submitting
+            ? 'Guardando...'
+            : 'Sí, guardar préstamo'}
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+)}
 
       {toastMessage && (
         <div className="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-xl shadow-lg transition-opacity duration-300 z-50">
