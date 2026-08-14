@@ -6,6 +6,7 @@ import DashboardMain from './components/DashboardMain';
 import SociosModule from './components/SociosModule';
 import AhorrosModule from './components/AhorrosModule';
 import PrestamosModule from './components/PrestamosModule';
+import PrestamosModule from './components/PrestamosModule';
 import CentroDigitalModule from './components/CentroDigitalModule';
 import UsuariosModule from './components/UsuariosModule';
 import PagosModule from './components/PagosModule';
