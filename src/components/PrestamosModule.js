@@ -3896,21 +3896,23 @@ if (garantiasParaGuardar.length > 0) {
                         pago.estatus || ''
                       ).toLowerCase() === 'pagado';
 
-                    const programada =
-                      pago.fecha_programada || '';
+                  const programada =
+  pago.fecha_programada
+    ? formatFechaSolo(pago.fecha_programada)
+    : '';
 
-                    const fechaShow =
-                      pago.fecha_hora_pago
-                        ? `${
-                            convertirFechaHoraLocal(
-                              pago.fecha_hora_pago
-                            ).fecha
-                          } ${
-                            convertirFechaHoraLocal(
-                              pago.fecha_hora_pago
-                            ).hora
-                          }`
-                        : programada;
+const fechaShow =
+  pago.fecha_hora_pago
+    ? `${
+        convertirFechaHoraLocal(
+          pago.fecha_hora_pago
+        ).fecha
+      } ${
+        convertirFechaHoraLocal(
+          pago.fecha_hora_pago
+        ).hora
+      }`
+    : programada;
 
                     return (
                       <div
@@ -3920,12 +3922,12 @@ if (garantiasParaGuardar.length > 0) {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-xs text-slate-500">
-                              Número de pago
+                              No. Pago
                             </p>
 
-                            <p className="font-bold text-slate-900">
-                              #{pago.numero_pago}
-                            </p>
+                           <p className="font-bold text-slate-900">
+  {pago.numero_pago}
+</p>
                           </div>
 
                           <span
@@ -4033,8 +4035,8 @@ if (garantiasParaGuardar.length > 0) {
                   <thead>
                     <tr className="border-b border-slate-200">
                       <th className="text-left py-3 px-3">
-                        #
-                      </th>
+  No. Pago
+</th>
 
                       <th className="text-left py-3 px-3">
                         Fecha
@@ -4075,21 +4077,23 @@ if (garantiasParaGuardar.length > 0) {
                           ).toLowerCase() ===
                           'pagado';
 
-                        const programada =
-                          pago.fecha_programada || '';
+                       const programada =
+  pago.fecha_programada
+    ? formatFechaSolo(pago.fecha_programada)
+    : '';
 
-                        const fechaShow =
-                          pago.fecha_hora_pago
-                            ? `${
-                                convertirFechaHoraLocal(
-                                  pago.fecha_hora_pago
-                                ).fecha
-                              } ${
-                                convertirFechaHoraLocal(
-                                  pago.fecha_hora_pago
-                                ).hora
-                              }`
-                            : programada;
+const fechaShow =
+  pago.fecha_hora_pago
+    ? `${
+        convertirFechaHoraLocal(
+          pago.fecha_hora_pago
+        ).fecha
+      } ${
+        convertirFechaHoraLocal(
+          pago.fecha_hora_pago
+        ).hora
+      }`
+    : programada;
 
                         return (
                           <tr
