@@ -40,6 +40,32 @@ const UsuariosModule = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  // ================= PIN ADMINISTRATIVO =================
+
+const [showPinModal, setShowPinModal] =
+  useState(false);
+
+const [usuarioPinTarget, setUsuarioPinTarget] =
+  useState(null);
+
+const [pinAutorizador, setPinAutorizador] =
+  useState('');
+
+const [nuevoPinAdmin, setNuevoPinAdmin] =
+  useState('');
+
+const [confirmarNuevoPinAdmin, setConfirmarNuevoPinAdmin] =
+  useState('');
+
+const [guardandoPin, setGuardandoPin] =
+  useState(false);
+
+const [errorPin, setErrorPin] =
+  useState('');
+
+const [pinesConfigurados, setPinesConfigurados] =
+  useState({});
+
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -49,6 +75,25 @@ const UsuariosModule = () => {
     apikey: SUPABASE_ANON_KEY,
     Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
   };
+
+  // ======================================================
+// ============== USUARIO ACTUAL / ADMIN ================
+// ======================================================
+
+const currentUser = (() => {
+  try {
+    return JSON.parse(
+      localStorage.getItem('currentUser')
+    ) || {};
+  } catch {
+    return {};
+  }
+})();
+
+const currentUserId =
+  currentUser?.id_usuario ||
+  currentUser?.id ||
+  null;
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -170,6 +215,218 @@ const UsuariosModule = () => {
     });
   };
 
+// ======================================================
+// ================= ABRIR PIN ADMIN =====================
+// ======================================================
+
+const abrirGestionPin = (user) => {
+
+  const rol =
+    String(user?.rol || '')
+      .toLowerCase();
+
+  if (
+    ![
+      'admin',
+      'administrador',
+      'superadmin'
+    ].includes(rol)
+  ) {
+
+    alert(
+      'El PIN de autenticación solamente aplica a administradores.'
+    );
+
+    return;
+  }
+
+  setUsuarioPinTarget(user);
+
+  setPinAutorizador('');
+
+  setNuevoPinAdmin('');
+
+  setConfirmarNuevoPinAdmin('');
+
+  setErrorPin('');
+
+  setShowPinModal(true);
+
+};
+
+// ======================================================
+// ============== GUARDAR / CAMBIAR PIN =================
+// ======================================================
+
+const guardarPinAdministrador = async () => {
+
+  if (!usuarioPinTarget?.id_usuario) {
+
+    setErrorPin(
+      'No se pudo identificar al usuario.'
+    );
+
+    return;
+  }
+
+
+  if (!currentUserId) {
+
+    setErrorPin(
+      'No se pudo identificar al administrador que inició sesión.'
+    );
+
+    return;
+  }
+
+
+  const pinActual =
+    String(pinAutorizador || '')
+      .trim();
+
+
+  const nuevoPin =
+    String(nuevoPinAdmin || '')
+      .trim();
+
+
+  const confirmarPin =
+    String(confirmarNuevoPinAdmin || '')
+      .trim();
+
+
+  if (!/^\d{6}$/.test(pinActual)) {
+
+    setErrorPin(
+      'Ingrese su PIN administrativo actual de 6 dígitos.'
+    );
+
+    return;
+  }
+
+
+  if (!/^\d{6}$/.test(nuevoPin)) {
+
+    setErrorPin(
+      'El nuevo PIN debe contener exactamente 6 dígitos.'
+    );
+
+    return;
+  }
+
+
+  if (nuevoPin !== confirmarPin) {
+
+    setErrorPin(
+      'La confirmación del nuevo PIN no coincide.'
+    );
+
+    return;
+  }
+
+
+  setGuardandoPin(true);
+
+  setErrorPin('');
+
+
+  try {
+
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/rpc/gestionar_pin_admin_prestamos`,
+      {
+        method: 'POST',
+
+        headers,
+
+        body: JSON.stringify({
+
+          p_usuario_actual_ref:
+            String(currentUserId),
+
+          p_pin_actual:
+            pinActual,
+
+          p_usuario_destino_ref:
+            String(
+              usuarioPinTarget.id_usuario
+            ),
+
+          p_pin_nuevo:
+            nuevoPin,
+
+        }),
+      }
+    );
+
+
+    if (!response.ok) {
+
+      const texto =
+        await response.text();
+
+      let mensaje =
+        'No se pudo guardar el PIN.';
+
+
+      try {
+
+        const datos =
+          JSON.parse(texto);
+
+        mensaje =
+          datos?.message ||
+          mensaje;
+
+      } catch {
+        // usamos mensaje general
+      }
+
+
+      throw new Error(
+        mensaje
+      );
+
+    }
+
+
+    setPinesConfigurados(
+      (prev) => ({
+        ...prev,
+        [usuarioPinTarget.id_usuario]:
+          true,
+      })
+    );
+
+
+    setShowPinModal(false);
+
+    setUsuarioPinTarget(null);
+
+    setPinAutorizador('');
+
+    setNuevoPinAdmin('');
+
+    setConfirmarNuevoPinAdmin('');
+
+    setErrorPin('');
+
+
+  } catch (err) {
+
+    setErrorPin(
+      err.message ||
+      'No se pudo cambiar el PIN.'
+    );
+
+  } finally {
+
+    setGuardandoPin(false);
+
+  }
+
+};
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -421,11 +678,16 @@ const UsuariosModule = () => {
               <thead>
                 <tr className="border-b border-slate-200 text-slate-700">
                   <th className="py-3 px-4">ID</th>
-                  <th className="py-3 px-4">Email</th>
-                  <th className="py-3 px-4">Rol</th>
-                  <th className="py-3 px-4">Activo</th>
-                  <th className="py-3 px-4">ID Socio</th>
-                  <th className="py-3 px-4">Acciones</th>
+<th className="py-3 px-4">Email</th>
+<th className="py-3 px-4">Rol</th>
+<th className="py-3 px-4">Activo</th>
+<th className="py-3 px-4">ID Socio</th>
+
+<th className="py-3 px-4">
+  PIN de Autenticación
+</th>
+
+<th className="py-3 px-4">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -436,6 +698,52 @@ const UsuariosModule = () => {
                     <td className="py-4 px-4">{user.rol}</td>
                     <td className="py-4 px-4">{user.activo === false ? 'No' : 'Sí'}</td>
                     <td className="py-4 px-4">{user.id_socio || 'N/A'}</td>
+          <td className="py-4 px-4">
+
+  {[
+    'admin',
+    'administrador',
+    'superadmin'
+  ].includes(
+    String(user.rol || '')
+      .toLowerCase()
+  ) ? (
+
+    <div className="flex flex-col items-start gap-1">
+
+      <span className="font-mono text-slate-700">
+
+        {pinesConfigurados[user.id_usuario]
+          ? '••••••'
+          : 'Sin configurar'}
+
+      </span>
+
+      <button
+        type="button"
+        onClick={() =>
+          abrirGestionPin(user)
+        }
+        className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+      >
+
+        {pinesConfigurados[user.id_usuario]
+          ? 'Cambiar PIN'
+          : 'Asignar PIN'}
+
+      </button>
+
+    </div>
+
+  ) : (
+
+    <span className="text-slate-400">
+      No aplica
+    </span>
+
+  )}
+
+</td>
                     <td className="py-4 px-4">
                       <div className="flex gap-2">
                         <button
