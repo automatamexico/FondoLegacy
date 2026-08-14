@@ -1215,7 +1215,7 @@ if (!usuariosAutorizado) {
   </button>
 
 </div>
-
+</div>
 
         {/* NUEVO PIN */}
         <div>
