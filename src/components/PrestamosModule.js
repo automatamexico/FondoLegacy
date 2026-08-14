@@ -8132,6 +8132,251 @@ const fechaShow =
   </div>
 )}
 
+{/* ====================================================== */}
+{/* ============ CANCELACIÓN SEGURA PRÉSTAMO ============= */}
+{/* ====================================================== */}
+
+{showCancelarPrestamoModal && prestamoCancelarTarget && (
+
+  <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
+
+    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
+
+      {/* ENCABEZADO */}
+      <div className="p-5 border-b border-slate-200">
+
+        <h3 className="text-xl font-bold text-slate-900">
+          Cancelar Préstamo No.{' '}
+          {prestamoCancelarTarget.numero_prestamo_socio}
+        </h3>
+
+        <p className="text-sm text-slate-500 mt-1">
+          Esta operación requiere autorización de administrador.
+        </p>
+
+      </div>
+
+
+      {/* CUERPO */}
+      <div className="p-5 space-y-5">
+
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+
+          <p className="font-semibold text-red-800">
+            ¿Está seguro de cancelar este préstamo?
+          </p>
+
+          <p className="text-sm text-red-700 mt-2">
+            El préstamo dejará de aparecer en la operación normal,
+            pero su expediente no será eliminado y podrá restaurarse
+            posteriormente desde Control de Préstamos.
+          </p>
+
+        </div>
+
+
+        {/* DATOS DEL PRÉSTAMO */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+
+            <div>
+              <p className="text-slate-500">
+                Préstamo
+              </p>
+
+              <p className="font-semibold text-slate-900">
+                No. {prestamoCancelarTarget.numero_prestamo_socio}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-slate-500">
+                Monto
+              </p>
+
+              <p className="font-semibold text-slate-900">
+                {formatCurrency(
+                  prestamoCancelarTarget.monto_solicitado
+                )}
+              </p>
+            </div>
+
+            <div className="sm:col-span-2">
+              <p className="text-slate-500">
+                Administrador
+              </p>
+
+              <p className="font-semibold text-slate-900 break-all">
+                {currentUserName}
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+
+
+        {/* PIN */}
+        <div>
+
+          <label className="block text-sm font-semibold text-slate-700 mb-1">
+            PIN de administrador *
+          </label>
+
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            autoComplete="off"
+            value={pinCancelarPrestamo}
+            onChange={(e) => {
+
+              const valor =
+                e.target.value.replace(/\D/g, '');
+
+              setPinCancelarPrestamo(
+                valor.slice(0, 6)
+              );
+
+              setErrorCancelarPrestamo('');
+
+            }}
+            placeholder="••••••"
+            className="
+              w-full
+              border
+              border-slate-300
+              rounded-xl
+              px-4
+              py-3
+              text-center
+              text-xl
+              tracking-[0.4em]
+              focus:outline-none
+              focus:ring-2
+              focus:ring-red-500
+            "
+          />
+
+          <p className="text-xs text-slate-500 mt-1">
+            Ingrese los 6 dígitos del PIN autorizado.
+          </p>
+
+        </div>
+
+
+        {/* MOTIVO */}
+        <div>
+
+          <label className="block text-sm font-semibold text-slate-700 mb-1">
+            Motivo de la cancelación *
+          </label>
+
+          <textarea
+            value={motivoCancelarPrestamo}
+            onChange={(e) => {
+
+              setMotivoCancelarPrestamo(
+                e.target.value
+              );
+
+              setErrorCancelarPrestamo('');
+
+            }}
+            rows={4}
+            placeholder="Ejemplo: El socio decidió no aceptar las condiciones del préstamo."
+            className="
+              w-full
+              border
+              border-slate-300
+              rounded-xl
+              px-4
+              py-3
+              resize-none
+              focus:outline-none
+              focus:ring-2
+              focus:ring-red-500
+            "
+          />
+
+        </div>
+
+
+        {/* ERROR */}
+        {errorCancelarPrestamo && (
+
+          <div className="p-3 bg-red-50 border border-red-300 rounded-xl text-red-700 text-sm font-medium">
+
+            ⚠ {errorCancelarPrestamo}
+
+          </div>
+
+        )}
+
+      </div>
+
+
+      {/* BOTONES */}
+      <div className="p-4 border-t border-slate-200 flex flex-col sm:flex-row gap-3">
+
+        <button
+          type="button"
+          disabled={cancelandoPrestamo}
+          onClick={() => {
+
+            setShowCancelarPrestamoModal(false);
+            setPrestamoCancelarTarget(null);
+            setPinCancelarPrestamo('');
+            setMotivoCancelarPrestamo('');
+            setErrorCancelarPrestamo('');
+
+          }}
+          className="
+            w-full
+            px-4
+            py-3
+            bg-slate-100
+            text-slate-700
+            rounded-xl
+            font-medium
+            hover:bg-slate-200
+            disabled:opacity-50
+          "
+        >
+          No, regresar
+        </button>
+
+
+        <button
+          type="button"
+          disabled={cancelandoPrestamo}
+          onClick={confirmarCancelarPrestamo}
+          className="
+            w-full
+            px-4
+            py-3
+            bg-red-600
+            text-white
+            rounded-xl
+            font-semibold
+            hover:bg-red-700
+            disabled:opacity-50
+          "
+        >
+          {cancelandoPrestamo
+            ? 'Cancelando...'
+            : 'Sí, cancelar préstamo'}
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+)}
+
       {toastMessage && (
         <div className="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-xl shadow-lg transition-opacity duration-300 z-50">
           {toastMessage}
