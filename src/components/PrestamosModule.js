@@ -567,7 +567,7 @@ const localPlainDateTime = () => {
       setTotalSociosConPrestamo(uniqueSociosIds.size);
 
       const sumPrestamosResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/prestamos?select=monto_solicitado`,
+       `${SUPABASE_URL}/rest/v1/prestamos?select=monto_solicitado&eliminado=eq.false`,
         { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
       );
       const prestamosRows = await sumPrestamosResp.json();
