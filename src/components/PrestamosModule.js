@@ -138,9 +138,19 @@ const [documentosAnteriores, setDocumentosAnteriores] = useState({
   vehiculo: null,
 });
 
-  const currentUserRole = localStorage.getItem('currentUser')
-    ? (JSON.parse(localStorage.getItem('currentUser')).role || 'admin')
-    : 'admin';
+ // ================= USUARIO ACTUAL / AUDITORÍA =================
+const currentUser = (() => {
+  try {
+    return JSON.parse(localStorage.getItem('currentUser')) || {};
+  } catch (error) {
+    console.error('No se pudo leer currentUser:', error);
+    return {};
+  }
+})();
+
+const currentUserId = currentUser?.id || null;
+const currentUserName = currentUser?.name || 'USUARIO DESCONOCIDO';
+const currentUserRole = currentUser?.role || '';
 
  const [newPrestamo, setNewPrestamo] = useState({
   id_socio: '',
