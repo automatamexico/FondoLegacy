@@ -97,6 +97,55 @@ const currentUserId =
   currentUser?.id ||
   null;
 
+// ======================================================
+// ============= ESTADO DE PINES ADMIN ==================
+// ======================================================
+
+const fetchPinStatus = async () => {
+
+  try {
+
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/rpc/listar_estado_pines_admin`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+      }
+    );
+
+    if (!response.ok) {
+      console.error(
+        'No se pudo consultar el estado de los PIN.'
+      );
+      return;
+    }
+
+    const data = await response.json();
+
+    const mapaPines = {};
+
+    (Array.isArray(data) ? data : []).forEach((item) => {
+
+      mapaPines[item.usuario_ref] =
+        item.configurado === true &&
+        item.activo !== false;
+
+    });
+
+    setPinesConfigurados(mapaPines);
+
+  } catch (err) {
+
+    console.error(
+      'Error consultando estado de PIN:',
+      err
+    );
+
+  }
+
+};
+  
   const fetchUsers = async () => {
     setLoading(true);
     setError(null);
@@ -110,6 +159,7 @@ const currentUserId =
 
       const data = await response.json();
       setUsersList(data);
+      await fetchPinStatus();
 
       const permRes = await fetch(`${SUPABASE_URL}/rest/v1/permisos_modulos_fondo?select=*`, {
         headers,
@@ -631,6 +681,88 @@ const guardarPinAdministrador = async () => {
                 />
                 Usuario activo
               </label>
+                    {/* ====================================================== */}
+{/* ============== PIN DE AUTENTICACIÓN ================== */}
+{/* ====================================================== */}
+
+{[
+  'admin',
+  'administrador',
+  'superadmin'
+].includes(
+  String(form.rol || '')
+    .toLowerCase()
+) && (
+
+  <div className="md:col-span-2 border border-purple-200 bg-purple-50 rounded-xl p-4">
+
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+
+      <div>
+
+        <p className="text-sm font-semibold text-slate-800">
+          PIN de Autenticación
+        </p>
+
+
+        {editingUser ? (
+
+          pinesConfigurados[editingUser.id_usuario] ? (
+
+            <div className="mt-1">
+
+              <span className="font-mono text-lg tracking-[0.3em] text-slate-800">
+                ••••••
+              </span>
+
+              <span className="ml-3 inline-flex px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+                Configurado
+              </span>
+
+            </div>
+
+          ) : (
+
+            <p className="mt-1 text-sm text-orange-700 font-medium">
+              Sin configurar
+            </p>
+
+          )
+
+        ) : (
+
+          <p className="mt-1 text-sm text-slate-500">
+            Primero registre al administrador para poder asignarle un PIN.
+          </p>
+
+        )}
+
+      </div>
+
+
+      {editingUser && (
+
+        <button
+          type="button"
+          onClick={() =>
+            abrirGestionPin(editingUser)
+          }
+          className="w-full sm:w-auto px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700"
+        >
+
+          {pinesConfigurados[editingUser.id_usuario]
+            ? 'Cambiar PIN'
+            : 'Asignar PIN'}
+
+        </button>
+
+      )}
+
+    </div>
+
+  </div>
+
+)}
             </div>
 
             <div>
