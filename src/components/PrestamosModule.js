@@ -3573,9 +3573,12 @@ if (garantiasParaGuardar.length > 0) {
       {/* Historial de préstamos del socio */}
       {showPrestamoHistorial && selectedSocioForHistorial && !showEditPrestamosModal && (
         <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
-          <h3 className="text-xl font-bold text-slate-900 mb-4">
-            Historial de Préstamos de {selectedSocioForHistorial.nombre} {selectedSocioForHistorial.apellido_paterno}
-          </h3>
+         <h3 className="text-xl font-bold text-slate-900 mb-4">
+  Historial de Préstamos de{' '}
+  {selectedSocioForHistorial.nombre}{' '}
+  {selectedSocioForHistorial.apellido_paterno}{' '}
+  {selectedSocioForHistorial.apellido_materno || ''}
+</h3>
           {loading && <p className="text-center text-slate-600">Cargando préstamos...</p>}
           {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
           {!loading && !error && socioPrestamos.length === 0 && (
@@ -3650,9 +3653,12 @@ if (garantiasParaGuardar.length > 0) {
       {/* Edición de préstamos del socio */}
       {showEditPrestamosModal && selectedSocioForHistorial && (
         <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
-          <h3 className="text-xl font-bold text-slate-900 mb-4">
-            Editar Préstamos de {selectedSocioForHistorial.nombre} {selectedSocioForHistorial.apellido_paterno}
-          </h3>
+         <h3 className="text-xl font-bold text-slate-900 mb-4">
+  Editar Préstamos de{' '}
+  {selectedSocioForHistorial.nombre}{' '}
+  {selectedSocioForHistorial.apellido_paterno}{' '}
+  {selectedSocioForHistorial.apellido_materno || ''}
+</h3>
           {loading && <p className="text-center text-slate-600">Cargando préstamos para edición...</p>}
           {error && !loading && <p className="text-center text-red-500">Error: {error}</p>}
           {!loading && !error && socioPrestamos.length === 0 && (
