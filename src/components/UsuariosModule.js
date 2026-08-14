@@ -66,11 +66,41 @@ const [errorPin, setErrorPin] =
 const [pinesConfigurados, setPinesConfigurados] =
   useState({});
 
+  const [mostrarPinAutorizador, setMostrarPinAutorizador] =
+  useState(false);
+
+const [mostrarNuevoPin, setMostrarNuevoPin] =
+  useState(false);
+
+const [mostrarConfirmacionPin, setMostrarConfirmacionPin] =
+  useState(false);
+
+  // ================= ACCESO CONTROL USUARIOS =================
+
+const [usuariosAutorizado, setUsuariosAutorizado] =
+  useState(false);
+
+const [pinAccesoUsuarios, setPinAccesoUsuarios] =
+  useState('');
+
+const [validandoAccesoUsuarios, setValidandoAccesoUsuarios] =
+  useState(false);
+
+const [errorAccesoUsuarios, setErrorAccesoUsuarios] =
+  useState('');
+
+const [mostrarPinAccesoUsuarios, setMostrarPinAccesoUsuarios] =
+  useState(false);
+
   const formularioUsuarioRef = useRef(null);
 
-  useEffect(() => {
+useEffect(() => {
+
+  if (usuariosAutorizado) {
     fetchUsers();
-  }, []);
+  }
+
+}, [usuariosAutorizado]);
 
   const headers = {
     'Content-Type': 'application/json',
@@ -97,6 +127,133 @@ const currentUserId =
   currentUser?.id ||
   null;
 
+// ======================================================
+// ========== VALIDAR ACCESO CONTROL USUARIOS ===========
+// ======================================================
+
+const validarAccesoUsuarios = async () => {
+
+  const pinLimpio =
+    String(pinAccesoUsuarios || '').trim();
+
+
+  // Validar usuario actual
+  if (!currentUserId) {
+
+    setErrorAccesoUsuarios(
+      'No se pudo identificar al usuario que inició sesión.'
+    );
+
+    return;
+  }
+
+
+  // PIN exactamente de 6 números
+  if (!/^\d{6}$/.test(pinLimpio)) {
+
+    setErrorAccesoUsuarios(
+      'Ingrese un PIN válido de 6 dígitos.'
+    );
+
+    return;
+  }
+
+
+  setValidandoAccesoUsuarios(true);
+
+  setErrorAccesoUsuarios('');
+
+
+  try {
+
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/rpc/validar_pin_prestamos`,
+      {
+        method: 'POST',
+
+        headers,
+
+        body: JSON.stringify({
+
+          p_usuario_ref:
+            String(currentUserId),
+
+          p_pin:
+            pinLimpio,
+
+        }),
+      }
+    );
+
+
+    if (!response.ok) {
+
+      const texto =
+        await response.text();
+
+      let mensaje =
+        'No se pudo validar el PIN.';
+
+
+      try {
+
+        const obj =
+          JSON.parse(texto);
+
+        mensaje =
+          obj?.message ||
+          mensaje;
+
+      } catch {
+        // dejamos mensaje general
+      }
+
+
+      throw new Error(
+        mensaje
+      );
+
+    }
+
+
+    const resultado =
+      await response.json();
+
+
+    if (resultado !== true) {
+
+      throw new Error(
+        'PIN de administrador incorrecto.'
+      );
+
+    }
+
+
+    // ================= PIN CORRECTO =================
+
+    setUsuariosAutorizado(true);
+
+    setPinAccesoUsuarios('');
+
+    setErrorAccesoUsuarios('');
+
+
+  } catch (err) {
+
+    setErrorAccesoUsuarios(
+      err.message ||
+      'PIN de administrador incorrecto.'
+    );
+
+
+  } finally {
+
+    setValidandoAccesoUsuarios(false);
+
+  }
+
+};
+  
 // ======================================================
 // ============= ESTADO DE PINES ADMIN ==================
 // ======================================================
@@ -586,7 +743,170 @@ const guardarPinAdministrador = async () => {
       .toLowerCase()
       .includes(searchTerm.toLowerCase())
   );
+// ======================================================
+// ============ BLOQUEO CONTROL DE USUARIOS =============
+// ======================================================
 
+if (!usuariosAutorizado) {
+
+  return (
+
+    <div className="p-4 md:p-6 bg-slate-50 min-h-full">
+
+      <div className="max-w-md mx-auto mt-8 bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden">
+
+
+        {/* ENCABEZADO */}
+        <div className="p-6 text-center border-b border-slate-200">
+
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-purple-100 flex items-center justify-center text-3xl mb-4">
+            🔐
+          </div>
+
+          <h2 className="text-2xl font-bold text-slate-900">
+            Control de Usuarios
+          </h2>
+
+          <p className="text-sm text-slate-500 mt-2">
+            Esta sección contiene información sensible.
+            Ingrese su PIN administrativo para continuar.
+          </p>
+
+        </div>
+
+
+        {/* CUERPO */}
+        <div className="p-6">
+
+          <label className="block text-sm font-semibold text-slate-700 mb-2">
+            PIN de Autenticación
+          </label>
+
+
+          <div className="relative">
+
+            <input
+              type={
+                mostrarPinAccesoUsuarios
+                  ? 'text'
+                  : 'password'
+              }
+              inputMode="numeric"
+              maxLength={6}
+              autoComplete="off"
+              value={pinAccesoUsuarios}
+              onChange={(e) => {
+
+                setPinAccesoUsuarios(
+                  e.target.value
+                    .replace(/\D/g, '')
+                    .slice(0, 6)
+                );
+
+                setErrorAccesoUsuarios('');
+
+              }}
+              onKeyDown={(e) => {
+
+                if (e.key === 'Enter') {
+                  validarAccesoUsuarios();
+                }
+
+              }}
+              placeholder="••••••"
+              className="
+                w-full
+                border
+                border-slate-300
+                rounded-xl
+                px-4
+                py-3
+                pr-12
+                text-center
+                text-xl
+                tracking-[0.4em]
+              "
+            />
+
+
+            {/* OJITO */}
+            <button
+              type="button"
+              onClick={() =>
+                setMostrarPinAccesoUsuarios(
+                  !mostrarPinAccesoUsuarios
+                )
+              }
+              className="
+                absolute
+                right-3
+                top-1/2
+                -translate-y-1/2
+                text-slate-500
+                hover:text-slate-800
+              "
+              title={
+                mostrarPinAccesoUsuarios
+                  ? 'Ocultar PIN'
+                  : 'Mostrar PIN'
+              }
+            >
+
+              {mostrarPinAccesoUsuarios
+                ? '🙈'
+                : '👁️'}
+
+            </button>
+
+          </div>
+
+
+          {/* ERROR */}
+          {errorAccesoUsuarios && (
+
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+
+              ⚠ {errorAccesoUsuarios}
+
+            </div>
+
+          )}
+
+
+          {/* BOTÓN ENTRAR */}
+          <button
+            type="button"
+            onClick={validarAccesoUsuarios}
+            disabled={validandoAccesoUsuarios}
+            className="
+              w-full
+              mt-5
+              px-4
+              py-3
+              bg-purple-600
+              text-white
+              rounded-xl
+              font-semibold
+              hover:bg-purple-700
+              disabled:opacity-50
+            "
+          >
+
+            {validandoAccesoUsuarios
+              ? 'Validando...'
+              : 'Ingresar a Control de Usuarios'}
+
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  );
+
+}
   return (
     <div className="p-4 md:p-6 space-y-6 bg-slate-50 min-h-full">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -862,37 +1182,39 @@ const guardarPinAdministrador = async () => {
           <label className="block text-sm font-semibold text-slate-700 mb-1">
             Su PIN administrativo *
           </label>
+<div className="relative">
 
-          <input
-            type="password"
-            inputMode="numeric"
-            maxLength={6}
-            autoComplete="off"
-            value={pinAutorizador}
-            onChange={(e) => {
+  <input
+    type={mostrarPinAutorizador ? 'text' : 'password'}
+    inputMode="numeric"
+    maxLength={6}
+    autoComplete="off"
+    value={pinAutorizador}
+    onChange={(e) => {
+      setPinAutorizador(
+        e.target.value
+          .replace(/\D/g, '')
+          .slice(0, 6)
+      );
 
-              setPinAutorizador(
-                e.target.value
-                  .replace(/\D/g, '')
-                  .slice(0, 6)
-              );
+      setErrorPin('');
+    }}
+    placeholder="••••••"
+    className="w-full border border-slate-300 rounded-xl px-4 py-3 pr-12 text-center text-xl tracking-[0.4em]"
+  />
 
-              setErrorPin('');
+  <button
+    type="button"
+    onClick={() =>
+      setMostrarPinAutorizador(!mostrarPinAutorizador)
+    }
+    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800"
+    title={mostrarPinAutorizador ? 'Ocultar PIN' : 'Mostrar PIN'}
+  >
+    {mostrarPinAutorizador ? '🙈' : '👁️'}
+  </button>
 
-            }}
-            placeholder="••••••"
-            className="
-              w-full
-              border border-slate-300
-              rounded-xl
-              px-4 py-3
-              text-center
-              text-xl
-              tracking-[0.4em]
-            "
-          />
-
-        </div>
+</div>
 
 
         {/* NUEVO PIN */}
